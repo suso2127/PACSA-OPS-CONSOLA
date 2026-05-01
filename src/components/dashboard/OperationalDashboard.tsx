@@ -271,24 +271,31 @@ export function OperationalDashboard() {
               <h3 className="text-base font-black text-white uppercase tracking-tight">Estado de Fuerza</h3>
             </div>
             <div className="flex flex-col items-center justify-center h-[280px] text-center bg-white/[0.02] rounded-2xl p-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={forceData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {forceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                </PieChart>
-              </ResponsiveContainer>
+              <ChartContainer config={{
+                value: { label: "Elementos" },
+                Activos: { label: "Activos", color: "#3b82f6" },
+                Dobles: { label: "Dobles", color: "#ef4444" },
+                Faltantes: { label: "Faltantes", color: "#f97316" }
+              }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={forceData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {forceData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
               <div className="grid grid-cols-3 gap-2 w-full mt-4">
                 {forceData.map((item) => (
                   <div key={item.name} className="flex flex-col items-center gap-1">
