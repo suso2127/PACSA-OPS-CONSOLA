@@ -72,13 +72,22 @@ export function EquipmentTable() {
 
   const handleUpdateStatus = async (id: string, status: string) => {
     try {
-      await updateDoc(doc(db, 'equipment-registrations', id), { status });
-      toast({ 
-        title: "ESTADO ACTUALIZADO", 
-        description: `La dotación ahora se encuentra en estado: ${status}` 
-      });
+      if (status === 'ENTREGADO') {
+        // Acción de liberación y limpieza automática
+        await deleteDoc(doc(db, 'equipment-registrations', id));
+        toast({ 
+          title: "DOTACIÓN FINALIZADA", 
+          description: "Equipo entregado. El registro ha sido liberado y limpiado del monitor." 
+        });
+      } else {
+        await updateDoc(doc(db, 'equipment-registrations', id), { status });
+        toast({ 
+          title: "ESTADO ACTUALIZADO", 
+          description: `La dotación ahora se encuentra en estado: ${status}` 
+        });
+      }
     } catch (err) {
-      toast({ title: "ERROR", description: "No se pudo actualizar el estado.", variant: "destructive" });
+      toast({ title: "ERROR", description: "No se pudo procesar el estado.", variant: "destructive" });
     }
   };
 
