@@ -8,6 +8,7 @@ import { OperationalDashboard } from './OperationalDashboard';
 import { ProjectManagement } from './ProjectManagement';
 import { HistoryView } from './HistoryView';
 import { StatisticsView } from './StatisticsView';
+import { MapView } from './MapView';
 import { 
   Users, 
   ShieldCheck, 
@@ -123,7 +124,11 @@ export function AdminView() {
           <StatisticsView />
         )}
 
-        {['dobles', 'mapa', 'config'].includes(activeTab) && (
+        {activeTab === 'mapa' && (
+          <MapView />
+        )}
+
+        {['dobles', 'config'].includes(activeTab) && (
           <div className="dashboard-card flex flex-col items-center justify-center py-20 text-center">
             <div className="p-6 bg-secondary rounded-full mb-4">
               <Settings className="h-12 w-12 text-muted-foreground animate-spin-slow" />
