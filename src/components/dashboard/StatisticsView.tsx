@@ -7,7 +7,11 @@ import {
   ChevronLeft, 
   ChevronRight,
   TrendingUp,
-  PieChart as PieIcon
+  PieChart as PieIcon,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +38,49 @@ export function StatisticsView() {
       <div className="border-b border-white/5 pb-6">
         <h1 className="text-4xl font-black tracking-tighter text-white uppercase">Análisis Estadístico</h1>
         <p className="text-muted-foreground text-sm font-medium mt-1">Monitoreo de rendimiento y métricas de cumplimiento operacional</p>
+      </div>
+
+      {/* Indicadores de Rendimiento de Alto Impacto */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[#1a1b2e] border border-white/5 p-6 rounded-2xl shadow-xl flex items-center gap-4 group hover:border-green-500/20 transition-all">
+          <div className="p-3 bg-green-500/10 rounded-xl group-hover:scale-110 transition-transform">
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Cumplimiento Promedio</p>
+            <h4 className="text-2xl font-black text-white">94.2%</h4>
+          </div>
+        </div>
+        
+        <div className="bg-[#1a1b2e] border border-white/5 p-6 rounded-2xl shadow-xl flex items-center gap-4 group hover:border-primary/20 transition-all">
+          <div className="p-3 bg-primary/10 rounded-xl group-hover:scale-110 transition-transform">
+            <Zap className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Efectividad Operativa</p>
+            <h4 className="text-2xl font-black text-white">98.5%</h4>
+          </div>
+        </div>
+
+        <div className="bg-[#1a1b2e] border border-white/5 p-6 rounded-2xl shadow-xl flex items-center gap-4 group hover:border-orange-500/20 transition-all">
+          <div className="p-3 bg-orange-500/10 rounded-xl group-hover:scale-110 transition-transform">
+            <Clock className="h-6 w-6 text-orange-500" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Horas Totales Sem.</p>
+            <h4 className="text-2xl font-black text-white">1,240h</h4>
+          </div>
+        </div>
+
+        <div className="bg-[#1a1b2e] border border-white/5 p-6 rounded-2xl shadow-xl flex items-center gap-4 group hover:border-red-500/20 transition-all">
+          <div className="p-3 bg-red-500/10 rounded-xl group-hover:scale-110 transition-transform">
+            <AlertCircle className="h-6 w-6 text-red-500" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Alertas de Ausencia</p>
+            <h4 className="text-2xl font-black text-white">3</h4>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8">
