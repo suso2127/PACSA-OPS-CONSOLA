@@ -9,16 +9,12 @@ import { GuardView } from '@/components/dashboard/GuardView';
 import { LogOut, LayoutDashboard, Shield, Bell, Clock, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
-import Image from 'next/image';
-import placeholderImages from '@/app/lib/placeholder-images.json';
 
 type Role = 'Admin' | 'Supervisor' | 'Guard';
 
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
   const [currentTime, setCurrentTime] = useState<string | null>(null);
-
-  const grupsaLogo = placeholderImages.placeholderImages.find(img => img.id === 'grupsa-logo');
 
   useEffect(() => {
     const updateTime = () => {
@@ -64,23 +60,14 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Logo Central de Impacto */}
+        {/* Identificación Corporativa Central (Solo Nombre) */}
         <div className="hidden md:flex items-center justify-center flex-1 px-4">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-            <div className="relative flex items-center gap-3 px-4 py-2 bg-card/50 rounded-lg border border-white/5">
-              <div className="h-10 w-10 relative overflow-hidden rounded shadow-[0_0_10px_rgba(59,130,246,0.2)]">
-                <Image 
-                  src={grupsaLogo?.imageUrl || ''} 
-                  alt="GRUPSA Logo" 
-                  fill 
-                  className="object-cover grayscale hover:grayscale-0 transition-all duration-500"
-                  data-ai-hint="security logo"
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-white tracking-[0.3em] uppercase leading-none">GRUPSA-CONTROL</span>
-                <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Grupo Pacsa S.A.</span>
+            <div className="relative flex items-center gap-3 px-6 py-2.5 bg-card/50 rounded-lg border border-white/5">
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-black text-white tracking-[0.4em] uppercase leading-none">GRUPSA-CONTROL</span>
+                <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mt-1.5">Grupo Pacsa S.A.</span>
               </div>
             </div>
           </div>
