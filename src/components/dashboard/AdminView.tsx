@@ -11,7 +11,6 @@ import { StatisticsView } from './StatisticsView';
 import { MapView } from './MapView';
 import { DoubleShiftControl } from './DoubleShiftControl';
 import { 
-  Users, 
   ShieldCheck, 
   FileText,
   UserPlus,
@@ -33,7 +32,6 @@ export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
 
   const stats = [
-    { label: 'Guardias Activos', value: '42', icon: Users, color: 'text-primary' },
     { label: 'Proyectos', value: '12', icon: ShieldCheck, color: 'text-accent' },
     { label: 'Informes Pendientes', value: '5', icon: FileText, color: 'text-yellow-500' },
   ];
@@ -54,7 +52,7 @@ export function AdminView() {
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Estadísticas Rápidas */}
       {activeTab === 'dashboard' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {stats.map((stat, i) => (
             <Card key={i} className="bg-card border-border overflow-hidden">
               <CardContent className="p-6">
