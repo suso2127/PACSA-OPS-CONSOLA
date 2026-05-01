@@ -160,7 +160,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
     const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
     
-    if (isNaN(start.getTime())) return '--:--';
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '0.00';
 
     const diffMs = end.getTime() - start.getTime();
     if (diffMs < 0) return '0.00';
@@ -231,6 +231,13 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       default:
         return 'bg-primary/10 text-primary border-primary/20';
     }
+  };
+
+  const formatDisplayTime = (ts: any) => {
+    if (!ts) return '--:--';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    if (isNaN(date.getTime())) return '--:--';
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
   const OBSERVATION_OPTIONS = [
@@ -385,7 +392,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     </TableCell>
                     <TableCell className="text-center py-2.5">
                       <div className="font-mono text-[10px] font-black text-white bg-[#1a1b2e] px-1.5 py-0.5 rounded border border-white/5 select-none">
-                        {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
+                        {formatDisplayTime(shift.entryTime)}
                       </div>
                     </TableCell>
                     {!hideExitTime && (

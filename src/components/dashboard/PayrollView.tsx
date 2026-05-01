@@ -78,11 +78,15 @@ export function PayrollView() {
     if (!entry) return 0;
     const start = entry.toDate ? entry.toDate() : new Date(entry);
     const end = exit?.toDate ? exit.toDate() : (exit ? new Date(exit) : new Date());
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+    
     const diffMs = end.getTime() - start.getTime();
     return Math.max(0, diffMs / (1000 * 60 * 60));
   };
 
   const formatToHHMM = (hoursDecimal: number) => {
+    if (isNaN(hoursDecimal)) return "00:00";
     const hrs = Math.floor(hoursDecimal);
     const mins = Math.round((hoursDecimal - hrs) * 60);
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
@@ -111,6 +115,8 @@ export function PayrollView() {
         }
 
         const entryDate = curr.entryTime?.toDate ? curr.entryTime.toDate() : new Date(curr.entryTime);
+        if (isNaN(entryDate.getTime())) return acc;
+
         const dateKey = entryDate.toDateString();
         
         // Calcular horas reales basadas en entrada/salida capturada en Operaciones
