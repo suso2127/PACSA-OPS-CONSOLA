@@ -21,12 +21,13 @@ import {
   Copy,
   LayoutGrid,
   Building2,
-  BarChart3
+  BarChart3,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'proyectos' | 'config' | 'estadistica';
+type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'proyectos' | 'config' | 'estadistica' | 'planilla';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -41,6 +42,7 @@ export function AdminView() {
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Estado', icon: ListTodo },
     { id: 'dobles', label: 'Dobles', icon: Copy },
+    { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
@@ -115,6 +117,16 @@ export function AdminView() {
           <DoubleShiftControl />
         )}
 
+        {activeTab === 'planilla' && (
+          <div className="dashboard-card flex flex-col items-center justify-center py-20 text-center">
+            <div className="p-6 bg-secondary rounded-full mb-4">
+              <FileSpreadsheet className="h-12 w-12 text-muted-foreground animate-pulse" />
+            </div>
+            <h3 className="text-xl font-bold uppercase tracking-widest">Módulo de Planilla</h3>
+            <p className="text-muted-foreground mt-2">La gestión de PLANILLA operativa estará disponible próximamente.</p>
+          </div>
+        )}
+
         {activeTab === 'proyectos' && (
           <ProjectManagement />
         )}
@@ -123,9 +135,7 @@ export function AdminView() {
           <HistoryView />
         )}
 
-        {activeTab === 'estadistica' && (
-          <StatisticsView />
-        )}
+        {activeTab === 'estadistica' && <StatisticsView />}
 
         {activeTab === 'mapa' && <MapView />}
 
