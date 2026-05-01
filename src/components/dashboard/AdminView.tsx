@@ -6,6 +6,7 @@ import { GuardRegistrationForm } from './GuardRegistrationForm';
 import { ShiftTable } from './ShiftTable';
 import { OperationalDashboard } from './OperationalDashboard';
 import { ProjectManagement } from './ProjectManagement';
+import { HistoryView } from './HistoryView';
 import { 
   Users, 
   ShieldCheck, 
@@ -111,7 +112,11 @@ export function AdminView() {
           <ProjectManagement />
         )}
 
-        {['dobles', 'mapa', 'historial', 'config'].includes(activeTab) && (
+        {activeTab === 'historial' && (
+          <HistoryView />
+        )}
+
+        {['dobles', 'mapa', 'config'].includes(activeTab) && (
           <div className="dashboard-card flex flex-col items-center justify-center py-20 text-center">
             <div className="p-6 bg-secondary rounded-full mb-4">
               <Settings className="h-12 w-12 text-muted-foreground animate-spin-slow" />
