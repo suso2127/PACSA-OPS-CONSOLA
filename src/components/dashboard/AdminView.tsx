@@ -82,7 +82,7 @@ export function AdminView() {
 
         {activeTab === 'estado' && (
           <div className="w-full">
-            <ShiftTable />
+            <ShiftTable showObservations={true} />
           </div>
         )}
 

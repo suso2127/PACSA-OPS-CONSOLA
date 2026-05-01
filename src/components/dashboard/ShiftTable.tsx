@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
@@ -46,7 +47,11 @@ interface Shift {
   status: string;
 }
 
-export function ShiftTable() {
+interface ShiftTableProps {
+  showObservations?: boolean;
+}
+
+export function ShiftTable({ showObservations = false }: ShiftTableProps) {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -118,6 +123,16 @@ export function ShiftTable() {
     });
   };
 
+  const handleUpdateObservation = (id: string, observation: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    updateDoc(shiftRef, { observation });
+    
+    toast({
+      title: "OBSERVACIÓN ACTUALIZADA",
+      description: `Se registró: ${observation}`
+    });
+  };
+
   const handleClearMonitor = () => {
     const idsToHide = shifts
       .filter(s => s.status === 'Finalizado' || s.status === 'Completo')
@@ -181,6 +196,18 @@ export function ShiftTable() {
         return 'bg-primary/10 text-primary border-primary/20';
     }
   };
+
+  const OBSERVATION_OPTIONS = [
+    'SE RETIRO', 
+    'FINALIZADO', 
+    'DOBLE', 
+    'COMPLETADO', 
+    'EMERGENCIA', 
+    'URGENCIA', 
+    'ABANDONO', 
+    'ENFERMEDAD', 
+    'CAMBIO DE TURNO'
+  ];
 
   if (loading) {
     return (
@@ -276,6 +303,9 @@ export function ShiftTable() {
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Entrada</TableHead>
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Término</TableHead>
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Jornada</TableHead>
+                {showObservations && (
+                  <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Observaciones</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -329,11 +359,30 @@ export function ShiftTable() {
                         {shift.duration || '12h'}
                       </Badge>
                     </TableCell>
+                    {showObservations && (
+                      <TableCell className="text-center">
+                        <Select 
+                          value={shift.observation || ''} 
+                          onValueChange={(val) => handleUpdateObservation(shift.id, val)}
+                        >
+                          <SelectTrigger className="h-8 bg-[#1a1b2e] border-white/10 text-[10px] font-black uppercase w-full max-w-[150px] mx-auto focus:ring-0">
+                            <SelectValue placeholder="SIN OBS" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                            {OBSERVATION_OPTIONS.map((opt) => (
+                              <SelectItem key={opt} value={opt} className="text-[10px] font-black uppercase tracking-tight">
+                                {opt}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-24 text-muted-foreground italic font-medium">
+                  <TableCell colSpan={showObservations ? 6 : 5} className="text-center py-24 text-muted-foreground italic font-medium">
                     No hay operaciones activas detectadas.
                   </TableCell>
                 </TableRow>
