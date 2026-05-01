@@ -124,7 +124,8 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const shiftRef = doc(db, 'shift-registrations', id);
     const updateData: any = { status };
     
-    if (status === 'Finalizado') {
+    // Cuando el turno se marca como Finalizado o Completo, capturamos la hora de salida para calcular horas
+    if (status === 'Finalizado' || status === 'Completo') {
       updateData.exitTime = serverTimestamp();
     } else {
       updateData.exitTime = null;
@@ -139,8 +140,8 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     });
 
     toast({
-      title: "ESTADO ACTUALIZADO",
-      description: `El elemento ${name} ha sido actualizado a ${status}.`
+      title: "OPERACIÓN REGISTRADA",
+      description: `El elemento ${name} ha sido actualizado a: ${status.toUpperCase()}.`
     });
   };
 
@@ -177,7 +178,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     if (idsToHide.length === 0) {
       toast({
         title: "SIN REGISTROS PARA LIMPIAR",
-        description: "No hay elementos finalizados visibles en el monitor."
+        description: "No hay elementos finalizados o completos visibles en el monitor."
       });
       return;
     }
@@ -321,6 +322,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                   <SelectItem value="all" className="text-[9px] font-black uppercase tracking-widest">TODOS</SelectItem>
                   <SelectItem value="Activo" className="text-[9px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
                   <SelectItem value="Doble" className="text-[9px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
+                  <SelectItem value="Completo" className="text-[9px] font-black uppercase tracking-widest text-blue-500">COMPLETOS</SelectItem>
                   <SelectItem value="Finalizado" className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
                 </SelectContent>
               </Select>
@@ -363,7 +365,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     key={shift.id} 
                     className={`border-b border-white/5 transition-all duration-300 ${
                       index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.02] border-l-2 border-l-primary' : ''
-                    } ${shift.status === 'Finalizado' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
+                    } ${shift.status === 'Finalizado' || shift.status === 'Completo' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
                   >
                     <TableCell className="pl-5 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -415,11 +417,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[140px]">
                           <DropdownMenuItem 
-                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Finalizado')}
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Completo')}
                             className="text-[9px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5 py-1.5 cursor-pointer"
                           >
                             <CheckCircle2 className="h-3 w-3 mr-2" />
-                            Finalizar Turno
+                            Finalizar Turno (Completo)
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Activo')}
