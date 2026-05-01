@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState } from 'react';
@@ -10,6 +11,7 @@ import { StatisticsView } from './StatisticsView';
 import { MapView } from './MapView';
 import { DoubleShiftControl } from './DoubleShiftControl';
 import { PayrollView } from './PayrollView';
+import { ConfigView } from './ConfigView';
 import { 
   ShieldCheck, 
   FileText,
@@ -73,7 +75,7 @@ export function AdminView() {
         </div>
       )}
 
-      {/* Barra de Comandos - Mejorada para ser más larga y sin scroll visible */}
+      {/* Barra de Comandos */}
       <div className="bg-card/40 backdrop-blur-md border border-white/5 p-1 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar w-full mb-8 shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
@@ -133,15 +135,7 @@ export function AdminView() {
 
         {activeTab === 'mapa' && <MapView />}
 
-        {activeTab === 'config' && (
-          <div className="dashboard-card flex flex-col items-center justify-center py-20 text-center">
-            <div className="p-6 bg-secondary rounded-full mb-4">
-              <Settings className="h-12 w-12 text-muted-foreground animate-spin-slow" />
-            </div>
-            <h3 className="text-xl font-bold uppercase tracking-widest">Módulo en Desarrollo</h3>
-            <p className="text-muted-foreground mt-2">La sección de CONFIGuración estará disponible próximamente.</p>
-          </div>
-        )}
+        {activeTab === 'config' && <ConfigView />}
       </div>
     </div>
   );
