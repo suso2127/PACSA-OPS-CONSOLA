@@ -25,7 +25,9 @@ import {
   Upload,
   AlertTriangle,
   Lock,
-  Trash
+  Unlock,
+  Trash,
+  ChevronDown
 } from 'lucide-react';
 import {
   Table,
@@ -37,6 +39,12 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface Project {
   id: string;
@@ -60,6 +68,7 @@ export function ProjectManagement() {
   const [loading, setLoading] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [isConfigLocked, setIsConfigLocked] = useState(true);
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -146,6 +155,15 @@ export function ProjectManagement() {
   };
 
   const handleSaveConfig = () => {
+    if (isConfigLocked) {
+      toast({
+        variant: "destructive",
+        title: "SISTEMA BLOQUEADO",
+        description: "Debe desactivar el bloqueo de seguridad para guardar cambios."
+      });
+      return;
+    }
+    
     setConfigLoading(true);
     setTimeout(() => {
       setConfigLoading(false);
@@ -320,118 +338,161 @@ export function ProjectManagement() {
         </div>
       </div>
 
-      {/* SECCIÓN: CONFIGURACIÓN DE PLATAFORMA (DENTRO DE PROYECTO) */}
+      {/* SECCIÓN: CONFIGURACIÓN DE PLATAFORMA (DESPLEGABLE) */}
       <div className="pt-12 border-t border-white/5 space-y-8">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-500/10 rounded-lg">
-            <Settings className="h-5 w-5 text-indigo-500" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-[#1a1b2e] p-6 rounded-2xl border border-indigo-500/20 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <Settings className="h-6 w-6 text-indigo-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black tracking-tight uppercase text-white">Configuración de Plataforma</h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Panel de Ajustes Estructurales</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight uppercase">Configuración de Plataforma</h2>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ajustes estructurales y de seguridad</p>
+          
+          <div className="flex items-center gap-4 px-6 py-3 bg-[#0f101d] rounded-2xl border border-white/5">
+            <div className="flex flex-col items-end">
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isConfigLocked ? 'text-red-500' : 'text-green-500'}`}>
+                {isConfigLocked ? 'ESTADO: BLOQUEADO' : 'ESTADO: EDITABLE'}
+              </span>
+              <p className="text-[9px] text-muted-foreground uppercase font-bold">Bloqueo de Seguridad</p>
+            </div>
+            <Switch 
+              checked={!isConfigLocked} 
+              onCheckedChange={(v) => setIsConfigLocked(!v)}
+              className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-red-600"
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Seguridad de Acceso */}
-          <Card className="bg-[#1a1b2e] border-none shadow-2xl rounded-2xl overflow-hidden">
-            <CardHeader className="pb-4 border-b border-white/5 bg-white/[0.02]">
-              <CardTitle className="flex items-center gap-2 text-white text-base font-bold uppercase tracking-tight">
+        <Accordion type="multiple" defaultValue={["security"]} className="space-y-4">
+          {/* Acordeón: Seguridad de Acceso */}
+          <AccordionItem value="security" className="border-none bg-[#1a1b2e] rounded-2xl overflow-hidden shadow-xl">
+            <AccordionTrigger className="px-6 py-5 hover:no-underline hover:bg-white/[0.02] transition-all">
+              <div className="flex items-center gap-3">
                 <ShieldCheck className="h-5 w-5 text-indigo-500" />
-                Seguridad de Acceso (PIN)
-              </CardTitle>
-              <CardDescription className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest">
-                Claves operativas de la estructura
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5 pt-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Operador</Label>
-                <Input type="password" defaultValue="1234" className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Supervisor</Label>
-                <Input type="password" defaultValue="5678" className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Guardia</Label>
-                <Input type="password" defaultValue="0000" className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Límites Operativos */}
-          <Card className="bg-[#1a1b2e] border-none shadow-2xl rounded-2xl overflow-hidden">
-            <CardHeader className="pb-4 border-b border-white/5 bg-white/[0.02]">
-              <CardTitle className="flex items-center gap-2 text-white text-base font-bold uppercase tracking-tight">
-                <Bell className="h-5 w-5 text-sky-500" />
-                Límites Operativos
-              </CardTitle>
-              <CardDescription className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest">
-                Parámetros globales de turnos
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8 pt-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Límite turno normal (Horas)</Label>
-                <Input type="number" defaultValue="12" className="bg-[#25273c] border-none h-11 rounded-xl text-white w-24 text-center font-bold" />
-              </div>
-              <div className="flex items-center justify-between p-4 bg-[#0f101d] rounded-2xl border border-white/5">
-                <div className="space-y-0.5">
-                  <Label className="text-[10px] font-black uppercase text-white tracking-widest">Alertas Sonoras (24h)</Label>
-                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Notificar excedente de jornada</p>
+                <div className="text-left">
+                  <span className="text-white text-base font-bold uppercase tracking-tight block">Seguridad de Acceso (PIN)</span>
+                  <span className="text-muted-foreground text-[9px] uppercase font-bold tracking-widest">Claves operativas de la estructura</span>
                 </div>
-                <Switch defaultChecked className="data-[state=checked]:bg-indigo-600" />
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Operador</Label>
+                  <Input 
+                    type="password" 
+                    defaultValue="1234" 
+                    disabled={isConfigLocked}
+                    className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Supervisor</Label>
+                  <Input 
+                    type="password" 
+                    defaultValue="5678" 
+                    disabled={isConfigLocked}
+                    className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Guardia</Label>
+                  <Input 
+                    type="password" 
+                    defaultValue="0000" 
+                    disabled={isConfigLocked}
+                    className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" 
+                  />
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Respaldo Estructural */}
-        <Card className="bg-[#1a1b2e] border-none shadow-2xl rounded-2xl overflow-hidden">
-          <CardHeader className="pb-4 border-b border-white/5 bg-white/[0.02]">
-            <CardTitle className="flex items-center gap-2 text-indigo-500 text-base font-bold uppercase tracking-tight">
-              <Database className="h-5 w-5" />
-              Respaldo Estructural de la Plataforma
-            </CardTitle>
-            <CardDescription className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest">
-              Exportación completa de proyectos, códigos y planillas
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button variant="outline" className="h-12 bg-[#25273c] border-none text-indigo-400 hover:bg-indigo-600 hover:text-white font-bold uppercase text-[10px] tracking-widest rounded-xl transition-all">
-                <Download className="mr-2 h-4 w-4" />
-                EXPORTAR ESTRUCTURA FULL (.JSON)
-              </Button>
-              <Button variant="outline" className="h-12 bg-[#25273c] border-none text-white/80 hover:bg-white/10 font-bold uppercase text-[10px] tracking-widest rounded-xl border border-white/5">
-                <Upload className="mr-2 h-4 w-4" />
-                RESTAURAR ESTRUCTURA
-              </Button>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-              <Lock className="h-3.5 w-3.5" />
-              SISTEMA DE RESPALDO CIFRADO AES-256
-            </div>
-          </CardContent>
-        </Card>
+          {/* Acordeón: Límites Operativos */}
+          <AccordionItem value="limits" className="border-none bg-[#1a1b2e] rounded-2xl overflow-hidden shadow-xl">
+            <AccordionTrigger className="px-6 py-5 hover:no-underline hover:bg-white/[0.02] transition-all">
+              <div className="flex items-center gap-3">
+                <Bell className="h-5 w-5 text-sky-500" />
+                <div className="text-left">
+                  <span className="text-white text-base font-bold uppercase tracking-tight block">Límites Operativos</span>
+                  <span className="text-muted-foreground text-[9px] uppercase font-bold tracking-widest">Parámetros globales de turnos</span>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6 pt-2">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Límite turno normal (Horas)</Label>
+                  <Input 
+                    type="number" 
+                    defaultValue="12" 
+                    disabled={isConfigLocked}
+                    className="bg-[#25273c] border-none h-11 rounded-xl text-white w-24 text-center font-bold" 
+                  />
+                </div>
+                <div className="flex items-center justify-between p-5 bg-[#0f101d] rounded-2xl border border-white/5">
+                  <div className="space-y-0.5">
+                    <Label className="text-[10px] font-black uppercase text-white tracking-widest">Alertas Sonoras (24h)</Label>
+                    <p className="text-[9px] text-muted-foreground font-bold uppercase">Notificar excedente de jornada</p>
+                  </div>
+                  <Switch defaultChecked disabled={isConfigLocked} className="data-[state=checked]:bg-indigo-600" />
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Mantenimiento Crítico */}
-        <div className="bg-[#2c1a1a]/40 border border-red-500/20 shadow-2xl rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          {/* Acordeón: Respaldo */}
+          <AccordionItem value="backup" className="border-none bg-[#1a1b2e] rounded-2xl overflow-hidden shadow-xl">
+            <AccordionTrigger className="px-6 py-5 hover:no-underline hover:bg-white/[0.02] transition-all">
+              <div className="flex items-center gap-3">
+                <Database className="h-5 w-5 text-indigo-400" />
+                <div className="text-left">
+                  <span className="text-white text-base font-bold uppercase tracking-tight block">Respaldo Estructural</span>
+                  <span className="text-muted-foreground text-[9px] uppercase font-bold tracking-widest">Exportación completa de datos</span>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6 pt-2">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button variant="outline" disabled={isConfigLocked} className="h-12 bg-[#25273c] border-none text-indigo-400 hover:bg-indigo-600 hover:text-white font-bold uppercase text-[10px] tracking-widest rounded-xl transition-all">
+                    <Download className="mr-2 h-4 w-4" />
+                    EXPORTAR ESTRUCTURA FULL (.JSON)
+                  </Button>
+                  <Button variant="outline" disabled={isConfigLocked} className="h-12 bg-[#25273c] border-none text-white/80 hover:bg-white/10 font-bold uppercase text-[10px] tracking-widest rounded-xl border border-white/5">
+                    <Upload className="mr-2 h-4 w-4" />
+                    RESTAURAR ESTRUCTURA
+                  </Button>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                  <Lock className="h-3.5 w-3.5" />
+                  SISTEMA DE RESPALDO CIFRADO AES-256
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        {/* Mantenimiento Crítico (Fuera del acordeón por ser acción de alto riesgo) */}
+        <div className="bg-[#2c1a1a]/40 border border-red-500/20 shadow-2xl rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-8 group">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-red-500">
-              <AlertTriangle className="h-5 w-5" />
-              <h4 className="text-sm font-black uppercase tracking-tight">Mantenimiento Crítico de Base de Datos</h4>
+              <AlertTriangle className="h-6 w-6 group-hover:animate-pulse" />
+              <h4 className="text-lg font-black uppercase tracking-tight">Mantenimiento Crítico</h4>
             </div>
             <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Acciones permanentes sobre el historial operativo</p>
           </div>
           <Button 
             variant="destructive"
-            className="bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl shadow-lg"
-            onClick={() => toast({ variant: "destructive", title: "ACCESO DENEGADO", description: "Se requiere autorización nivel ADMIN-01." })}
+            disabled={isConfigLocked}
+            className="bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] tracking-widest h-12 px-10 rounded-xl shadow-lg transition-all"
+            onClick={() => toast({ variant: "destructive", title: "AUTORIZACIÓN REQUERIDA", description: "El vaciado de datos requiere clave ADMIN-01." })}
           >
             <Trash className="mr-2 h-4 w-4" />
-            VACIAR HISTORIAL
+            VACIAR HISTORIAL DE TURNOS
           </Button>
         </div>
 
@@ -439,10 +500,21 @@ export function ProjectManagement() {
         <div className="flex justify-end pt-4">
           <Button 
             onClick={handleSaveConfig}
-            disabled={configLoading}
-            className="h-12 px-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl shadow-xl transition-all"
+            disabled={configLoading || isConfigLocked}
+            className={`h-14 px-12 font-black uppercase text-xs tracking-widest rounded-xl shadow-xl transition-all duration-300 ${
+              isConfigLocked 
+                ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50' 
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105'
+            }`}
           >
-            {configLoading ? "SINCRONIZANDO..." : <><Save className="mr-3 h-5 w-5" /> GUARDAR CAMBIOS PLATAFORMA</>}
+            {configLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <div className="flex items-center gap-3">
+                {isConfigLocked ? <Lock className="h-5 w-5" /> : <Save className="h-5 w-5" />}
+                {isConfigLocked ? "PLATAFORMA BLOQUEADA" : "GUARDAR CAMBIOS ESTRUCTURALES"}
+              </div>
+            )}
           </Button>
         </div>
       </div>
