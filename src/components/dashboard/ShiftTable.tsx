@@ -24,7 +24,8 @@ import {
   RefreshCw,
   UserMinus,
   Zap,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -61,10 +62,10 @@ export function ShiftTable() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   useEffect(() => {
-    // Consulta optimizada para tiempo real: Orden descendente por tiempo de entrada
     const q = query(
       collection(db, 'shift-registrations'),
       orderBy('entryTime', 'desc'),
@@ -77,13 +78,10 @@ export function ShiftTable() {
         ...doc.data()
       })) as Shift[];
       
-      // Ordenamiento manual robusto para asegurar que los nuevos ingresos (incluso con timestamp pendiente)
-      // aparezcan siempre arriba
       const sortedShifts = [...fetchedShifts].sort((a, b) => {
         const timeA = a.entryTime?.toDate ? a.entryTime.toDate().getTime() : (a.entryTime ? new Date(a.entryTime).getTime() : Infinity);
         const timeB = b.entryTime?.toDate ? b.entryTime.toDate().getTime() : (b.entryTime ? new Date(b.entryTime).getTime() : Infinity);
         
-        // Si el tiempo es el mismo o nulo (recién creado), se mantiene arriba
         if (timeB === Infinity && timeA === Infinity) return 0;
         if (timeB === Infinity) return 1;
         if (timeA === Infinity) return -1;
@@ -101,10 +99,44 @@ export function ShiftTable() {
     return () => unsubscribe();
   }, []);
 
+  const handleClearMonitor = () => {
+    const idsToHide = shifts
+      .filter(s => s.status === 'Finalizado' || s.status === 'Completo')
+      .map(s => s.id);
+    
+    if (idsToHide.length === 0) {
+      toast({
+        title: "SIN REGISTROS PARA LIMPIAR",
+        description: "No hay elementos finalizados visibles en el monitor."
+      });
+      return;
+    }
+
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      idsToHide.forEach(id => next.add(id));
+      return next;
+    });
+
+    toast({
+      title: "MONITOR DEPURADO",
+      description: `Se han ocultado ${idsToHide.length} registros del monitor operativo.`
+    });
+  };
+
+  const handleRestoreView = () => {
+    setHiddenIds(new Set());
+    toast({
+      title: "VISTA RESTAURADA",
+      description: "Todos los registros son visibles nuevamente."
+    });
+  };
+
   const filteredShifts = useMemo(() => {
-    if (statusFilter === 'all') return shifts;
-    return shifts.filter(shift => shift.status === statusFilter);
-  }, [shifts, statusFilter]);
+    let base = shifts.filter(s => !hiddenIds.has(s.id));
+    if (statusFilter === 'all') return base;
+    return base.filter(shift => shift.status === statusFilter);
+  }, [shifts, statusFilter, hiddenIds]);
 
   const handleUpdateStatus = async (shiftId: string, newStatus: string, observation?: string) => {
     try {
@@ -179,26 +211,47 @@ export function ShiftTable() {
           <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black">Monitoreo de Fuerza Operativa en Sitio</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3 bg-[#12121c] px-4 py-2 rounded-2xl border border-white/5">
+        <div className="flex flex-wrap items-center gap-3">
+          {hiddenIds.size > 0 && (
+            <Button 
+              variant="outline" 
+              onClick={handleRestoreView}
+              className="h-9 bg-secondary/30 border-white/10 text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-white"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-2" />
+              Restaurar ({hiddenIds.size})
+            </Button>
+          )}
+
+          <Button 
+            onClick={handleClearMonitor}
+            className="h-9 bg-destructive/10 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-2" />
+            Limpiar Mesa
+          </Button>
+
+          <div className="h-8 w-[1px] bg-white/10 mx-1 hidden sm:block" />
+
+          <div className="flex items-center gap-3 bg-[#12121c] px-4 py-0 rounded-2xl border border-white/5 h-9">
             <Filter className="h-4 w-4 text-primary" />
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px] h-9 bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0">
-                <SelectValue placeholder="FILTRAR ESTADO" />
+              <SelectTrigger className="w-[150px] h-full bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
+                <SelectValue placeholder="ESTADO" />
               </SelectTrigger>
               <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
-                <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">ESTADO GLOBAL</SelectItem>
-                <SelectItem value="Activo" className="text-[10px] font-black uppercase tracking-widest text-green-500">SOLO ACTIVOS</SelectItem>
-                <SelectItem value="Doble" className="text-[10px] font-black uppercase tracking-widest text-red-500">SOLO DOBLES</SelectItem>
-                <SelectItem value="Finalizado" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SOLO FINALIZADOS</SelectItem>
-                <SelectItem value="Completo" className="text-[10px] font-black uppercase tracking-widest text-blue-500">SOLO COMPLETOS</SelectItem>
+                <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">GLOBAL</SelectItem>
+                <SelectItem value="Activo" className="text-[10px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
+                <SelectItem value="Doble" className="text-[10px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
+                <SelectItem value="Finalizado" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
+                <SelectItem value="Completo" className="text-[10px] font-black uppercase tracking-widest text-blue-500">COMPLETOS</SelectItem>
               </SelectContent>
             </Select>
           </div>
           
-          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black tracking-widest px-4 py-2 rounded-full hidden sm:flex">
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black tracking-widest px-4 py-2 rounded-full hidden lg:flex">
             <Zap className="h-3 w-3 mr-1.5 fill-primary" />
-            LIVE OPS: {filteredShifts.length}
+            OPS: {filteredShifts.length}
           </Badge>
         </div>
       </div>
@@ -222,7 +275,7 @@ export function ShiftTable() {
                 <TableRow 
                   key={shift.id} 
                   className={`border-b border-white/5 transition-all duration-300 ${
-                    index === 0 && statusFilter === 'all' ? 'bg-primary/[0.03] border-l-2 border-l-primary animate-in slide-in-from-left-2' : ''
+                    index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.03] border-l-2 border-l-primary animate-in slide-in-from-left-2' : ''
                   } ${shift.status === 'Finalizado' ? 'opacity-40 grayscale-[0.5]' : 'hover:bg-white/[0.04]'}`}
                 >
                   <TableCell className="pl-8 py-5">
@@ -350,7 +403,7 @@ export function ShiftTable() {
             ) : (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
-                  No se han detectado operaciones con el estado seleccionado.
+                  No se han detectado operaciones activas.
                 </TableCell>
               </TableRow>
             )}
