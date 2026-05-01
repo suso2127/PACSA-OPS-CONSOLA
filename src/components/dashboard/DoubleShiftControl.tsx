@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Copy, 
@@ -10,7 +10,6 @@ import {
   User, 
   Building2, 
   Clock, 
-  Calendar,
   ShieldAlert
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -38,10 +37,10 @@ export function DoubleShiftControl() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Quitamos orderBy de la consulta para evitar el error de índice compuesto (failed-precondition)
     const q = query(
       collection(db, 'shift-registrations'),
-      where('status', '==', 'Doble'),
-      orderBy('entryTime', 'desc')
+      where('status', '==', 'Doble')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -49,7 +48,15 @@ export function DoubleShiftControl() {
         id: doc.id,
         ...doc.data()
       })) as DoubleShift[];
-      setDoubles(fetched);
+
+      // Ordenamos manualmente en el cliente por entryTime descendente
+      const sorted = fetched.sort((a, b) => {
+        const timeA = a.entryTime?.toDate ? a.entryTime.toDate().getTime() : new Date(a.entryTime).getTime();
+        const timeB = b.entryTime?.toDate ? b.entryTime.toDate().getTime() : new Date(b.entryTime).getTime();
+        return (timeB || 0) - (timeA || 0);
+      });
+
+      setDoubles(sorted);
       setLoading(false);
     });
 
