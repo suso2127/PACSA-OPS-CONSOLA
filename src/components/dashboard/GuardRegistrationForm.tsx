@@ -28,7 +28,7 @@ export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [projectLoading, setProjectLoading] = useState(false);
-  const [detectedProject, setDetectedProject] = useState<{name: string, client: string} | null>(null);
+  const [detectedProject, setDetectedProject] = useState<{name: string, location: string} | null>(null);
   
   const [formData, setFormData] = useState({
     guardName: '',
@@ -54,7 +54,11 @@ export function GuardRegistrationForm() {
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
             const data = snapshot.docs[0].data();
-            setDetectedProject({ name: data.name, client: data.client || 'Cliente PACSA' });
+            // Registramos el nombre exacto del Cliente / Proyecto definido en el comando proyecto
+            setDetectedProject({ 
+              name: data.name, 
+              location: data.location || 'UBICACIÓN REGISTRADA' 
+            });
           } else {
             setDetectedProject(null);
           }
@@ -85,15 +89,15 @@ export function GuardRegistrationForm() {
 
     setLoading(true);
     try {
-      // Inserción inmediata con timestamp de servidor para ordenamiento exacto
       await addDoc(collection(db, 'shift-registrations'), {
         guardName: formData.guardName.toUpperCase(),
         projectCode: formData.projectCode.toUpperCase(),
-        clientName: detectedProject?.client || 'Pendiente de Validación',
+        // Se guarda el nombre del Cliente / Proyecto registrado oficialmente
+        clientName: detectedProject?.name || 'Cliente por Validar',
         projectName: detectedProject?.name || 'Sitio No Identificado',
         shiftType: formData.shiftType,
         duration: formData.duration,
-        entryTime: serverTimestamp(), // Campo clave para el posicionamiento (el más nuevo arriba)
+        entryTime: serverTimestamp(),
         status: formData.duration === '24h' ? 'Doble' : 'Activo'
       });
       
@@ -103,7 +107,6 @@ export function GuardRegistrationForm() {
         variant: "default"
       });
       
-      // Reset táctico de formulario
       setFormData({ guardName: '', projectCode: '', duration: '12h', shiftType: 'Diurno' });
       setDetectedProject(null);
     } catch (err) {
@@ -239,8 +242,13 @@ export function GuardRegistrationForm() {
               <div className="flex flex-col">
                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Validación de Destino</span>
                 <p className={`text-sm font-black uppercase italic tracking-tighter mt-1 ${detectedProject ? 'text-white' : 'text-muted-foreground/30'}`}>
-                  {detectedProject ? `${detectedProject.name} — ${detectedProject.client}` : 'Esperando ID operativo...'}
+                  {detectedProject ? detectedProject.name : 'Esperando ID operativo...'}
                 </p>
+                {detectedProject && (
+                  <span className="text-[9px] font-bold text-primary/70 uppercase tracking-widest mt-1">
+                    {detectedProject.location}
+                  </span>
+                )}
               </div>
             </div>
           </div>
