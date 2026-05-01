@@ -17,10 +17,12 @@ import {
   Clock, 
   Hourglass, 
   LogOut, 
-  MoreHorizontal, 
   MessageSquare,
   UserCheck,
-  UserX
+  UserX,
+  ShieldCheck,
+  Copy,
+  Settings2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -72,22 +74,24 @@ export function ShiftTable() {
     return () => unsubscribe();
   }, []);
 
-  const handleUpdateObservation = async (shiftId: string, observation: string) => {
+  const handleUpdateStatus = async (shiftId: string, newStatus: string, observation?: string) => {
     try {
       const shiftRef = doc(db, 'shift-registrations', shiftId);
-      await updateDoc(shiftRef, { 
-        observation,
-        status: observation === 'Se retiró del turno' ? 'Finalizado' : 'Activo'
-      });
+      const updateData: any = { status: newStatus };
+      if (observation) {
+        updateData.observation = observation;
+      }
+      
+      await updateDoc(shiftRef, updateData);
       
       toast({
-        title: "Registro Actualizado",
-        description: `Observación registrada: ${observation}`
+        title: "Estado Actualizado",
+        description: `El turno ahora está: ${newStatus}`
       });
     } catch (err) {
       toast({
         title: "Error",
-        description: "No se pudo actualizar la observación.",
+        description: "No se pudo actualizar el estado del turno.",
         variant: "destructive"
       });
     }
@@ -99,6 +103,21 @@ export function ShiftTable() {
     const hoursToAdd = parseInt(duration) || 8;
     const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
     return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getStatusBadgeStyles = (status: string) => {
+    switch (status) {
+      case 'Activo':
+        return 'bg-green-500/10 text-green-500 border-green-500/20';
+      case 'Doble':
+        return 'bg-red-500/10 text-red-500 border-red-500/20';
+      case 'Completo':
+        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'Finalizado':
+        return 'bg-muted text-muted-foreground opacity-60 border-muted-foreground/20';
+      default:
+        return 'bg-primary/10 text-primary border-primary/20';
+    }
   };
 
   if (loading) {
@@ -133,8 +152,8 @@ export function ShiftTable() {
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Entrada</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Salida Est.</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Duración</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Observación</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Tipo</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Acciones</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -174,36 +193,58 @@ export function ShiftTable() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-accent">
-                          <MessageSquare className="h-4 w-4 mr-1.5" />
-                          <span className="text-[10px] font-bold uppercase">Acción</span>
+                          <Settings2 className="h-4 w-4 mr-1.5" />
+                          <span className="text-[10px] font-bold uppercase">Gestionar</span>
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-[#1a1b2e] border-white/10 text-white">
-                        <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Gestionar Turno</DropdownMenuLabel>
+                      <DropdownMenuContent align="end" className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
+                        <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Cambiar Estado</DropdownMenuLabel>
                         <DropdownMenuSeparator className="bg-white/5" />
                         <DropdownMenuItem 
-                          onClick={() => handleUpdateObservation(shift.id, 'Cambio de turno')}
-                          className="text-xs font-medium cursor-pointer focus:bg-primary/20 focus:text-primary"
+                          onClick={() => handleUpdateStatus(shift.id, 'Activo')}
+                          className="text-xs font-medium cursor-pointer focus:bg-green-500/20 focus:text-green-500"
                         >
-                          <UserCheck className="h-3.5 w-3.5 mr-2 text-primary" />
-                          Cambio de turno
+                          <UserCheck className="h-3.5 w-3.5 mr-2 text-green-500" />
+                          Marcar Activo
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => handleUpdateObservation(shift.id, 'Se retiró del turno')}
-                          className="text-xs font-medium cursor-pointer focus:bg-destructive/20 focus:text-destructive"
+                          onClick={() => handleUpdateStatus(shift.id, 'Completo')}
+                          className="text-xs font-medium cursor-pointer focus:bg-blue-500/20 focus:text-blue-500"
                         >
-                          <UserX className="h-3.5 w-3.5 mr-2 text-destructive" />
-                          Se retiró del turno
+                          <ShieldCheck className="h-3.5 w-3.5 mr-2 text-blue-500" />
+                          Marcar Completo
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleUpdateStatus(shift.id, 'Doble')}
+                          className="text-xs font-medium cursor-pointer focus:bg-red-500/20 focus:text-red-500"
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-2 text-red-500" />
+                          Marcar Doble
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Turno concluido')}
+                          className="text-xs font-medium cursor-pointer focus:bg-muted focus:text-white"
+                        >
+                          <LogOut className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                          Finalizar Turno
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="bg-white/5" />
+                        <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Observaciones</DropdownMenuLabel>
+                        <DropdownMenuItem 
+                          onClick={() => updateDoc(doc(db, 'shift-registrations', shift.id), { observation: 'Cambio de turno' })}
+                          className="text-xs font-medium cursor-pointer"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 mr-2 text-accent" />
+                          Cambio de turno
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge 
-                      variant={shift.shiftType === 'Nocturno' ? 'secondary' : 'default'} 
-                      className={`text-[10px] font-black uppercase ${shift.status === 'Finalizado' ? 'bg-muted text-muted-foreground opacity-50' : ''}`}
+                      className={`text-[10px] font-black uppercase tracking-tighter px-3 border shadow-sm ${getStatusBadgeStyles(shift.status || 'Activo')}`}
                     >
-                      {shift.status === 'Finalizado' ? 'Finalizado' : shift.shiftType}
+                      {shift.status || 'Activo'}
                     </Badge>
                   </TableCell>
                 </TableRow>
