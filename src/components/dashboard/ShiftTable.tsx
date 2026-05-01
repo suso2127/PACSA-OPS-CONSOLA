@@ -24,7 +24,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
-  Copy
+  Copy,
+  Timer
 } from 'lucide-react';
 import {
   Select,
@@ -48,6 +49,7 @@ interface Shift {
   clientName: string;
   projectCode: string;
   entryTime: any;
+  exitTime?: any;
   shiftType: string;
   duration: string;
   observation?: string;
@@ -156,6 +158,21 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
       title: "OBSERVACIÓN ACTUALIZADA",
       description: `Se registró: ${observation}`
     });
+  };
+
+  const calculateWorkedHours = (shift: Shift) => {
+    if (shift.status === 'Doble') return '24.00';
+    if (!shift.entryTime) return '--:--';
+    
+    const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
+    const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
+    
+    if (isNaN(start.getTime())) return '--:--';
+
+    const diffMs = end.getTime() - start.getTime();
+    const diffHrs = diffMs / (1000 * 60 * 60);
+    
+    return diffHrs.toFixed(2);
   };
 
   const handleClearMonitor = () => {
@@ -320,7 +337,7 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
           onScroll={handleScroll}
           className="overflow-x-auto no-scrollbar"
         >
-          <Table className="min-w-[900px]">
+          <Table className="min-w-[1000px]">
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 pl-6">Nombre Completo</TableHead>
@@ -329,7 +346,10 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Término</TableHead>
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Jornada</TableHead>
                 {showObservations && (
-                  <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Observaciones</TableHead>
+                  <>
+                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Horas</TableHead>
+                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Observaciones</TableHead>
+                  </>
                 )}
               </TableRow>
             </TableHeader>
@@ -393,29 +413,41 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                       </Badge>
                     </TableCell>
                     {showObservations && (
-                      <TableCell className="text-center">
-                        <Select 
-                          value={shift.observation || ''} 
-                          onValueChange={(val) => handleUpdateObservation(shift.id, val)}
-                        >
-                          <SelectTrigger className="h-8 bg-[#1a1b2e] border-white/10 text-[10px] font-black uppercase w-full max-w-[150px] mx-auto focus:ring-0">
-                            <SelectValue placeholder="SIN OBS" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
-                            {OBSERVATION_OPTIONS.map((opt) => (
-                              <SelectItem key={opt} value={opt} className="text-[10px] font-black uppercase tracking-tight">
-                                {opt}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
+                      <>
+                        <TableCell className="text-center">
+                          {(shift.status === 'Finalizado' || shift.status === 'Completo' || shift.status === 'Doble') ? (
+                            <div className="flex items-center justify-center gap-1.5 font-mono text-[11px] font-black text-primary">
+                              <Timer className="h-3 w-3" />
+                              {calculateWorkedHours(shift)}H
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-muted-foreground/30 font-bold uppercase">En curso</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            value={shift.observation || ''} 
+                            onValueChange={(val) => handleUpdateObservation(shift.id, val)}
+                          >
+                            <SelectTrigger className="h-8 bg-[#1a1b2e] border-white/10 text-[10px] font-black uppercase w-full max-w-[150px] mx-auto focus:ring-0">
+                              <SelectValue placeholder="SIN OBS" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                              {OBSERVATION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt} value={opt} className="text-[10px] font-black uppercase tracking-tight">
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </>
                     )}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={showObservations ? 6 : 5} className="text-center py-24 text-muted-foreground italic font-medium">
+                  <TableCell colSpan={showObservations ? 7 : 5} className="text-center py-24 text-muted-foreground italic font-medium">
                     No hay operaciones activas detectadas.
                   </TableCell>
                 </TableRow>
