@@ -13,8 +13,6 @@ import { DoubleShiftControl } from './DoubleShiftControl';
 import { PayrollView } from './PayrollView';
 import { ConfigView } from './ConfigView';
 import { 
-  ShieldCheck, 
-  FileText,
   UserPlus,
   History,
   Map as MapIcon,
@@ -26,10 +24,9 @@ import {
   BarChart3,
   FileSpreadsheet
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'proyectos' | 'config' | 'estadistica' | 'planilla';
+type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');

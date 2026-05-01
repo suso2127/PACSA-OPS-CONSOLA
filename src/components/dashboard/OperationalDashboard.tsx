@@ -9,16 +9,13 @@ import {
   UserMinus, 
   TrendingUp, 
   Calendar,
-  ShieldCheck,
-  Building2,
   Activity,
-  ArrowUpRight,
   ShieldAlert
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 export function OperationalDashboard() {
   const [currentDay, setCurrentDay] = useState('');
@@ -71,7 +68,7 @@ export function OperationalDashboard() {
 
   const metrics = [
     { label: 'Personal Requerido', value: stats.required, icon: Users, color: 'text-blue-500', desc: 'Planilla del día' },
-    { label: 'Guardias en Puesto', value: stats.active, icon: User, color: 'text-green-500', desc: 'Despliegue estándar' },
+    { label: 'Elementos en Puesto', value: stats.active, icon: User, color: 'text-green-500', desc: 'Despliegue estándar' },
     { label: 'Jornada Doble', value: stats.double, icon: Copy, color: 'text-red-500', desc: 'Turnos 24 horas' },
     { label: 'Déficit de Fuerza', value: stats.missing, icon: UserMinus, color: 'text-orange-500', desc: 'Puestos sin cubrir' },
   ];
@@ -79,12 +76,12 @@ export function OperationalDashboard() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Cabecera de Estado */}
-      <div className="bg-card border border-border p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-card border border-border p-6 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Consola de Operaciones</h2>
           <div className="flex items-center gap-3 mt-1">
-            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">SISTEMA OPERATIVO</Badge>
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] font-bold">SISTEMA OPERATIVO</Badge>
+            <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
               <Calendar className="h-3 w-3" />
               REQ: {currentDay}
             </span>
@@ -104,17 +101,17 @@ export function OperationalDashboard() {
       {/* Métricas Principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric, i) => (
-          <Card key={i} className="bg-card border-border hover:border-primary/50 transition-colors">
+          <Card key={i} className="bg-card border-border hover:border-primary/50 transition-colors shadow-sm">
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-2">
                 <div className={`p-2 rounded-lg bg-secondary/50 ${metric.color}`}>
                   <metric.icon className="h-5 w-5" />
                 </div>
-                <Activity className="h-4 w-4 text-muted-foreground/20" />
+                <Activity className="h-4 w-4 text-muted-foreground/10" />
               </div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{metric.label}</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{metric.label}</p>
               <h4 className="text-3xl font-black mt-1">{metric.value}</h4>
-              <p className="text-[10px] text-muted-foreground mt-1">{metric.desc}</p>
+              <p className="text-[9px] text-muted-foreground mt-1 font-medium italic">{metric.desc}</p>
             </CardContent>
           </Card>
         ))}
@@ -122,7 +119,7 @@ export function OperationalDashboard() {
 
       {/* Alertas Críticas */}
       {stats.missing > 0 && (
-        <div className="bg-destructive/5 border border-destructive/20 p-6 rounded-xl flex items-center gap-4">
+        <div className="bg-destructive/5 border border-destructive/20 p-6 rounded-xl flex items-center gap-4 animate-pulse">
           <div className="p-3 bg-destructive/10 rounded-full">
             <ShieldAlert className="h-6 w-6 text-destructive" />
           </div>
@@ -130,7 +127,7 @@ export function OperationalDashboard() {
             <h3 className="text-sm font-bold text-destructive uppercase">Alerta: Déficit de Fuerza Detectado</h3>
             <p className="text-xs text-muted-foreground">Existen {stats.missing} puestos sin cubrir según la planilla requerida para hoy.</p>
           </div>
-          <Badge className="bg-destructive text-white uppercase text-[10px]">Acción Requerida</Badge>
+          <Badge className="bg-destructive text-white uppercase text-[10px] font-bold">Acción Requerida</Badge>
         </div>
       )}
     </div>
