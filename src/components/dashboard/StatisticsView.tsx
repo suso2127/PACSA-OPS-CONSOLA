@@ -113,8 +113,8 @@ export function StatisticsView() {
 
             <div className="h-[400px] w-full">
               <ChartContainer config={{
-                total: { label: "Total Requerido", color: "#7c3aed" },
-                completados: { label: "Total Registrado", color: "#0ea5e9" }
+                total: { label: "Total Requerido", color: "#1e3a8a" },
+                completados: { label: "Total Registrado", color: "#10b981" }
               }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -128,8 +128,8 @@ export function StatisticsView() {
                     />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend verticalAlign="top" align="right" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }} />
-                    <Bar dataKey="total" fill="#7c3aed" radius={[6, 6, 0, 0]} barSize={50} />
-                    <Bar dataKey="completados" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={50} />
+                    <Bar dataKey="total" fill="#1e3a8a" radius={[6, 6, 0, 0]} barSize={50} />
+                    <Bar dataKey="completados" fill="#10b981" radius={[6, 6, 0, 0]} barSize={50} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
