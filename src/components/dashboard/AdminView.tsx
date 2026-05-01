@@ -12,6 +12,8 @@ import { MapView } from './MapView';
 import { DoubleShiftControl } from './DoubleShiftControl';
 import { PayrollView } from './PayrollView';
 import { ConfigView } from './ConfigView';
+import { EquipmentRegistrationForm } from './EquipmentRegistrationForm';
+import { EquipmentTable } from './EquipmentTable';
 import { 
   UserPlus,
   History,
@@ -23,7 +25,8 @@ import {
   Building2,
   BarChart3,
   FileSpreadsheet,
-  Users
+  Users,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -110,7 +113,7 @@ export function AdminView() {
                     : "text-muted-foreground hover:text-white"
                 )}
               >
-                <Users className="h-3.5 w-3.5" />
+                <Package className="h-3.5 w-3.5" />
                 Comando Dotación
               </button>
             </div>
@@ -131,21 +134,12 @@ export function AdminView() {
             )}
 
             {activeRegistroSubTab === 'dotacion' && (
-              <div className="space-y-6">
-                <div className="bg-[#12121c] border border-white/5 rounded-3xl p-8 shadow-2xl">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="bg-[#10b981]/10 p-3 rounded-2xl border border-[#10b981]/20">
-                      <Users className="h-8 w-8 text-[#10b981]" />
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-black tracking-tighter text-white uppercase leading-none">Comando Dotación</h2>
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-1.5">Control de fuerza operativa y despliegue</p>
-                    </div>
-                  </div>
-                  {/* Módulo de Gestión de Fuerza en Preparación */}
-                  <div className="flex items-center justify-center py-20 border border-dashed border-white/5 rounded-2xl">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Módulo de Gestión de Fuerza en Preparación</p>
-                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className="lg:col-span-5">
+                  <EquipmentRegistrationForm />
+                </div>
+                <div className="lg:col-span-7">
+                  <EquipmentTable />
                 </div>
               </div>
             )}
