@@ -27,7 +27,8 @@ import {
   Lock,
   Unlock,
   Trash,
-  ChevronDown
+  ChevronDown,
+  Globe
 } from 'lucide-react';
 import {
   Table,
@@ -69,6 +70,7 @@ export function ProjectManagement() {
   const [configLoading, setConfigLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isConfigLocked, setIsConfigLocked] = useState(true);
+  const [masterCode, setMasterCode] = useState('GRUPOPACSA');
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -379,7 +381,7 @@ export function ProjectManagement() {
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-6 pb-6 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clave de Operador</Label>
                   <Input 
@@ -405,6 +407,19 @@ export function ProjectManagement() {
                     defaultValue="0000" 
                     disabled={isConfigLocked}
                     className="bg-[#25273c] border-none h-11 rounded-xl tracking-[0.5em] focus:ring-1 focus:ring-indigo-500/50" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest flex items-center gap-2">
+                    <Globe className="h-3 w-3" />
+                    Código Corporativo
+                  </Label>
+                  <Input 
+                    value={masterCode}
+                    onChange={(e) => setMasterCode(e.target.value.toUpperCase())}
+                    disabled={isConfigLocked}
+                    placeholder="GRUPOPACSA"
+                    className="bg-[#25273c] border-none h-11 rounded-xl text-indigo-400 font-black tracking-widest focus:ring-1 focus:ring-indigo-500/50" 
                   />
                 </div>
               </div>
