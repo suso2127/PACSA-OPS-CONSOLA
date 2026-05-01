@@ -17,9 +17,7 @@ import {
   Clock, 
   Hourglass, 
   LogOut, 
-  MessageSquare,
   UserCheck,
-  UserX,
   ShieldCheck,
   Copy,
   Settings2,
@@ -85,7 +83,6 @@ export function ShiftTable() {
         updateData.observation = observation;
       }
       
-      // Si el estado es finalizado, guardamos la hora de salida
       if (newStatus === 'Finalizado') {
         updateData.exitTime = serverTimestamp();
       }
@@ -110,7 +107,7 @@ export function ShiftTable() {
     const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
     const hoursToAdd = parseInt(duration) || 8;
     const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
-    return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
   const getStatusBadgeStyles = (status: string) => {
@@ -157,10 +154,10 @@ export function ShiftTable() {
             <TableRow className="border-b border-white/5">
               <TableHead className="text-[10px] font-black uppercase tracking-widest">Nombre del Guardia</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest">Cliente / Proyecto</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Entrada</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Salida Est.</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Hora Entrada</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Hora Término</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Duración</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Acciones y Términos</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Acciones</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Estado</TableHead>
             </TableRow>
           </TableHeader>
@@ -183,7 +180,7 @@ export function ShiftTable() {
                     <div className="text-[9px] text-muted-foreground uppercase">{shift.clientName}</div>
                   </TableCell>
                   <TableCell className="font-mono text-xs font-bold text-white text-center">
-                    {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                    {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A'}
                   </TableCell>
                   <TableCell className="font-mono text-xs font-bold text-accent text-center">
                     <div className="flex items-center justify-center gap-1.5">
@@ -200,7 +197,6 @@ export function ShiftTable() {
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
                       <TooltipProvider>
-                        {/* Indicador Cambio de Turno */}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button 
@@ -216,7 +212,6 @@ export function ShiftTable() {
                           <TooltipContent className="bg-sky-900 border-sky-800 text-[10px] font-bold uppercase">Finalizar por Cambio</TooltipContent>
                         </Tooltip>
 
-                        {/* Indicador Retiro de Turno */}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button 
@@ -271,22 +266,6 @@ export function ShiftTable() {
                           >
                             <LogOut className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                             Finalizar Turno
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-white/5" />
-                          <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Observaciones Rápidas</DropdownMenuLabel>
-                          <DropdownMenuItem 
-                            onClick={() => updateDoc(doc(db, 'shift-registrations', shift.id), { observation: 'Cambio de turno' })}
-                            className="text-xs font-medium cursor-pointer"
-                          >
-                            <RefreshCw className="h-3.5 w-3.5 mr-2 text-sky-500" />
-                            Marcar Cambio
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => updateDoc(doc(db, 'shift-registrations', shift.id), { observation: 'Se retiró del turno' })}
-                            className="text-xs font-medium cursor-pointer"
-                          >
-                            <UserMinus className="h-3.5 w-3.5 mr-2 text-orange-500" />
-                            Marcar Retiro
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

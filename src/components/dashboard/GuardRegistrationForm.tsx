@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, 
-  Clock, 
   Search, 
   Building2, 
   Loader2, 
@@ -19,7 +18,8 @@ import {
   Database, 
   Terminal,
   CheckCircle2,
-  AlertCircle
+  LogOut,
+  Clock as ClockIcon
 } from 'lucide-react';
 
 export function GuardRegistrationForm() {
@@ -112,6 +112,13 @@ export function GuardRegistrationForm() {
     }
   };
 
+  const getEstimatedExit = () => {
+    if (!currentTime) return '--:--';
+    const hours = parseInt(formData.duration) || 8;
+    const exitDate = new Date(currentTime.getTime() + hours * 60 * 60 * 1000);
+    return exitDate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
   const formattedDate = currentTime?.toLocaleDateString('es-MX', { 
     weekday: 'long', 
     day: 'numeric', 
@@ -127,7 +134,6 @@ export function GuardRegistrationForm() {
 
   return (
     <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-700">
-      {/* Cabecera Principal - Estilo Imagen */}
       <div className="p-8 bg-[#1a1b2e]/80 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="bg-primary/20 p-3 rounded-2xl border border-primary/30">
@@ -136,8 +142,8 @@ export function GuardRegistrationForm() {
           <div>
             <h2 className="text-3xl font-black tracking-tighter text-white uppercase leading-none">Comando Guardia</h2>
             <div className="flex flex-col mt-1">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none">Terminal de Registro</span>
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none">Sincronizada</span>
+              <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none">Comando Dotación</span>
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mt-0.5">Terminal Sincronizada</span>
             </div>
           </div>
         </div>
@@ -150,31 +156,46 @@ export function GuardRegistrationForm() {
       </div>
 
       <div className="p-8 space-y-8">
-        {/* Título de Sección Táctico */}
         <div className="flex items-center gap-3 text-primary">
           <Terminal className="h-5 w-5" />
           <h3 className="text-sm font-black uppercase tracking-[0.2em]">Terminal de Registro Táctico</h3>
         </div>
 
-        {/* Card de Fecha y Reloj - Estilo Imagen */}
-        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 flex items-center justify-between shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-secondary/50 rounded-2xl">
-              <Calendar className="h-6 w-6 text-primary" />
+        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 shadow-lg space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-secondary/50 rounded-2xl">
+                <Calendar className="h-6 w-6 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
+                <p className="text-base font-black text-white capitalize">{formattedDate}</p>
+              </div>
             </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
-              <p className="text-base font-black text-white capitalize">{formattedDate}</p>
+            <div className="text-right space-y-1">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Reloj de Comando</p>
+              <p className="text-4xl font-black font-mono text-primary leading-none tracking-tighter">{formattedTime}</p>
             </div>
           </div>
-          <div className="text-right space-y-1">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Reloj de Comando</p>
-            <p className="text-4xl font-black font-mono text-primary leading-none tracking-tighter">{formattedTime}</p>
+
+          <div className="pt-4 border-t border-white/5 flex items-center justify-around">
+            <div className="text-center space-y-1">
+              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-1.5">
+                <ClockIcon className="h-3 w-3" /> Hora Entrada
+              </p>
+              <p className="text-xl font-black text-white font-mono">{formattedTime}</p>
+            </div>
+            <div className="h-10 w-[1px] bg-white/5" />
+            <div className="text-center space-y-1">
+              <p className="text-[9px] font-black text-accent uppercase tracking-widest flex items-center justify-center gap-1.5">
+                <LogOut className="h-3 w-3" /> Término Turno
+              </p>
+              <p className="text-xl font-black text-accent font-mono">{getEstimatedExit()}</p>
+            </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Nombre del Elemento */}
           <div className="space-y-4">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Nombre del Elemento</Label>
             <Input 
@@ -185,7 +206,6 @@ export function GuardRegistrationForm() {
             />
           </div>
 
-          {/* Código de Proyecto */}
           <div className="space-y-4">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Código de Proyecto</Label>
             <div className="relative">
@@ -205,7 +225,6 @@ export function GuardRegistrationForm() {
             </div>
           </div>
 
-          {/* Validador de Cliente - Estilo Imagen */}
           <div className={`bg-[#1a1b2e] border-2 border-dashed rounded-3xl p-6 transition-all duration-500 ${detectedProject ? 'border-primary/40 bg-primary/5' : 'border-white/5'}`}>
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white' : 'bg-white/5 text-muted-foreground'}`}>
