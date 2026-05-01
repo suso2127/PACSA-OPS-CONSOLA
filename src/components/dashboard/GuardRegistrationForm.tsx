@@ -29,13 +29,17 @@ export function GuardRegistrationForm() {
 
   useEffect(() => {
     async function fetchProjects() {
-      const querySnapshot = await getDocs(collection(db, 'projects'));
-      const projectList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().name,
-        code: doc.data().code
-      })) as Project[];
-      setProjects(projectList);
+      try {
+        const querySnapshot = await getDocs(collection(db, 'projects'));
+        const projectList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name,
+          code: doc.data().code
+        })) as Project[];
+        setProjects(projectList);
+      } catch (err) {
+        console.error("Error al obtener proyectos:", err);
+      }
     }
     fetchProjects();
   }, []);
@@ -44,8 +48,8 @@ export function GuardRegistrationForm() {
     e.preventDefault();
     if (!formData.name || !formData.projectId) {
       toast({
-        title: "Missing Information",
-        description: "Please fill in guard name and select a project.",
+        title: "Información Faltante",
+        description: "Por favor complete el nombre del guardia y seleccione un proyecto.",
         variant: "destructive"
       });
       return;
@@ -56,19 +60,19 @@ export function GuardRegistrationForm() {
       await addDoc(collection(db, 'guards'), {
         ...formData,
         registeredAt: serverTimestamp(),
-        status: 'Active'
+        status: 'Activo'
       });
       
       toast({
-        title: "Registration Successful",
-        description: `${formData.name} has been registered successfully.`
+        title: "Registro Exitoso",
+        description: `${formData.name} ha sido registrado correctamente.`
       });
       
       setFormData({ name: '', phone: '', projectId: '' });
     } catch (err) {
       toast({
         title: "Error",
-        description: "Could not register guard. Please try again.",
+        description: "No se pudo registrar al guardia. Inténtelo de nuevo.",
         variant: "destructive"
       });
     } finally {
@@ -80,37 +84,37 @@ export function GuardRegistrationForm() {
     <div className="dashboard-card">
       <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
         <UserPlus className="h-5 w-5 text-primary" />
-        New Guard Registration
+        Registro de Nuevo Guardia
       </h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Full Name</Label>
+          <Label htmlFor="name">Nombre Completo</Label>
           <Input 
             id="name" 
-            placeholder="John Doe" 
+            placeholder="Ej. Juan Pérez" 
             value={formData.name}
             onChange={(e) => setFormData({...formData, name: e.target.value})}
             className="bg-muted/50"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="phone">Phone Number</Label>
+          <Label htmlFor="phone">Número de Teléfono</Label>
           <Input 
             id="phone" 
-            placeholder="+1 (555) 000-0000" 
+            placeholder="+52 (555) 000-0000" 
             value={formData.phone}
             onChange={(e) => setFormData({...formData, phone: e.target.value})}
             className="bg-muted/50"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="project">Assigned Project</Label>
+          <Label htmlFor="project">Proyecto Asignado</Label>
           <Select 
             value={formData.projectId} 
             onValueChange={(val) => setFormData({...formData, projectId: val})}
           >
             <SelectTrigger id="project" className="bg-muted/50">
-              <SelectValue placeholder="Select active project" />
+              <SelectValue placeholder="Seleccionar proyecto activo" />
             </SelectTrigger>
             <SelectContent>
               {projects.map((p) => (
@@ -118,11 +122,14 @@ export function GuardRegistrationForm() {
                   {p.name} ({p.code})
                 </SelectItem>
               ))}
+              {projects.length === 0 && (
+                <div className="p-2 text-xs text-muted-foreground text-center">No hay proyectos activos</div>
+              )}
             </SelectContent>
           </Select>
         </div>
         <Button type="submit" className="w-full mt-4" disabled={loading}>
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Register Guard"}
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Registrar Guardia"}
         </Button>
       </form>
     </div>

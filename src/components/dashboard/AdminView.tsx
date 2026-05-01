@@ -4,14 +4,14 @@
 import React from 'react';
 import { GuardRegistrationForm } from './GuardRegistrationForm';
 import { ShiftTable } from './ShiftTable';
-import { Users, ShieldCheck, FileText, Settings } from 'lucide-react';
+import { Users, ShieldCheck, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 export function AdminView() {
   const stats = [
-    { label: 'Active Guards', value: '42', icon: Users, color: 'text-primary' },
-    { label: 'Projects', value: '12', icon: ShieldCheck, color: 'text-accent' },
-    { label: 'Reports Pending', value: '5', icon: FileText, color: 'text-yellow-500' },
+    { label: 'Guardias Activos', value: '42', icon: Users, color: 'text-primary' },
+    { label: 'Proyectos', value: '12', icon: ShieldCheck, color: 'text-accent' },
+    { label: 'Informes Pendientes', value: '5', icon: FileText, color: 'text-yellow-500' },
   ];
 
   return (

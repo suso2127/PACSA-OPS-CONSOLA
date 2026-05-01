@@ -13,29 +13,29 @@ export function GuardView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-primary" />
-            Duty Management
+            Gestión de Deberes
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Button size="lg" className="h-24 flex flex-col gap-2 text-lg">
             <LogIn className="h-6 w-6" />
-            Clock In
+            Iniciar Turno
           </Button>
           <Button size="lg" variant="outline" className="h-24 flex flex-col gap-2 text-lg border-destructive text-destructive hover:bg-destructive/10">
             <LogOut className="h-6 w-6" />
-            Clock Out
+            Finalizar Turno
           </Button>
           <Button size="lg" variant="secondary" className="h-24 flex flex-col gap-2 text-lg sm:col-span-2">
             <Camera className="h-6 w-6" />
-            Incident Report
+            Reporte de Incidente
           </Button>
         </CardContent>
       </Card>
 
       <div className="dashboard-card text-center">
-        <p className="text-sm text-muted-foreground mb-1 font-medium uppercase tracking-wider">Current Post</p>
-        <h2 className="text-2xl font-bold text-primary">North Sector Entrance</h2>
-        <p className="text-xs text-muted-foreground mt-2 font-mono">CODE: PRJ-NSE-001</p>
+        <p className="text-sm text-muted-foreground mb-1 font-medium uppercase tracking-wider">Puesto Actual</p>
+        <h2 className="text-2xl font-bold text-primary">Entrada Sector Norte</h2>
+        <p className="text-xs text-muted-foreground mt-2 font-mono">CÓDIGO: PRJ-NSE-001</p>
       </div>
     </div>
   );

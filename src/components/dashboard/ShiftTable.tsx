@@ -42,6 +42,9 @@ export function ShiftTable() {
       })) as Shift[];
       setShifts(fetchedShifts);
       setLoading(false);
+    }, (error) => {
+      console.error("Error en tiempo real de turnos:", error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -62,19 +65,19 @@ export function ShiftTable() {
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Clock className="h-5 w-5 text-accent" />
-          Real-time Shift Status
+          Estado de Turnos en Tiempo Real
         </h3>
-        <Badge variant="outline" className="text-xs font-mono">LIVE OPS</Badge>
+        <Badge variant="outline" className="text-xs font-mono">OPS EN VIVO</Badge>
       </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Guard Name</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Project</TableHead>
-              <TableHead>Entry Time</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead>Nombre del Guardia</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Proyecto</TableHead>
+              <TableHead>Hora de Entrada</TableHead>
+              <TableHead>Tipo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -90,8 +93,8 @@ export function ShiftTable() {
                     {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString() : 'N/A'}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={shift.shiftType === 'Night' ? 'secondary' : 'default'} className="text-[10px]">
-                      {shift.shiftType}
+                    <Badge variant={shift.shiftType === 'Night' || shift.shiftType === 'Noche' ? 'secondary' : 'default'} className="text-[10px]">
+                      {shift.shiftType === 'Night' ? 'Noche' : shift.shiftType === 'Day' ? 'Día' : shift.shiftType}
                     </Badge>
                   </TableCell>
                 </TableRow>
@@ -99,7 +102,7 @@ export function ShiftTable() {
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  No active shift registrations found.
+                  No se encontraron registros de turnos activos.
                 </TableCell>
               </TableRow>
             )}

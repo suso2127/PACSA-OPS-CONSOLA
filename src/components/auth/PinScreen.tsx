@@ -2,8 +2,7 @@
 "use client"
 
 import React, { useState } from 'react';
-import { Shield, Delete, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Shield, Delete } from 'lucide-react';
 
 type Role = 'Admin' | 'Supervisor' | 'Guard';
 
@@ -49,8 +48,8 @@ export function PinScreen({ onAuthenticated }: PinScreenProps) {
           <div className="p-4 bg-primary/10 rounded-full border border-primary/20 mb-4">
             <Shield className="h-12 w-12 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-center">PACSA OPS CONSOLE</h1>
-          <p className="text-muted-foreground text-sm">Enter access PIN to continue</p>
+          <h1 className="text-2xl font-bold tracking-tight text-center">CONSOLA PACSA OPS</h1>
+          <p className="text-muted-foreground text-sm">Ingrese PIN de acceso para continuar</p>
         </div>
 
         <div className="flex space-x-4 mb-8">
