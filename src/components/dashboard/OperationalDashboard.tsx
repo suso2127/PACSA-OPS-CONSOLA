@@ -32,12 +32,21 @@ export function OperationalDashboard() {
   });
 
   useEffect(() => {
-    const days = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
     const d = new Date();
-    setCurrentDay(days[d.getDay()]);
+    // Obtener fecha completa en español
+    const fullDate = d.toLocaleDateString('es-MX', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    }).toUpperCase();
+    setCurrentDay(fullDate);
 
     const unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
-      const dayKey = days[d.getDay()].toLowerCase().slice(0, 3) as any;
+      // Los días para la búsqueda en el esquema de requisitos
+      const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+      const dayKey = dayNames[d.getDay()] as any;
+      
       const totalReq = snapshot.docs.reduce((acc, doc) => {
         const reqs = doc.data().requirements || {};
         return acc + (reqs[dayKey] || 0);
@@ -203,7 +212,7 @@ export function OperationalDashboard() {
         </Card>
       </div>
 
-      {/* Paneles de Visualización Central (Igual a la imagen) */}
+      {/* Paneles de Visualización Central */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Estado de Fuerza */}
         <Card className="lg:col-span-4 bg-[#1a1b2e] border-white/5 h-[400px] shadow-2xl">
@@ -273,7 +282,7 @@ export function OperationalDashboard() {
         </Card>
       </div>
 
-      {/* Panel de Alertas Estilo Imagen (Shield icon y banner verde) */}
+      {/* Panel de Alertas Estilo Imagen */}
       <Card className={`bg-[#1a1b2e] border-white/5 border-l-[6px] ${stats.missing > 0 ? 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)]' : 'border-l-green-500 shadow-[0_0_30px_rgba(34,197,94,0.1)]'} shadow-2xl transition-all`}>
         <CardContent className="p-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
