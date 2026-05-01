@@ -12,7 +12,8 @@ import {
   Search,
   Building2,
   CalendarDays,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -151,6 +152,12 @@ export function PayrollView() {
     return () => unsubscribe();
   }, []);
 
+  const handleReset = () => {
+    setSearchTerm('');
+    setProjectSearch('');
+    setSelectedDayFilter('all');
+  };
+
   const filteredData = useMemo(() => {
     return guardsData.filter(guard => {
       const matchesName = (guard.guardName || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -183,7 +190,7 @@ export function PayrollView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-card/50 p-4 rounded-xl border border-border shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-card/50 p-4 rounded-xl border border-border shadow-sm">
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Filtro por Nombre</label>
           <div className="relative">
@@ -226,6 +233,17 @@ export function PayrollView() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="space-y-2 flex items-end">
+          <Button 
+            variant="outline"
+            onClick={handleReset}
+            className="w-full h-11 bg-secondary/20 border-border text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-all"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            REGRESAR
+          </Button>
         </div>
       </div>
 
