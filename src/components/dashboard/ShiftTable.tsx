@@ -102,7 +102,6 @@ export function ShiftTable() {
   const handleFinalizeShift = (id: string, name: string) => {
     const shiftRef = doc(db, 'shift-registrations', id);
     
-    // Actualización optimista: el onSnapshot se encargará de refrescar la UI
     updateDoc(shiftRef, {
       status: 'Finalizado',
       exitTime: serverTimestamp()
@@ -279,8 +278,6 @@ export function ShiftTable() {
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Entrada</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Término</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Jornada</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Status</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-right pr-8">Comando</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,14 +290,32 @@ export function ShiftTable() {
                     } ${shift.status === 'Finalizado' ? 'opacity-40 grayscale-[0.5]' : 'hover:bg-white/[0.04]'}`}
                   >
                     <TableCell className="pl-8 py-5">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
-                        {shift.observation ? (
-                          <span className="text-[9px] text-primary font-black uppercase tracking-tighter mt-1 bg-primary/10 w-fit px-2 py-0.5 rounded-md">
-                            NOTA: {shift.observation}
-                          </span>
-                        ) : (
-                          <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">Sin novedades</span>
+                      <div className="flex items-center gap-4">
+                        <div className="flex flex-col flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
+                            <Badge className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
+                              {shift.status || 'Activo'}
+                            </Badge>
+                          </div>
+                          {shift.observation ? (
+                            <span className="text-[9px] text-primary font-black uppercase tracking-tighter mt-1 bg-primary/10 w-fit px-2 py-0.5 rounded-md">
+                              NOTA: {shift.observation}
+                            </span>
+                          ) : (
+                            <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">Sin novedades</span>
+                          )}
+                        </div>
+                        {shift.status !== 'Finalizado' && shift.status !== 'Completo' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                            title="Finalizar Turno"
+                          >
+                            <CheckCircle2 className="h-5 w-5" />
+                          </Button>
                         )}
                       </div>
                     </TableCell>
@@ -327,30 +342,11 @@ export function ShiftTable() {
                         {shift.duration || '12h'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 border shadow-sm rounded-full ${getStatusBadgeStyles(shift.status || 'Activo')}`}
-                      >
-                        {shift.status || 'Activo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right pr-8">
-                      {shift.status !== 'Finalizado' && shift.status !== 'Completo' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                        >
-                          <CheckCircle2 className="h-5 w-5" />
-                        </Button>
-                      )}
-                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
+                  <TableCell colSpan={5} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
                     No se han detectado operaciones activas.
                   </TableCell>
                 </TableRow>
