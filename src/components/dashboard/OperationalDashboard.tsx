@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState } from 'react';
@@ -11,7 +10,8 @@ import {
   Calendar,
   ShieldCheck,
   AlertTriangle,
-  Lock
+  Lock,
+  Building2
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
