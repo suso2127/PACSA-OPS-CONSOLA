@@ -22,7 +22,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/select";
+} from "@/components/ui/select";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -122,7 +122,6 @@ export function EquipmentTable() {
     const doc = new jsPDF();
     const date = record.createdAt?.toDate ? record.createdAt.toDate().toLocaleString() : new Date().toLocaleString();
 
-    // Estilo Membrete
     doc.setFillColor(26, 27, 46);
     doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(255, 255, 255);
@@ -132,14 +131,12 @@ export function EquipmentTable() {
     doc.setFontSize(10);
     doc.text('COMPROBANTE DE DOTACIÓN Y EQUIPO', 105, 30, { align: 'center' });
 
-    // Información del Guardia
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(12);
     doc.text(`GUARDIA: ${record.guardName}`, 20, 55);
     doc.text(`FECHA DE REGISTRO: ${date}`, 20, 62);
     doc.text(`ESTADO ACTUAL: ${record.status || 'SOLICITUD'}`, 20, 69);
 
-    // Tallas
     autoTable(doc, {
       startY: 80,
       head: [['CATEGORÍA', 'TALLA / DETALLE']],
@@ -152,7 +149,6 @@ export function EquipmentTable() {
       headStyles: { fillColor: [59, 130, 246] }
     });
 
-    // Equipo
     const equipList = Object.entries(record.equipment)
       .filter(([_, val]) => val)
       .map(([key]) => {
@@ -172,7 +168,6 @@ export function EquipmentTable() {
       headStyles: { fillColor: [16, 185, 129] }
     });
 
-    // Firmas
     const finalY = (doc as any).lastAutoTable.finalY + 40;
     doc.line(20, finalY, 80, finalY);
     doc.text('FIRMA RECEPTOR', 35, finalY + 5);
