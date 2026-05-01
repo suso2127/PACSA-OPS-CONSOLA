@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -6,7 +5,6 @@ import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'fi
 import { db } from '@/lib/firebase';
 import { 
   Printer, 
-  Sparkles, 
   ChevronLeft, 
   ChevronRight, 
   Search, 
@@ -115,10 +113,6 @@ export function HistoryView() {
           <Button variant="outline" className="bg-[#2563eb] hover:bg-[#2563eb]/90 text-white border-none h-11 px-6 rounded-xl">
             <Printer className="mr-2 h-4 w-4" />
             Imprimir Reporte
-          </Button>
-          <Button variant="outline" className="bg-[#7c3aed] hover:bg-[#7c3aed]/90 text-white border-none h-11 px-6 rounded-xl">
-            <Sparkles className="mr-2 h-4 w-4" />
-            Análisis AI
           </Button>
         </div>
       </div>
