@@ -1,20 +1,27 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PinScreen } from '@/components/auth/PinScreen';
 import { AdminView } from '@/components/dashboard/AdminView';
 import { SupervisorView } from '@/components/dashboard/SupervisorView';
 import { GuardView } from '@/components/dashboard/GuardView';
-import { LogOut, LayoutDashboard, Shield, Bell, Clock, Activity } from 'lucide-react';
+import { LogOut, LayoutDashboard, Shield, Bell, Clock, Activity, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 type Role = 'Admin' | 'Supervisor' | 'Guard';
 
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
   const [currentTime, setCurrentTime] = useState<string | null>(null);
+  const [deficits, setDeficits] = useState<{name: string, count: number}[]>([]);
+  const prevDeficitCount = useRef(0);
 
   useEffect(() => {
     const updateTime = () => {
@@ -31,6 +38,69 @@ export default function Home() {
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Sistema de Alerta de Cobertura en Tiempo Real
+  useEffect(() => {
+    if (!role) return;
+
+    const d = new Date();
+    const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+    const dayKey = dayNames[d.getDay()];
+
+    const unsubProjects = onSnapshot(collection(db, 'projects'), (projectSnap) => {
+      const projects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      const qShifts = query(
+        collection(db, 'shift-registrations'),
+        where('status', 'in', ['Activo', 'Doble'])
+      );
+
+      const unsubShifts = onSnapshot(qShifts, (shiftSnap) => {
+        const activeRegs = shiftSnap.docs.map(doc => doc.data());
+        const newDeficits: {name: string, count: number}[] = [];
+        
+        projects.forEach((p: any) => {
+          const required = p.requirements?.[dayKey] || 0;
+          const onSite = activeRegs.filter((r: any) => r.projectCode === p.code).length;
+          if (onSite < required) {
+            newDeficits.push({
+              name: p.name,
+              count: required - onSite
+            });
+          }
+        });
+        
+        // Alarma sonora táctica al detectar nuevos faltantes
+        if (newDeficits.length > prevDeficitCount.current) {
+          playAlarm();
+        }
+        
+        setDeficits(newDeficits);
+        prevDeficitCount.current = newDeficits.length;
+      });
+
+      return () => unsubShifts();
+    });
+
+    return () => unsubProjects();
+  }, [role]);
+
+  const playAlarm = () => {
+    try {
+      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(440, context.currentTime);
+      gain.gain.setValueAtTime(0.05, context.currentTime);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.3);
+    } catch (e) {
+      // Audio bloqueado por política de navegador hasta interacción
+    }
+  };
 
   const handleLogout = () => setRole(null);
 
@@ -60,7 +130,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Identificación Corporativa Central (Solo Nombre) */}
+        {/* Identificación Corporativa Central */}
         <div className="hidden md:flex items-center justify-center flex-1 px-4">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
@@ -74,13 +144,60 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
-          <Button variant="ghost" size="icon" className="hidden sm:flex text-muted-foreground hover:text-foreground">
-            <Bell className="h-5 w-5" />
-          </Button>
+          {/* Campana de Notificaciones con Alerta de Cobertura */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={cn(
+                  "relative transition-all duration-300", 
+                  deficits.length > 0 ? "text-red-500 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10" : "text-muted-foreground"
+                )}
+              >
+                <Bell className={cn("h-5 w-5", deficits.length > 0 && "animate-pulse")} />
+                {deficits.length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-card animate-bounce">
+                    {deficits.length}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 bg-card border-red-500/20 shadow-2xl p-0 overflow-hidden">
+              <div className="p-4 border-b border-white/5 bg-red-500/5 flex items-center gap-3">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+                <h4 className="font-black text-xs uppercase tracking-widest text-red-500">Alertas de Cobertura</h4>
+              </div>
+              <div className="p-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {deficits.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {deficits.map((d, i) => (
+                      <div key={i} className="flex justify-between items-center bg-[#1a1b2e] p-3 rounded-xl border border-white/5 group hover:border-red-500/30 transition-all">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Puesto</span>
+                          <span className="text-[10px] font-bold text-white uppercase leading-none mt-1">{d.name}</span>
+                        </div>
+                        <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-black px-2 py-0.5">
+                          -{d.count} GUARDIA(S)
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="p-3 bg-green-500/10 rounded-full w-fit mx-auto mb-3">
+                      <Activity className="h-5 w-5 text-green-500" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Sistema Operativo Íntegro</p>
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
           
           <div className="h-8 w-[1px] bg-border mx-1 hidden sm:block" />
           
-          {/* Reloj Robusto de Impacto */}
+          {/* Reloj Robusto */}
           <div className="flex items-center gap-4 px-5 py-2 bg-[#1a1b2e] rounded-xl border border-primary/30 shadow-[0_0_20px_rgba(59,130,246,0.1)] group">
             <div className="hidden lg:flex flex-col items-end border-r border-white/10 pr-4">
               <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1">Standard Time</span>
@@ -103,7 +220,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Área de Contenido Principal Ajustada al ancho deseado */}
+      {/* Área de Contenido Principal */}
       <main className="flex-1 p-6 md:p-10 max-w-[1600px] mx-auto w-full">
         <div className="flex items-center gap-3 mb-8">
           <LayoutDashboard className="h-6 w-6 text-accent" />
@@ -119,7 +236,7 @@ export default function Home() {
         {role === 'Guard' && <GuardView />}
       </main>
 
-      {/* Estado del Pie de Página */}
+      {/* Pie de Página */}
       <footer className="border-t bg-card/50 px-6 py-3 flex items-center justify-between text-[10px] uppercase tracking-tighter text-muted-foreground">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 font-bold">
