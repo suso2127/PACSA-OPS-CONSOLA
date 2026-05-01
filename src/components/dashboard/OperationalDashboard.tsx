@@ -21,10 +21,17 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, YAxis } from "recharts";
 
 export function OperationalDashboard() {
   const [currentDay, setCurrentDay] = useState('');
   const [deficits, setDeficits] = useState<{name: string, required: number, onSite: number}[]>([]);
+  const [projectCoverageData, setProjectCoverageData] = useState<any[]>([]);
   const [stats, setStats] = useState({
     required: 0,
     active: 0,
@@ -56,6 +63,7 @@ export function OperationalDashboard() {
       const unsubShifts = onSnapshot(qShifts, (shiftSnap) => {
         const shifts = shiftSnap.docs.map(doc => doc.data());
         const newDeficits: {name: string, required: number, onSite: number}[] = [];
+        const coverageData: any[] = [];
         let totalReq = 0;
         let activeCount = 0;
         let doubleCount = 0;
@@ -73,6 +81,14 @@ export function OperationalDashboard() {
           if (onSite < req) {
             newDeficits.push({ name: p.name, required: req, onSite });
           }
+
+          if (req > 0) {
+            coverageData.push({
+              name: p.code,
+              required: req,
+              onSite: onSite,
+            });
+          }
         });
 
         const totalInSite = activeCount + doubleCount;
@@ -87,6 +103,7 @@ export function OperationalDashboard() {
           coverage
         });
         setDeficits(newDeficits);
+        setProjectCoverageData(coverageData);
       });
 
       return () => unsubShifts();
@@ -260,8 +277,38 @@ export function OperationalDashboard() {
               <Activity className="h-5 w-5 text-sky-400" />
               <h3 className="text-base font-black text-white uppercase tracking-tight">Cobertura por Proyecto</h3>
             </div>
-            <div className="flex items-center justify-center h-[280px] bg-white/[0.02] border border-white/5 rounded-3xl">
-              <span className="text-[10px] font-black text-muted-foreground/20 uppercase tracking-[0.3em]">ANALIZANDO DESPLIEGUE...</span>
+            
+            <div className="h-[280px] w-full mt-4">
+              {projectCoverageData.length > 0 ? (
+                <ChartContainer config={{
+                  required: { label: "Requerido", color: "#3b4252" },
+                  onSite: { label: "En Puesto", color: "#3b82f6" }
+                }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={projectCoverageData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#ffffff05" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 'bold' }}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="required" fill="#3b4252" radius={[4, 4, 0, 0]} barSize={30} />
+                      <Bar dataKey="onSite" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full bg-white/[0.02] border border-white/5 rounded-3xl">
+                  <span className="text-[10px] font-black text-muted-foreground/20 uppercase tracking-[0.3em]">ANALIZANDO DESPLIEGUE...</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
