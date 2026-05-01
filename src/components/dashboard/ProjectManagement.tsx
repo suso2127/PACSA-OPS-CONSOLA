@@ -193,6 +193,7 @@ export function ProjectManagement() {
                   <SelectItem value="Industrial">Industrial</SelectItem>
                   <SelectItem value="Residencial">Residencial</SelectItem>
                   <SelectItem value="Bancario">Bancario</SelectItem>
+                  <SelectItem value="Construcción">Construcción</SelectItem>
                 </SelectContent>
               </Select>
             </div>
