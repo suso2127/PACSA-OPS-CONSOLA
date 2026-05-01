@@ -103,8 +103,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Área de Contenido Principal */}
-      <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
+      {/* Área de Contenido Principal Ampliada */}
+      <main className="flex-1 p-6 md:p-10 max-w-[1600px] mx-auto w-full">
         <div className="flex items-center gap-3 mb-8">
           <LayoutDashboard className="h-6 w-6 text-accent" />
           <h2 className="text-2xl font-black tracking-tighter uppercase">
