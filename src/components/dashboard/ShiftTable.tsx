@@ -249,11 +249,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   }
 
   return (
-    <div className="space-y-2">
-      <div className="w-full flex flex-col items-center px-4 space-y-1 mb-2">
+    <div className="space-y-1">
+      <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
         <div className="flex items-center gap-3 w-full max-w-[600px]">
           <ChevronLeft className="h-3 w-3 text-primary/30" />
-          <div className="h-1.5 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
+          <div className="h-1 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
             <div 
               ref={scrollTrackerRef}
               className="absolute top-0 left-0 h-full w-[15%] bg-primary rounded-full shadow-[0_0_10px_rgba(59,130,246,0.4)] transition-transform duration-75 ease-out"
@@ -265,12 +265,12 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       </div>
 
       <div className="bg-[#12121c] border border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-500">
-        <div className="px-6 py-5 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
-              <Clock className="h-5 w-5 text-primary" />
+        <div className="px-5 py-3 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg border border-primary/20">
+              <Clock className="h-4 w-4 text-primary" />
             </div>
-            <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight">
+            <h3 className="text-sm font-black text-white uppercase tracking-tight leading-none">
               ESTADO DE TURNOS EN TIEMPO REAL
             </h3>
           </div>
@@ -280,40 +280,40 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
               <Button 
                 variant="outline" 
                 onClick={handleRestoreView}
-                className="h-8 bg-secondary/20 border-white/10 text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-white"
+                className="h-7 bg-secondary/20 border-white/10 text-[8px] font-black uppercase tracking-widest text-muted-foreground hover:text-white px-2"
               >
-                <RefreshCw className="h-3 w-3 mr-2" />
+                <RefreshCw className="h-2.5 w-2.5 mr-1.5" />
                 Restaurar ({hiddenIds.size})
               </Button>
             )}
 
             <Button 
               onClick={handleClearMonitor}
-              className="h-8 bg-destructive/5 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all px-4"
+              className="h-7 bg-destructive/5 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              <Trash2 className="h-3 w-3 mr-1.5" />
               LIMPIAR MESA
             </Button>
 
-            <div className="h-6 w-[1px] bg-white/10 mx-1" />
+            <div className="h-5 w-[1px] bg-white/10 mx-0.5" />
 
-            <div className="flex items-center gap-2 bg-[#0f101d] px-3 py-0 rounded-lg border border-white/5 h-8">
-              <Filter className="h-3.5 w-3.5 text-primary" />
+            <div className="flex items-center gap-1.5 bg-[#0f101d] px-2 py-0 rounded-lg border border-white/5 h-7">
+              <Filter className="h-3 w-3 text-primary" />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[120px] h-full bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
+                <SelectTrigger className="w-[100px] h-full bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
                   <SelectValue placeholder="FILTRO" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
-                  <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">TODOS</SelectItem>
-                  <SelectItem value="Activo" className="text-[10px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
-                  <SelectItem value="Doble" className="text-[10px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
-                  <SelectItem value="Finalizado" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
+                  <SelectItem value="all" className="text-[9px] font-black uppercase tracking-widest">TODOS</SelectItem>
+                  <SelectItem value="Activo" className="text-[9px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
+                  <SelectItem value="Doble" className="text-[9px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
+                  <SelectItem value="Finalizado" className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
-            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg">
-              <Zap className="h-3 w-3 mr-1.5 fill-primary" />
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[8px] font-black tracking-widest px-2 py-1 rounded-lg">
+              <Zap className="h-2.5 w-2.5 mr-1 fill-primary" />
               OPS: {filteredShifts.length}
             </Badge>
           </div>
@@ -324,20 +324,20 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
           onScroll={handleScroll}
           className="overflow-x-auto no-scrollbar"
         >
-          <Table className="min-w-[1000px]">
+          <Table className="min-w-[950px]">
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 pl-6">Nombre Completo</TableHead>
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11">Cliente</TableHead>
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Entrada</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Nombre Completo</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
                 {!hideExitTime && (
-                  <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Término</TableHead>
+                  <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Término</TableHead>
                 )}
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Jornada</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Jornada</TableHead>
                 {showObservations && (
                   <>
-                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Horas</TableHead>
-                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Observaciones</TableHead>
+                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Horas</TableHead>
+                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Observaciones</TableHead>
                   </>
                 )}
               </TableRow>
@@ -351,88 +351,88 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                       index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.02] border-l-2 border-l-primary' : ''
                     } ${shift.status === 'Finalizado' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
                   >
-                    <TableCell className="pl-6 py-4">
-                      <div className="flex items-center gap-3">
+                    <TableCell className="pl-5 py-2.5">
+                      <div className="flex items-center gap-2.5">
                         <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
-                        <Badge className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
+                        <Badge className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
                           {shift.status || 'Activo'}
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2.5">
                       <div className="flex flex-col">
-                        <span className="text-xs font-black text-primary uppercase font-mono tracking-widest leading-none">{shift.projectCode}</span>
-                        <span className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter mt-1">{shift.clientName}</span>
+                        <span className="text-[11px] font-black text-primary uppercase font-mono tracking-widest leading-none">{shift.projectCode}</span>
+                        <span className="text-[7px] text-muted-foreground uppercase font-black tracking-tighter mt-0.5">{shift.clientName}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center py-2.5">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="font-mono text-[11px] font-black text-white bg-[#1a1b2e] px-2 py-1 rounded border border-white/5 hover:border-primary/50 transition-colors cursor-pointer outline-none">
+                          <button className="font-mono text-[10px] font-black text-white bg-[#1a1b2e] px-1.5 py-0.5 rounded border border-white/5 hover:border-primary/50 transition-colors cursor-pointer outline-none">
                             {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
+                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[140px]">
                           <DropdownMenuItem 
                             onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Finalizado')}
-                            className="text-[10px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5 py-2 cursor-pointer"
+                            className="text-[9px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5 py-1.5 cursor-pointer"
                           >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
+                            <CheckCircle2 className="h-3 w-3 mr-2" />
                             Finalizar Turno
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Activo')}
-                            className="text-[10px] font-black uppercase tracking-widest text-primary focus:text-primary focus:bg-white/5 py-2 cursor-pointer"
+                            className="text-[9px] font-black uppercase tracking-widest text-primary focus:text-primary focus:bg-white/5 py-1.5 cursor-pointer"
                           >
-                            <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                            <RotateCcw className="h-3 w-3 mr-2" />
                             Restablecer Status
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Doble')}
-                            className="text-[10px] font-black uppercase tracking-widest text-red-500 focus:text-red-400 focus:bg-white/5 py-2 cursor-pointer"
+                            className="text-[9px] font-black uppercase tracking-widest text-red-500 focus:text-red-400 focus:bg-white/5 py-1.5 cursor-pointer"
                           >
-                            <Copy className="h-3.5 w-3.5 mr-2" />
+                            <Copy className="h-3 w-3 mr-2" />
                             Colocar Doble
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                     {!hideExitTime && (
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1.5 text-accent font-mono text-[11px] font-black">
-                          <LogOut className="h-3 w-3" />
+                      <TableCell className="text-center py-2.5">
+                        <div className="flex items-center justify-center gap-1 text-accent font-mono text-[10px] font-black">
+                          <LogOut className="h-2.5 w-2.5" />
                           {calculateExitTime(shift.entryTime, shift.duration)}
                         </div>
                       </TableCell>
                     )}
-                    <TableCell className="text-center">
-                      <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[9px] tracking-widest py-0.5 px-2">
+                    <TableCell className="text-center py-2.5">
+                      <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[8px] tracking-widest py-0 px-1.5">
                         {shift.duration || '12h'}
                       </Badge>
                     </TableCell>
                     {showObservations && (
                       <>
-                        <TableCell className="text-center">
+                        <TableCell className="text-center py-2.5">
                           {(shift.status === 'Finalizado' || shift.status === 'Completo' || shift.status === 'Doble') ? (
-                            <div className="flex items-center justify-center gap-1.5 font-mono text-[11px] font-black text-primary">
-                              <Timer className="h-3 w-3" />
+                            <div className="flex items-center justify-center gap-1 font-mono text-[10px] font-black text-primary">
+                              <Timer className="h-2.5 w-2.5" />
                               {calculateWorkedHours(shift)}H
                             </div>
                           ) : (
-                            <span className="text-[9px] text-muted-foreground/30 font-bold uppercase">En curso</span>
+                            <span className="text-[8px] text-muted-foreground/30 font-bold uppercase">En curso</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="text-center py-2.5">
                           <Select 
                             value={shift.observation || ''} 
                             onValueChange={(val) => handleUpdateObservation(shift.id, val)}
                           >
-                            <SelectTrigger className="h-8 bg-[#1a1b2e] border-white/10 text-[10px] font-black uppercase w-full max-w-[150px] mx-auto focus:ring-0">
+                            <SelectTrigger className="h-7 bg-[#1a1b2e] border-white/10 text-[9px] font-black uppercase w-full max-w-[130px] mx-auto focus:ring-0">
                               <SelectValue placeholder="SIN OBS" />
                             </SelectTrigger>
                             <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
                               {OBSERVATION_OPTIONS.map((opt) => (
-                                <SelectItem key={opt} value={opt} className="text-[10px] font-black uppercase tracking-tight">
+                                <SelectItem key={opt} value={opt} className="text-[9px] font-black uppercase tracking-tight">
                                   {opt}
                                 </SelectItem>
                               ))}
@@ -445,7 +445,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={showObservations ? 7 : 5} className="text-center py-24 text-muted-foreground italic font-medium">
+                  <TableCell colSpan={showObservations ? 7 : 5} className="text-center py-16 text-muted-foreground italic font-medium">
                     No hay operaciones activas detectadas.
                   </TableCell>
                 </TableRow>
