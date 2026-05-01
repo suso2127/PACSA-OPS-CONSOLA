@@ -41,7 +41,7 @@ export function AdminView() {
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
     { id: 'proyectos', label: 'Proyectos', icon: Building2 },
-    { id: 'config', label: 'Config', icon: Settings },
+    { id: 'config', label: 'Configuración', icon: Settings },
   ] as const;
 
   return (
