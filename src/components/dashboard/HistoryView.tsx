@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
@@ -9,7 +9,8 @@ import {
   Search, 
   User,
   Filter,
-  Clock
+  Clock,
+  Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface HistoryRecord {
   id: string;
@@ -39,6 +47,7 @@ export function HistoryView() {
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchName, setSearchName] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [fromDate, setFromDate] = useState('2026-04-20');
   const [toDate, setToDate] = useState('2026-04-26');
 
@@ -52,7 +61,7 @@ export function HistoryView() {
       const q = query(
         collection(db, 'shift-registrations'),
         orderBy('entryTime', 'desc'),
-        limit(50)
+        limit(100)
       );
       const snapshot = await getDocs(q);
       const fetched = snapshot.docs.map(doc => ({
@@ -66,6 +75,14 @@ export function HistoryView() {
       setLoading(false);
     }
   };
+
+  const filteredRecords = useMemo(() => {
+    return records.filter(record => {
+      const matchesName = record.guardName.toLowerCase().includes(searchName.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
+      return matchesName && matchesStatus;
+    });
+  }, [records, searchName, statusFilter]);
 
   const formatDate = (ts: any) => {
     if (!ts) return 'N/A';
@@ -125,6 +142,21 @@ export function HistoryView() {
     return `${diffHrs.toString().padStart(2, '0')}:${diffMins.toString().padStart(2, '0')} hrs`;
   };
 
+  const getStatusBadgeStyles = (status: string) => {
+    switch (status) {
+      case 'Activo':
+        return 'bg-green-500/10 text-green-500 border-green-500/20';
+      case 'Doble':
+        return 'bg-red-500/10 text-red-500 border-red-500/20';
+      case 'Completo':
+        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'Finalizado':
+        return 'bg-muted text-muted-foreground opacity-60 border-muted-foreground/20';
+      default:
+        return 'bg-primary/10 text-primary border-primary/20';
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       {/* Cabecera Principal */}
@@ -153,7 +185,7 @@ export function HistoryView() {
         <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 shadow-2xl">
           {/* Panel de Filtros */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end pb-8 border-b border-white/5">
-            <div className="md:col-span-3 space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Fecha Inicio</Label>
               <Input 
                 type="date" 
@@ -162,7 +194,7 @@ export function HistoryView() {
                 className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 font-mono text-sm rounded-xl"
               />
             </div>
-            <div className="md:col-span-3 space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Fecha Fin</Label>
               <Input 
                 type="date" 
@@ -171,7 +203,7 @@ export function HistoryView() {
                 className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 font-mono text-sm rounded-xl"
               />
             </div>
-            <div className="md:col-span-4 space-y-2">
+            <div className="md:col-span-3 space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Buscar Guardia</Label>
               <div className="relative">
                 <Input 
@@ -183,10 +215,31 @@ export function HistoryView() {
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
             </div>
+            <div className="md:col-span-3 space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Estado Operativo</Label>
+              <div className="flex items-center gap-3 bg-[#0f101d] px-4 py-0 rounded-xl border-none h-12">
+                <Activity className="h-4 w-4 text-primary shrink-0" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 h-full p-0">
+                    <SelectValue placeholder="ESTADO" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                    <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">TODOS LOS ESTADOS</SelectItem>
+                    <SelectItem value="Activo" className="text-[10px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
+                    <SelectItem value="Doble" className="text-[10px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
+                    <SelectItem value="Finalizado" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
+                    <SelectItem value="Completo" className="text-[10px] font-black uppercase tracking-widest text-blue-500">COMPLETOS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="md:col-span-2">
-              <Button className="w-full h-12 bg-[#25273c] hover:bg-primary hover:text-primary-foreground border border-white/5 font-bold uppercase tracking-widest rounded-xl transition-all duration-300">
+              <Button 
+                onClick={fetchRecords}
+                className="w-full h-12 bg-[#25273c] hover:bg-primary hover:text-primary-foreground border border-white/5 font-bold uppercase tracking-widest rounded-xl transition-all duration-300"
+              >
                 <Search className="mr-2 h-4 w-4" />
-                Filtrar
+                Sincronizar
               </Button>
             </div>
           </div>
@@ -195,7 +248,7 @@ export function HistoryView() {
           <div className="pt-8">
             <div className="overflow-hidden rounded-xl border border-white/5">
               <Table>
-                <TableHeader className="bg-[#25273c]/50">
+                <TableHeader className="bg-white/[0.02]">
                   <TableRow className="hover:bg-transparent border-none">
                     <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 pl-6">Fecha</TableHead>
                     <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14">Guardia</TableHead>
@@ -217,14 +270,14 @@ export function HistoryView() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ) : records.length > 0 ? (
-                    records.map((record) => (
-                      <TableRow key={record.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  ) : filteredRecords.length > 0 ? (
+                    filteredRecords.map((record) => (
+                      <TableRow key={record.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors ${record.status === 'Finalizado' ? 'opacity-60' : ''}`}>
                         <TableCell className="font-mono text-xs pl-6 text-muted-foreground">{formatDate(record.entryTime)}</TableCell>
-                        <TableCell className="font-bold text-sm tracking-tight">{record.guardName}</TableCell>
+                        <TableCell className="font-bold text-sm tracking-tight text-white">{record.guardName}</TableCell>
                         <TableCell>
-                          <div className="text-xs font-black text-primary">{record.projectCode}</div>
-                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">{record.projectName}</div>
+                          <div className="text-xs font-black text-primary uppercase">{record.projectCode}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter mt-0.5">{record.projectName}</div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="bg-[#25273c] text-[9px] font-bold uppercase px-2 py-0">
@@ -240,9 +293,7 @@ export function HistoryView() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right pr-6">
-                          <Badge className={`text-[9px] font-black uppercase tracking-tighter px-3 ${
-                            record.status === 'Activo' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
-                          } border shadow-sm`}>
+                          <Badge className={`text-[9px] font-black uppercase tracking-tighter px-3 py-1 rounded-full border shadow-sm ${getStatusBadgeStyles(record.status)}`}>
                             {record.status}
                           </Badge>
                         </TableCell>
@@ -251,7 +302,7 @@ export function HistoryView() {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-32 text-muted-foreground italic">
-                        No se han encontrado registros en el periodo seleccionado.
+                        No se han encontrado registros con los filtros seleccionados.
                       </TableCell>
                     </TableRow>
                   )}
