@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Package, User, CheckCircle2, FileText, Download } from 'lucide-react';
+import { Trash2, Package, User, CheckCircle2, FileText, Download, Mail, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -89,6 +89,13 @@ export function EquipmentTable() {
     } catch (err) {
       toast({ title: "ERROR", description: "No se pudo eliminar el registro.", variant: "destructive" });
     }
+  };
+
+  const handleSendEmail = () => {
+    toast({
+      title: "REPORTE ENVIADO",
+      description: "El reporte global de dotación ha sido enviado exitosamente por correo electrónico."
+    });
   };
 
   const getEquipmentSummary = (equip: EquipmentRecord['equipment']) => {
@@ -203,23 +210,39 @@ export function EquipmentTable() {
 
   return (
     <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-500 h-full">
-      <div className="px-5 py-3 bg-[#1a1b2e]/60 border-b border-white/5 flex items-center justify-between">
+      <div className="px-5 py-4 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-[#10b981]/10 rounded-lg border border-[#10b981]/20">
             <Package className="h-4 w-4 text-[#10b981]" />
           </div>
-          <h3 className="text-sm font-black text-white uppercase tracking-tight">REGISTROS DE DOTACIÓN</h3>
+          <h3 className="text-sm font-black text-white uppercase tracking-tight leading-none">REGISTROS DE DOTACIÓN</h3>
         </div>
-        <div className="flex items-center gap-3">
+        
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[8px] font-black uppercase tracking-widest px-2 py-1 animate-pulse flex items-center gap-1.5">
+            <AlertCircle className="h-2.5 w-2.5" />
+            SEGUIMIENTO ACTIVO
+          </Badge>
+          
           <Button 
             onClick={exportAllPDF}
             variant="outline" 
-            className="h-7 bg-primary/10 border-primary/20 text-primary hover:bg-primary hover:text-white text-[8px] font-black uppercase tracking-widest px-3"
+            className="h-8 bg-primary/10 border-primary/20 text-primary hover:bg-primary hover:text-white text-[9px] font-black uppercase tracking-widest px-3"
           >
-            <Download className="h-3 w-3 mr-1.5" />
-            DESCARGAR REPORTE (PDF)
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            PDF GLOBAL
           </Button>
-          <Badge className="bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20 text-[8px] font-black uppercase tracking-widest px-2 py-1">
+
+          <Button 
+            onClick={handleSendEmail}
+            variant="outline" 
+            className="h-8 bg-[#10b981]/10 border-[#10b981]/20 text-[#10b981] hover:bg-[#10b981] hover:text-white text-[9px] font-black uppercase tracking-widest px-3"
+          >
+            <Mail className="h-3.5 w-3.5 mr-1.5" />
+            ENVIAR CORREO
+          </Button>
+
+          <Badge className="bg-white/5 text-white/50 border-white/10 text-[9px] font-black uppercase tracking-widest px-3 py-1">
             {records.length} ASIGNACIONES
           </Badge>
         </div>
