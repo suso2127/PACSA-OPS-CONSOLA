@@ -102,73 +102,74 @@ export function GuardRegistrationForm() {
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm p-6 space-y-6">
-      <div className="bg-secondary/50 rounded-lg p-5 flex items-center justify-between border border-border">
+    <div className="bg-card border border-border rounded-xl shadow-sm p-6 space-y-8">
+      {/* Cabecera del Formulario estilo Imagen */}
+      <div className="bg-[#1a1b2e] rounded-xl p-5 flex items-center justify-between border border-white/5">
         <div className="flex items-center gap-4">
-          <div className="bg-primary p-3 rounded-lg">
-            <Shield className="h-6 w-6 text-primary-foreground" />
+          <div className="bg-primary/20 p-3 rounded-xl border border-primary/20">
+            <Shield className="h-7 w-7 text-primary" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight uppercase leading-none">Comando Guardia</h2>
-            <div className="flex flex-col mt-1.5">
+          <div className="flex flex-col">
+            <h2 className="text-2xl font-black tracking-tight text-white uppercase leading-none">Comando Guardia</h2>
+            <div className="flex flex-col mt-1">
               <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1">Comando Dotación</span>
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Terminal de Registro Sincronizada</p>
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-end text-primary/40">
+        <div className="flex flex-col items-end text-primary/30">
           <Database className="h-4 w-4" />
-          <span className="text-[7px] uppercase font-black">Sync Active</span>
+          <span className="text-[7px] uppercase font-black mt-1">Sync Active</span>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nombre del Guardia</Label>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-3">
+          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Nombre del Guardia</Label>
           <Input 
             placeholder="Ingrese el nombre" 
             value={formData.guardName}
             onChange={(e) => setFormData({...formData, guardName: e.target.value})}
-            className="h-11 bg-background"
+            className="h-12 bg-[#0f101d] border-none focus-visible:ring-1 focus-visible:ring-primary/50 text-sm rounded-xl"
           />
         </div>
 
-        <div className="space-y-2">
-          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Código de Proyecto</Label>
+        <div className="space-y-3">
+          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Código de Proyecto</Label>
           <div className="relative">
             <Input 
               placeholder="EJ. ABC-01" 
               value={formData.projectCode}
               onChange={(e) => setFormData({...formData, projectCode: e.target.value.toUpperCase()})}
-              className="h-11 bg-background font-mono"
+              className="h-12 bg-[#0f101d] border-none focus-visible:ring-1 focus-visible:ring-primary/50 font-mono text-sm rounded-xl"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {projectLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+              {projectLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Search className="h-4 w-4 text-muted-foreground" />}
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duración</Label>
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Duración</Label>
             <Select value={formData.duration} onValueChange={(v) => setFormData({...formData, duration: v})}>
-              <SelectTrigger className="h-11 bg-background">
+              <SelectTrigger className="h-12 bg-[#0f101d] border-none focus:ring-1 focus:ring-primary/50 rounded-xl text-xs font-bold uppercase">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#1a1b2e] border-white/10">
                 <SelectItem value="8h">8 Horas</SelectItem>
                 <SelectItem value="12h">12 Horas</SelectItem>
                 <SelectItem value="24h">24 Horas (Doble)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Turno</Label>
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Turno</Label>
             <Select value={formData.shiftType} onValueChange={(v) => setFormData({...formData, shiftType: v})}>
-              <SelectTrigger className="h-11 bg-background">
+              <SelectTrigger className="h-12 bg-[#0f101d] border-none focus:ring-1 focus:ring-primary/50 rounded-xl text-xs font-bold uppercase">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#1a1b2e] border-white/10">
                 <SelectItem value="Diurno">Diurno</SelectItem>
                 <SelectItem value="Nocturno">Nocturno</SelectItem>
               </SelectContent>
@@ -179,9 +180,9 @@ export function GuardRegistrationForm() {
         <Button 
           type="submit" 
           disabled={loading}
-          className="w-full h-14 bg-primary text-primary-foreground font-bold uppercase tracking-widest rounded-lg shadow-sm"
+          className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest rounded-xl shadow-xl transition-all duration-300"
         >
-          {loading ? "Procesando..." : "Registrar Entrada"}
+          {loading ? "PROCESANDO REGISTRO..." : "REGISTRAR ENTRADA"}
         </Button>
       </form>
     </div>
