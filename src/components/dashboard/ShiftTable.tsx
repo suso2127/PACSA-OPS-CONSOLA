@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -25,7 +25,9 @@ import {
   UserMinus,
   Zap,
   Filter,
-  Trash2
+  Trash2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -64,6 +66,10 @@ export function ShiftTable() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  
+  // Referencias para el pasador de desplazamiento
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTrackerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const q = query(
@@ -98,6 +104,16 @@ export function ShiftTable() {
 
     return () => unsubscribe();
   }, []);
+
+  // Sincronización del pasador con el scroll de la tabla
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!tableContainerRef.current || !scrollTrackerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
+    const scrollPercentage = (scrollLeft / (scrollWidth - clientWidth)) * 100;
+    
+    // Mover el "thumb" del pasador
+    scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
+  };
 
   const handleClearMonitor = () => {
     const idsToHide = shifts
@@ -202,12 +218,21 @@ export function ShiftTable() {
 
   return (
     <div className="space-y-4">
-      {/* Barra decorativa táctica superior (Réplica Imagen) */}
-      <div className="w-full flex justify-center px-4">
-        <div className="h-1.5 w-full max-w-[800px] bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 flex items-center justify-center relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          <div className="h-[2px] w-[20%] bg-white/40 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
+      {/* Pasador de Desplazamiento Sincronizado (Control Táctico) */}
+      <div className="w-full flex flex-col items-center px-4 space-y-2">
+        <div className="flex items-center gap-4 w-full max-w-[800px]">
+          <ChevronLeft className="h-4 w-4 text-primary/40" />
+          <div className="h-2 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
+            {/* El Pasador (Thumb) que se mueve con el scroll */}
+            <div 
+              ref={scrollTrackerRef}
+              className="absolute top-0 left-0 h-full w-[20%] bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-transform duration-75 ease-out"
+              style={{ transform: 'translateX(0%)' }}
+            />
+          </div>
+          <ChevronRight className="h-4 w-4 text-primary/40" />
         </div>
+        <span className="text-[8px] font-black uppercase tracking-[0.3em] text-primary/40">Pasador de Información Operativa</span>
       </div>
 
       <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-700">
@@ -265,8 +290,12 @@ export function ShiftTable() {
           </div>
         </div>
         
-        <div className="overflow-x-auto no-scrollbar">
-          <Table>
+        <div 
+          ref={tableContainerRef}
+          onScroll={handleScroll}
+          className="overflow-x-auto no-scrollbar"
+        >
+          <Table className="min-w-[1000px]">
             <TableHeader className="bg-white/[0.02]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 pl-8">Elemento / Observación</TableHead>
