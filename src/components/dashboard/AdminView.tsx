@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState } from 'react';
@@ -8,13 +9,13 @@ import {
   ShieldCheck, 
   FileText,
   UserPlus,
-  Clock,
   History,
-  LayoutDashboard,
   Map as MapIcon,
-  Briefcase,
   Settings,
-  PlusCircle
+  ListTodo,
+  Copy,
+  LayoutGrid,
+  Building2
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -31,14 +32,14 @@ export function AdminView() {
   ];
 
   const COMMAND_ITEMS = [
-    { id: 'registro', label: 'REGISTRO', icon: UserPlus },
-    { id: 'estado', label: 'ESTADO', icon: Clock },
-    { id: 'dobles', label: 'DOBLES', icon: PlusCircle },
-    { id: 'dashboard', label: 'DASHBOARD', icon: LayoutDashboard },
-    { id: 'mapa', label: 'MAPA', icon: MapIcon },
-    { id: 'historial', label: 'HISTORIAL', icon: History },
-    { id: 'proyectos', label: 'PROYECTOS', icon: Briefcase },
-    { id: 'config', label: 'CONFIG', icon: Settings },
+    { id: 'registro', label: 'Registro', icon: UserPlus },
+    { id: 'estado', label: 'Estado', icon: ListTodo },
+    { id: 'dobles', label: 'Dobles', icon: Copy },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'mapa', label: 'Mapa', icon: MapIcon },
+    { id: 'historial', label: 'Historial', icon: History },
+    { id: 'proyectos', label: 'Proyectos', icon: Building2 },
+    { id: 'config', label: 'Config', icon: Settings },
   ] as const;
 
   return (
@@ -62,17 +63,17 @@ export function AdminView() {
         ))}
       </div>
 
-      {/* Barra de Comandos (Navegación) */}
-      <div className="bg-[#1a1b2e] border border-white/5 p-2 rounded-2xl flex items-center gap-2 overflow-x-auto no-scrollbar">
+      {/* Barra de Comandos (Navegación Moderna) */}
+      <div className="bg-card/40 backdrop-blur-md border border-white/5 p-1.5 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar max-w-fit">
         {COMMAND_ITEMS.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 whitespace-nowrap font-bold text-xs tracking-widest",
+              "flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 whitespace-nowrap font-medium text-sm",
               activeTab === item.id 
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105" 
-                : "bg-transparent text-muted-foreground hover:bg-white/5"
+                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
             )}
           >
             <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : "text-primary")} />
