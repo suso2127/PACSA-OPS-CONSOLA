@@ -73,21 +73,21 @@ export function AdminView() {
         </div>
       )}
 
-      {/* Barra de Comandos */}
-      <div className="bg-card/40 backdrop-blur-md border border-white/5 p-1.5 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar max-w-fit mb-4">
+      {/* Barra de Comandos - Ahora más ancha */}
+      <div className="bg-card/40 backdrop-blur-md border border-white/5 p-2 rounded-2xl flex items-center gap-2 overflow-x-auto no-scrollbar w-full mb-6">
         {COMMAND_ITEMS.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 whitespace-nowrap font-medium text-sm",
+              "flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 whitespace-nowrap font-bold text-sm flex-1 min-w-fit",
               activeTab === item.id 
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-white/5"
             )}
           >
             <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : "text-primary")} />
-            {item.label}
+            <span className="uppercase tracking-wider">{item.label}</span>
           </button>
         ))}
       </div>
