@@ -215,9 +215,8 @@ export function ShiftTable() {
           <div className="space-y-1">
             <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
               <Clock className="h-6 w-6 text-primary animate-pulse" />
-              Estado de Turnos Real-Time
+              REGISTRO DE OPERACIONES
             </h3>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black">Monitoreo de Fuerza Operativa en Sitio</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
@@ -273,8 +272,8 @@ export function ShiftTable() {
           <Table className="min-w-[1000px]">
             <TableHeader className="bg-white/[0.02]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 pl-8">Elemento / Observación</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14">Cliente / ID</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 pl-8">Elemento</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14">Cliente</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Entrada</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Término</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Jornada</TableHead>
@@ -298,12 +297,10 @@ export function ShiftTable() {
                               {shift.status || 'Activo'}
                             </Badge>
                           </div>
-                          {shift.observation ? (
+                          {shift.observation && (
                             <span className="text-[9px] text-primary font-black uppercase tracking-tighter mt-1 bg-primary/10 w-fit px-2 py-0.5 rounded-md">
                               NOTA: {shift.observation}
                             </span>
-                          ) : (
-                            <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">Sin novedades</span>
                           )}
                         </div>
                         {shift.status !== 'Finalizado' && shift.status !== 'Completo' && (

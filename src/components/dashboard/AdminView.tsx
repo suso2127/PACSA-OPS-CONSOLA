@@ -33,8 +33,8 @@ export function AdminView() {
 
   const COMMAND_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
-    { id: 'registro', label: 'Registro', icon: UserPlus },
-    { id: 'estado', label: 'Estado', icon: ListTodo },
+    { id: 'registro', label: 'Dotación', icon: UserPlus },
+    { id: 'estado', label: 'Operaciones', icon: ListTodo },
     { id: 'dobles', label: 'Dobles', icon: Copy },
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
