@@ -10,9 +10,9 @@ import {
   Download,
   Clock,
   Search,
-  Filter,
   Building2,
-  CalendarDays
+  CalendarDays,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,44 +33,83 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface PayrollRecord {
-  id: string;
+interface PayrollGuard {
   guardName: string;
   projectName: string;
   projectCode: string;
-  status: string;
-  entryTime: any;
+  totalHours: number;
+  shiftsByDay: Record<string, { hours: number, status: string }>;
 }
 
 export function PayrollView() {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<PayrollRecord[]>([]);
+  const [guardsData, setGuardsData] = useState<PayrollGuard[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
-  const [selectedDay, setSelectedDay] = useState('all');
+  const [selectedDayFilter, setSelectedDayFilter] = useState('all');
+  const [weekDays, setWeekDays] = useState<{name: string, date: string, fullDate: string}[]>([]);
 
-  const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-  const todayIndex = (new Date().getDay() + 6) % 7;
+  // Configuración de la semana real (Lunes a Domingo)
+  useEffect(() => {
+    const names = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const now = new Date();
+    const currentWeek = [];
+    
+    // Obtener el lunes de la semana actual
+    const startOfWeek = new Date(now);
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); 
+    startOfWeek.setDate(diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      currentWeek.push({
+        name: names[d.getDay()],
+        date: d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }),
+        fullDate: d.toDateString()
+      });
+    }
+    setWeekDays(currentWeek);
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'shift-registrations'), orderBy('entryTime', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(doc => ({
+      const allShifts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as PayrollRecord[];
+      })) as any[];
       
-      const uniqueGuards = records.reduce((acc: PayrollRecord[], current) => {
-        const x = acc.find(item => item.guardName === current.guardName);
-        if (!x) {
-          return acc.concat([current]);
-        } else {
-          return acc;
+      // Agrupar por Guardia
+      const grouped = allShifts.reduce((acc: Record<string, PayrollGuard>, curr) => {
+        const name = curr.guardName;
+        if (!acc[name]) {
+          acc[name] = {
+            guardName: name,
+            projectCode: curr.projectCode,
+            projectName: curr.projectName,
+            totalHours: 0,
+            shiftsByDay: {}
+          };
         }
-      }, []);
 
-      setData(uniqueGuards);
+        const entryDate = curr.entryTime?.toDate ? curr.entryTime.toDate() : new Date(curr.entryTime);
+        const dateKey = entryDate.toDateString();
+        
+        // Solo procesar si no hay un turno ya registrado para ese día o si el actual es más relevante
+        if (!acc[name].shiftsByDay[dateKey]) {
+          const hours = curr.status === 'Doble' ? 24 : 12;
+          acc[name].shiftsByDay[dateKey] = { hours, status: curr.status };
+          acc[name].totalHours += hours;
+        }
+        
+        return acc;
+      }, {});
+
+      setGuardsData(Object.values(grouped));
       setLoading(false);
     });
 
@@ -78,42 +117,40 @@ export function PayrollView() {
   }, []);
 
   const filteredData = useMemo(() => {
-    return data.filter(record => {
-      const matchesName = record.guardName.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesProject = record.projectCode.toLowerCase().includes(projectSearch.toLowerCase()) || 
-                             record.projectName.toLowerCase().includes(projectSearch.toLowerCase());
+    return guardsData.filter(guard => {
+      const matchesName = guard.guardName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesProject = guard.projectCode.toLowerCase().includes(projectSearch.toLowerCase()) || 
+                             guard.projectName.toLowerCase().includes(projectSearch.toLowerCase());
       return matchesName && matchesProject;
     });
-  }, [data, searchTerm, projectSearch]);
+  }, [guardsData, searchTerm, projectSearch]);
 
-  const calculateTotalHours = (record: PayrollRecord) => {
-    const baseHours = 12 * 7;
-    const extraHours = record.status === 'Doble' ? 12 : 0;
-    return baseHours + extraHours;
-  };
+  const todayDateString = new Date().toDateString();
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border pb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight uppercase">Planilla Operativa</h1>
-          <p className="text-muted-foreground text-sm font-medium mt-1">Control de asistencia y cobertura semanal</p>
+          <p className="text-muted-foreground text-sm font-medium mt-1">
+            Auditoría de asistencia real — Semana del {weekDays[0]?.date} al {weekDays[6]?.date}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" className="bg-destructive hover:bg-destructive/90 text-white border-none h-11 px-6 rounded-lg">
             <Printer className="mr-2 h-4 w-4" />
-            Descargar PDF
+            PDF
           </Button>
           <Button variant="outline" className="bg-primary hover:bg-primary/90 text-primary-foreground border-none h-11 px-6 rounded-lg">
             <Download className="mr-2 h-4 w-4" />
-            Descargar Excel
+            Excel
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-card/50 p-4 rounded-xl border border-border shadow-sm">
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nombre Completo</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Filtro por Nombre</label>
           <div className="relative">
             <Input 
               placeholder="Buscar guardia..." 
@@ -121,15 +158,15 @@ export function PayrollView() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-background border-border h-11 pl-10 text-xs font-bold"
             />
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Puesto / Proyecto</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Filtro por Puesto</label>
           <div className="relative">
             <Input 
-              placeholder="Buscar por código o sitio..." 
+              placeholder="Código o nombre..." 
               value={projectSearch}
               onChange={(e) => setProjectSearch(e.target.value)}
               className="bg-background border-border h-11 pl-10 text-xs font-bold"
@@ -139,17 +176,17 @@ export function PayrollView() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Día Específico</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Enfoque por Día</label>
           <div className="flex items-center gap-2 bg-background border border-border px-3 py-0 rounded-md h-11">
-            <CalendarDays className="h-4 w-4 text-primary" />
-            <Select value={selectedDay} onValueChange={setSelectedDay}>
-              <SelectTrigger className="bg-transparent border-none text-xs font-bold uppercase tracking-widest text-white focus:ring-0 h-full p-0">
+            <CalendarIcon className="h-4 w-4 text-primary" />
+            <Select value={selectedDayFilter} onValueChange={setSelectedDayFilter}>
+              <SelectTrigger className="bg-transparent border-none text-xs font-bold uppercase tracking-widest focus:ring-0 h-full p-0">
                 <SelectValue placeholder="DÍA" />
               </SelectTrigger>
-              <SelectContent className="bg-card border-border text-white">
-                <SelectItem value="all" className="text-xs font-bold uppercase">Todos los Días</SelectItem>
-                {days.map((day) => (
-                  <SelectItem key={day} value={day} className="text-xs font-bold uppercase">{day}</SelectItem>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all" className="text-xs font-bold uppercase">Toda la Semana</SelectItem>
+                {weekDays.map((day) => (
+                  <SelectItem key={day.fullDate} value={day.fullDate} className="text-xs font-bold uppercase">{day.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -162,60 +199,72 @@ export function PayrollView() {
           <Table className="min-w-[1100px]">
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12">Nombre del Guardia</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 border-r">Puesto / Proyecto</TableHead>
-                {days.map((day, idx) => (
-                  <TableHead key={day} className={`text-[10px] font-black uppercase tracking-widest h-12 text-center ${idx === todayIndex ? 'text-primary' : ''} ${selectedDay !== 'all' && selectedDay !== day ? 'opacity-30' : ''}`}>
-                    {day}
-                  </TableHead>
-                ))}
-                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-right pr-6">Total Hrs</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12">Elemento PACSA</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 border-r">Puesto Asignado</TableHead>
+                {weekDays.map((day) => {
+                  const isToday = day.fullDate === todayDateString;
+                  const isFiltered = selectedDayFilter !== 'all' && selectedDayFilter !== day.fullDate;
+                  return (
+                    <TableHead key={day.fullDate} className={`text-[10px] font-black uppercase tracking-widest h-12 text-center ${isToday ? 'text-primary' : ''} ${isFiltered ? 'opacity-20' : ''}`}>
+                      <div className="flex flex-col items-center">
+                        <span>{day.name}</span>
+                        <span className="text-[8px] opacity-60 font-mono">{day.date}</span>
+                      </div>
+                    </TableHead>
+                  );
+                })}
+                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-right pr-6">Horas Reales</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-20 text-muted-foreground italic">Cargando planilla...</TableCell>
+                  <TableCell colSpan={10} className="text-center py-20 text-muted-foreground italic">Sincronizando planilla operativa...</TableCell>
                 </TableRow>
               ) : filteredData.length > 0 ? (
-                filteredData.map((record) => (
-                  <TableRow key={record.id} className="border-border hover:bg-white/[0.02] transition-colors">
+                filteredData.map((guard) => (
+                  <TableRow key={guard.guardName} className="border-border hover:bg-white/[0.02] transition-colors">
                     <TableCell className="font-bold">
                       <div className="flex items-center gap-2">
                         <User className="h-3 w-3 text-primary" />
-                        {record.guardName}
+                        {guard.guardName}
                       </div>
                     </TableCell>
                     <TableCell className="border-r">
-                      <span className="text-[10px] font-black text-primary block">{record.projectCode}</span>
-                      <span className="text-[9px] text-muted-foreground uppercase">{record.projectName}</span>
+                      <span className="text-[10px] font-black text-primary block">{guard.projectCode}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase">{guard.projectName}</span>
                     </TableCell>
-                    {days.map((day, idx) => {
-                      const isToday = idx === todayIndex;
-                      const isDouble = isToday && record.status === 'Doble';
-                      const isFilteredDay = selectedDay === 'all' || selectedDay === day;
+                    {weekDays.map((day) => {
+                      const shift = guard.shiftsByDay[day.fullDate];
+                      const isToday = day.fullDate === todayDateString;
+                      const isFiltered = selectedDayFilter !== 'all' && selectedDayFilter !== day.fullDate;
+                      
                       return (
-                        <TableCell key={day} className={`text-center ${!isFilteredDay ? 'opacity-20' : ''}`}>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-[9px] font-bold px-2 py-0 ${isDouble ? 'bg-destructive text-white border-destructive' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}
-                          >
-                            {isDouble ? '24H' : '12H'}
-                          </Badge>
+                        <TableCell key={day.fullDate} className={`text-center ${isFiltered ? 'opacity-10' : ''}`}>
+                          {shift ? (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-[9px] font-bold px-2 py-0 ${shift.hours === 24 ? 'bg-destructive text-white border-destructive' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}
+                            >
+                              {shift.hours}H
+                            </Badge>
+                          ) : (
+                            <span className="text-[9px] text-muted-foreground/20 font-mono">—</span>
+                          )}
                         </TableCell>
                       );
                     })}
                     <TableCell className="text-right pr-6">
                       <div className="flex items-center justify-end gap-2 text-primary font-black">
                         <Clock className="h-3 w-3 opacity-50" />
-                        <span className="text-sm">{calculateTotalHours(record)}H</span>
+                        <span className="text-sm">{guard.totalHours}H</span>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-20 text-muted-foreground italic">No hay datos que coincidan con los filtros.</TableCell>
+                  <TableCell colSpan={10} className="text-center py-20 text-muted-foreground italic">No se han detectado registros en la semana real.</TableCell>
                 </TableRow>
               )}
             </TableBody>
