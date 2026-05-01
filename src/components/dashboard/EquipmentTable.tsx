@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Shield, Package, User } from 'lucide-react';
+import { Trash2, Package, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -102,7 +102,7 @@ export function EquipmentTable() {
           <TableHeader className="bg-white/[0.01]">
             <TableRow className="border-b border-white/5 hover:bg-transparent">
               <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground pl-5">Guardia</TableHead>
-              <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground text-center">Tallas (C/P/B)</TableHead>
+              <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground text-center">Camisa / Pantalón / Botas</TableHead>
               <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground">Equipo Asignado</TableHead>
               <TableHead className="text-right text-[11px] font-black uppercase tracking-tight text-muted-foreground pr-5">Acción</TableHead>
             </TableRow>
@@ -122,8 +122,12 @@ export function EquipmentTable() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="outline" className="font-mono text-[10px] bg-black/20 border-white/10 px-3">
-                      {record.shirtSize} / {record.pantsSize} / {record.bootsSize}
+                    <Badge variant="outline" className="font-mono text-[10px] bg-black/20 border-white/10 px-3 flex items-center justify-center gap-2 h-7 min-w-[120px]">
+                      <span className="text-primary">{record.shirtSize}</span>
+                      <span className="text-white/20">|</span>
+                      <span className="text-white">{record.pantsSize}</span>
+                      <span className="text-white/20">|</span>
+                      <span className="text-[#10b981]">{record.bootsSize}</span>
                     </Badge>
                   </TableCell>
                   <TableCell>
