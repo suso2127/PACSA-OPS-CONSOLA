@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   Table,
@@ -22,7 +22,9 @@ import {
   UserX,
   ShieldCheck,
   Copy,
-  Settings2
+  Settings2,
+  RefreshCw,
+  UserMinus
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -34,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Shift {
   id: string;
@@ -80,6 +83,11 @@ export function ShiftTable() {
       const updateData: any = { status: newStatus };
       if (observation) {
         updateData.observation = observation;
+      }
+      
+      // Si el estado es finalizado, guardamos la hora de salida
+      if (newStatus === 'Finalizado') {
+        updateData.exitTime = serverTimestamp();
       }
       
       await updateDoc(shiftRef, updateData);
@@ -152,14 +160,14 @@ export function ShiftTable() {
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Entrada</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Salida Est.</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Duración</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Acciones</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Acciones y Términos</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {shifts.length > 0 ? (
               shifts.map((shift) => (
-                <TableRow key={shift.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <TableRow key={shift.id} className={`border-b border-white/5 transition-colors ${shift.status === 'Finalizado' ? 'opacity-40 grayscale-[0.5]' : 'hover:bg-white/5'}`}>
                   <TableCell className="font-bold">
                     <div className="flex flex-col">
                       <span>{shift.guardName}</span>
@@ -190,55 +198,99 @@ export function ShiftTable() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-accent">
-                          <Settings2 className="h-4 w-4 mr-1.5" />
-                          <span className="text-[10px] font-bold uppercase">Gestionar</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
-                        <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Cambiar Estado</DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-white/5" />
-                        <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(shift.id, 'Activo')}
-                          className="text-xs font-medium cursor-pointer focus:bg-green-500/20 focus:text-green-500"
-                        >
-                          <UserCheck className="h-3.5 w-3.5 mr-2 text-green-500" />
-                          Marcar Activo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(shift.id, 'Completo')}
-                          className="text-xs font-medium cursor-pointer focus:bg-blue-500/20 focus:text-blue-500"
-                        >
-                          <ShieldCheck className="h-3.5 w-3.5 mr-2 text-blue-500" />
-                          Marcar Completo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(shift.id, 'Doble')}
-                          className="text-xs font-medium cursor-pointer focus:bg-red-500/20 focus:text-red-500"
-                        >
-                          <Copy className="h-3.5 w-3.5 mr-2 text-red-500" />
-                          Marcar Doble
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Turno concluido')}
-                          className="text-xs font-medium cursor-pointer focus:bg-muted focus:text-white"
-                        >
-                          <LogOut className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                          Finalizar Turno
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-white/5" />
-                        <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Observaciones</DropdownMenuLabel>
-                        <DropdownMenuItem 
-                          onClick={() => updateDoc(doc(db, 'shift-registrations', shift.id), { observation: 'Cambio de turno' })}
-                          className="text-xs font-medium cursor-pointer"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5 mr-2 text-accent" />
-                          Cambio de turno
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center justify-center gap-2">
+                      <TooltipProvider>
+                        {/* Indicador Cambio de Turno */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-sky-500 hover:bg-sky-500/10"
+                              onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Cambio de turno')}
+                              disabled={shift.status === 'Finalizado'}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-sky-900 border-sky-800 text-[10px] font-bold uppercase">Finalizar por Cambio</TooltipContent>
+                        </Tooltip>
+
+                        {/* Indicador Retiro de Turno */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-orange-500 hover:bg-orange-500/10"
+                              onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Se retiró del turno')}
+                              disabled={shift.status === 'Finalizado'}
+                            >
+                              <UserMinus className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-orange-900 border-orange-800 text-[10px] font-bold uppercase">Finalizar por Retiro</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <div className="h-4 w-[1px] bg-white/10 mx-1" />
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-accent">
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
+                          <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Cambiar Estado</DropdownMenuLabel>
+                          <DropdownMenuSeparator className="bg-white/5" />
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, 'Activo')}
+                            className="text-xs font-medium cursor-pointer focus:bg-green-500/20 focus:text-green-500"
+                          >
+                            <UserCheck className="h-3.5 w-3.5 mr-2 text-green-500" />
+                            Marcar Activo
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, 'Completo')}
+                            className="text-xs font-medium cursor-pointer focus:bg-blue-500/20 focus:text-blue-500"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5 mr-2 text-blue-500" />
+                            Marcar Completo
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, 'Doble')}
+                            className="text-xs font-medium cursor-pointer focus:bg-red-500/20 focus:text-red-500"
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-2 text-red-500" />
+                            Marcar Doble
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Turno concluido')}
+                            className="text-xs font-medium cursor-pointer focus:bg-muted focus:text-white"
+                          >
+                            <LogOut className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                            Finalizar Turno
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-white/5" />
+                          <DropdownMenuLabel className="text-[9px] uppercase tracking-widest opacity-50">Observaciones Rápidas</DropdownMenuLabel>
+                          <DropdownMenuItem 
+                            onClick={() => updateDoc(doc(db, 'shift-registrations', shift.id), { observation: 'Cambio de turno' })}
+                            className="text-xs font-medium cursor-pointer"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 mr-2 text-sky-500" />
+                            Marcar Cambio
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => updateDoc(doc(db, 'shift-registrations', shift.id), { observation: 'Se retiró del turno' })}
+                            className="text-xs font-medium cursor-pointer"
+                          >
+                            <UserMinus className="h-3.5 w-3.5 mr-2 text-orange-500" />
+                            Marcar Retiro
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge 
