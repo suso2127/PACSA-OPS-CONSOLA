@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Clock } from 'lucide-react';
+import { Clock, Hourglass } from 'lucide-react';
 
 interface Shift {
   id: string;
@@ -22,6 +22,7 @@ interface Shift {
   projectCode: string;
   entryTime: any;
   shiftType: string;
+  duration: string;
 }
 
 export function ShiftTable() {
@@ -73,35 +74,41 @@ export function ShiftTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nombre del Guardia</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Proyecto</TableHead>
-              <TableHead>Hora de Entrada</TableHead>
-              <TableHead>Tipo</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest">Nombre del Guardia</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest">Cliente / Proyecto</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest">Entrada</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Duración</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Tipo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {shifts.length > 0 ? (
               shifts.map((shift) => (
-                <TableRow key={shift.id}>
-                  <TableCell className="font-medium">{shift.guardName}</TableCell>
-                  <TableCell>{shift.clientName}</TableCell>
+                <TableRow key={shift.id} className="border-b border-white/5">
+                  <TableCell className="font-bold">{shift.guardName}</TableCell>
                   <TableCell>
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{shift.projectCode}</code>
+                    <div className="text-xs font-black text-primary uppercase">{shift.projectCode}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase">{shift.clientName}</div>
                   </TableCell>
-                  <TableCell>
-                    {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString() : 'N/A'}
+                  <TableCell className="font-mono text-xs">
+                    {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={shift.shiftType === 'Night' || shift.shiftType === 'Noche' ? 'secondary' : 'default'} className="text-[10px]">
-                      {shift.shiftType === 'Night' ? 'Noche' : shift.shiftType === 'Day' ? 'Día' : shift.shiftType}
+                  <TableCell className="text-center">
+                    <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-bold text-[10px]">
+                      <Hourglass className="h-3 w-3 mr-1" />
+                      {shift.duration || '8h'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge variant={shift.shiftType === 'Nocturno' ? 'secondary' : 'default'} className="text-[10px] font-black uppercase">
+                      {shift.shiftType}
                     </Badge>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground italic">
                   No se encontraron registros de turnos activos.
                 </TableCell>
               </TableRow>
