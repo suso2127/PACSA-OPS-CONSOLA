@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Clock, Hourglass } from 'lucide-react';
+import { Clock, Hourglass, LogOut } from 'lucide-react';
 
 interface Shift {
   id: string;
@@ -51,6 +51,14 @@ export function ShiftTable() {
     return () => unsubscribe();
   }, []);
 
+  const calculateExitTime = (entryTime: any, duration: string) => {
+    if (!entryTime || !duration) return '--:--';
+    const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
+    const hoursToAdd = parseInt(duration) || 8;
+    const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
+    return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -73,10 +81,11 @@ export function ShiftTable() {
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-b border-white/5">
               <TableHead className="text-[10px] font-black uppercase tracking-widest">Nombre del Guardia</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest">Cliente / Proyecto</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest">Entrada</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-widest">Salida Est.</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-center">Duración</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Tipo</TableHead>
             </TableRow>
@@ -84,14 +93,20 @@ export function ShiftTable() {
           <TableBody>
             {shifts.length > 0 ? (
               shifts.map((shift) => (
-                <TableRow key={shift.id} className="border-b border-white/5">
+                <TableRow key={shift.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <TableCell className="font-bold">{shift.guardName}</TableCell>
                   <TableCell>
                     <div className="text-xs font-black text-primary uppercase">{shift.projectCode}</div>
                     <div className="text-[9px] text-muted-foreground uppercase">{shift.clientName}</div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-xs font-bold text-white">
                     {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs font-bold text-accent">
+                    <div className="flex items-center gap-1.5">
+                      <LogOut className="h-3 w-3" />
+                      {calculateExitTime(shift.entryTime, shift.duration)}
+                    </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-bold text-[10px]">
@@ -108,7 +123,7 @@ export function ShiftTable() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground italic">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">
                   No se encontraron registros de turnos activos.
                 </TableCell>
               </TableRow>

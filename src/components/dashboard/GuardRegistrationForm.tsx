@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Calendar, Clock, Search, Building2, Loader2 } from 'lucide-react';
+import { UserPlus, Calendar, Clock, Search, Building2, Loader2, LogOut } from 'lucide-react';
 
 export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -26,14 +26,12 @@ export function GuardRegistrationForm() {
 
   const { toast } = useToast();
 
-  // Reloj en tiempo real
   useEffect(() => {
     setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Búsqueda de proyecto por código sincronizada con ProjectManagement
   useEffect(() => {
     const searchProject = async () => {
       if (formData.projectCode.length >= 3) {
@@ -60,6 +58,17 @@ export function GuardRegistrationForm() {
     const debounce = setTimeout(searchProject, 500);
     return () => clearTimeout(debounce);
   }, [formData.projectCode]);
+
+  const calculateExitTime = () => {
+    if (!currentTime) return '--:-- --';
+    const hoursToAdd = parseInt(formData.duration) || 8;
+    const exitDate = new Date(currentTime.getTime() + hoursToAdd * 60 * 60 * 1000);
+    return exitDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,33 +131,37 @@ export function GuardRegistrationForm() {
 
   return (
     <div className="bg-[#1a1b2e] border border-white/5 rounded-2xl shadow-2xl p-6 w-full space-y-6">
-      {/* Título */}
       <div className="flex items-center gap-3 text-primary">
         <UserPlus className="h-6 w-6" />
         <h2 className="text-xl font-bold tracking-tight">Nuevo Registro de Turno</h2>
       </div>
 
-      {/* Header de Fecha/Hora */}
-      <div className="bg-[#25273c] border border-white/5 rounded-xl p-4 flex items-center justify-between">
-        <div className="flex items-start gap-3">
+      <div className="bg-[#25273c] border border-white/5 rounded-xl p-4 grid grid-cols-2 gap-4">
+        <div className="flex items-start gap-3 border-r border-white/5 pr-4">
           <div className="p-2 bg-primary/10 rounded-lg">
-            <Calendar className="h-5 w-5 text-primary" />
+            <Clock className="h-5 w-5 text-primary" />
           </div>
           <div className="space-y-1">
-            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
-            <p className="text-xs font-semibold">{currentTime ? formatDate(currentTime) : 'Cargando...'}</p>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Entrada Actual</p>
+            <p className="text-xl font-black text-white tabular-nums">
+              {currentTime ? formatTime(currentTime) : '--:-- --'}
+            </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Entrada</p>
-          <p className="text-2xl font-black text-primary tracking-tighter tabular-nums">
-            {currentTime ? formatTime(currentTime) : '--:-- --'}
-          </p>
+        <div className="flex items-start gap-3 pl-4">
+          <div className="p-2 bg-accent/10 rounded-lg">
+            <LogOut className="h-5 w-5 text-accent" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Término Programado</p>
+            <p className="text-xl font-black text-accent tabular-nums">
+              {calculateExitTime()}
+            </p>
+          </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Nombre */}
         <div className="space-y-2">
           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nombre del Guardia</Label>
           <Input 
@@ -159,7 +172,6 @@ export function GuardRegistrationForm() {
           />
         </div>
 
-        {/* Código de Proyecto */}
         <div className="space-y-2">
           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Código de Proyecto</Label>
           <div className="relative">
@@ -175,7 +187,6 @@ export function GuardRegistrationForm() {
           </div>
         </div>
 
-        {/* Status Detección */}
         <div className={`bg-[#25273c] border ${detectedProject ? 'border-primary/20' : 'border-dashed border-white/10'} rounded-xl p-3 flex items-center gap-3 transition-all duration-300`}>
           <div className={`p-2 rounded-lg ${detectedProject ? 'bg-primary/20' : 'bg-muted/10'}`}>
             <Building2 className={`h-4 w-4 ${detectedProject ? 'text-primary' : 'text-muted-foreground/50'}`} />
@@ -188,7 +199,6 @@ export function GuardRegistrationForm() {
           </div>
         </div>
 
-        {/* Selectores */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duración</Label>
