@@ -22,7 +22,8 @@ import {
   Filter,
   Trash2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CheckCircle2
 } from 'lucide-react';
 import {
   Select,
@@ -96,6 +97,27 @@ export function ShiftTable() {
     const scrollPercentage = (scrollLeft / (scrollWidth - clientWidth)) * 100;
     
     scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
+  };
+
+  const handleFinalizeShift = (id: string, name: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    
+    // Actualización optimista: el onSnapshot se encargará de refrescar la UI
+    updateDoc(shiftRef, {
+      status: 'Finalizado',
+      exitTime: serverTimestamp()
+    }).catch((err) => {
+      toast({
+        variant: "destructive",
+        title: "ERROR DE SINCRONIZACIÓN",
+        description: `No se pudo finalizar el turno de ${name}.`
+      });
+    });
+
+    toast({
+      title: "TURNO FINALIZADO",
+      description: `El elemento ${name} ha concluido su jornada oficialmente.`
+    });
   };
 
   const handleClearMonitor = () => {
@@ -257,7 +279,8 @@ export function ShiftTable() {
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Entrada</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Término</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Jornada</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-right pr-8">Status</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Status</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-right pr-8">Comando</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -304,18 +327,30 @@ export function ShiftTable() {
                         {shift.duration || '12h'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right pr-8">
+                    <TableCell className="text-center">
                       <Badge 
                         className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 border shadow-sm rounded-full ${getStatusBadgeStyles(shift.status || 'Activo')}`}
                       >
                         {shift.status || 'Activo'}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right pr-8">
+                      {shift.status !== 'Finalizado' && shift.status !== 'Completo' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                          <CheckCircle2 className="h-5 w-5" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
+                  <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
                     No se han detectado operaciones activas.
                   </TableCell>
                 </TableRow>
