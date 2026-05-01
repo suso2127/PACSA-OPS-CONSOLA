@@ -1,8 +1,8 @@
 
 "use client"
 
-import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo } from 'react';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Map as MapIcon, 
@@ -12,7 +12,10 @@ import {
   Crosshair,
   Maximize2,
   Shield,
-  Activity
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  UserMinus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,17 +27,33 @@ interface Project {
   name: string;
   location: string;
   type: string;
+  requirements?: {
+    lun: number;
+    mar: number;
+    mie: number;
+    jue: number;
+    vie: number;
+    sab: number;
+    dom: number;
+  };
+}
+
+interface Registration {
+  projectCode: string;
+  status: string;
 }
 
 export function MapView() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Escuchar proyectos
+    const qProjects = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
+    const unsubProjects = onSnapshot(qProjects, (snapshot) => {
       const fetched = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -42,23 +61,82 @@ export function MapView() {
       setProjects(fetched);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    // Escuchar registros activos/dobles
+    const qRegs = query(
+      collection(db, 'shift-registrations'), 
+      where('status', 'in', ['Activo', 'Doble'])
+    );
+    const unsubRegs = onSnapshot(qRegs, (snapshot) => {
+      const fetched = snapshot.docs.map(doc => doc.data() as Registration);
+      setRegistrations(fetched);
+    });
+
+    return () => {
+      unsubProjects();
+      unsubRegs();
+    };
   }, []);
+
+  const projectStatus = useMemo(() => {
+    const days = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+    const today = days[new Date().getDay()] as keyof NonNullable<Project['requirements']>;
+    
+    return projects.reduce((acc, project) => {
+      const required = project.requirements?.[today] || 0;
+      const onSite = registrations.filter(r => r.projectCode === project.code).length;
+      
+      let status: 'red' | 'yellow' | 'green' = 'red';
+      if (onSite >= required && required > 0) status = 'green';
+      else if (onSite > 0 && onSite < required) status = 'yellow';
+      else if (required === 0) status = 'green'; // Si no requiere, se considera cubierto
+
+      acc[project.id] = { status, onSite, required };
+      return acc;
+    }, {} as Record<string, { status: 'red' | 'yellow' | 'green', onSite: number, required: number }>);
+  }, [projects, registrations]);
 
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getMarkerColor = (projectId: string) => {
+    const s = projectStatus[projectId]?.status;
+    if (s === 'green') return 'bg-green-500 border-green-200';
+    if (s === 'yellow') return 'bg-yellow-500 border-yellow-200';
+    return 'bg-red-500 border-red-200';
+  };
+
+  const getStatusText = (projectId: string) => {
+    const s = projectStatus[projectId]?.status;
+    if (s === 'green') return 'CUBIERTO';
+    if (s === 'yellow') return 'POR CUBRIR';
+    return 'SIN CUBRIR';
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      {/* Cabecera del Mapa */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-6">
         <div>
           <h1 className="text-4xl font-black tracking-tighter text-white uppercase">Mapa Operativo</h1>
           <p className="text-muted-foreground text-sm font-medium mt-1">Geolocalización y análisis de puestos en tiempo real</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 bg-[#1a1b2e] px-4 py-2 rounded-xl border border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-red-500" />
+              <span className="text-[8px] font-black uppercase text-muted-foreground">Sin Cubrir</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-yellow-500" />
+              <span className="text-[8px] font-black uppercase text-muted-foreground">Por Cubrir</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-[8px] font-black uppercase text-muted-foreground">Cubierto</span>
+            </div>
+          </div>
           <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 font-black uppercase tracking-widest text-[10px]">
             Sincronización Satelital Activa
           </Badge>
@@ -66,7 +144,6 @@ export function MapView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[700px]">
-        {/* Panel de Control Lateral */}
         <div className="lg:col-span-3 bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 flex flex-col space-y-6 overflow-hidden">
           <div className="space-y-4">
             <div className="relative">
@@ -78,7 +155,6 @@ export function MapView() {
               />
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>
-            
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Puestos Detectados</span>
               <span className="text-[10px] font-black text-primary">{filteredProjects.length}</span>
@@ -103,16 +179,25 @@ export function MapView() {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${selectedProject?.id === project.id ? 'bg-primary text-primary-foreground' : 'bg-[#1a1b2e] text-primary'}`}>
+                    <div className={`p-2 rounded-lg ${
+                      projectStatus[project.id]?.status === 'green' ? 'bg-green-500/20 text-green-500' :
+                      projectStatus[project.id]?.status === 'yellow' ? 'bg-yellow-500/20 text-yellow-500' :
+                      'bg-red-500/20 text-red-500'
+                    }`}>
                       <Building2 className="h-4 w-4" />
                     </div>
-                    <div className="overflow-hidden">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{project.code}</p>
+                    <div className="overflow-hidden flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{project.code}</p>
+                        <span className={`text-[7px] font-black px-1.5 rounded-full ${
+                          projectStatus[project.id]?.status === 'green' ? 'bg-green-500 text-white' :
+                          projectStatus[project.id]?.status === 'yellow' ? 'bg-yellow-500 text-black' :
+                          'bg-red-500 text-white'
+                        }`}>
+                          {projectStatus[project.id]?.onSite}/{projectStatus[project.id]?.required}
+                        </span>
+                      </div>
                       <p className="text-xs font-bold truncate text-white">{project.name}</p>
-                      <p className="text-[9px] text-muted-foreground truncate mt-1 flex items-center gap-1">
-                        <MapPin className="h-2 w-2" />
-                        {project.location || 'UBICACIÓN NO DEFINIDA'}
-                      </p>
                     </div>
                   </div>
                 </button>
@@ -125,21 +210,11 @@ export function MapView() {
           </div>
         </div>
 
-        {/* Visualizador de Mapa Táctico */}
         <div className="lg:col-span-9 bg-[#1a1b2e] border border-white/5 rounded-3xl overflow-hidden relative group">
-          {/* Fondo de Mapa Estilizado */}
           <div className="absolute inset-0 bg-[#0f101d] opacity-50 overflow-hidden pointer-events-none">
              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #3b82f6 1px, transparent 0)', backgroundSize: '40px 40px' }} />
-             <div className="absolute top-0 left-0 w-full h-full border-[100px] border-[#3b82f6]/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
           </div>
 
-          {/* Interfaz de Radar */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-            <div className="w-[500px] h-[500px] rounded-full border border-primary/10 animate-pulse" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full border border-primary/5" />
-          </div>
-
-          {/* Controles de Mapa */}
           <div className="absolute top-6 right-6 flex flex-col gap-2 z-10">
             <Button size="icon" variant="secondary" className="bg-[#25273c] border-white/5 hover:bg-primary hover:text-primary-foreground h-10 w-10">
               <Maximize2 className="h-4 w-4" />
@@ -149,13 +224,12 @@ export function MapView() {
             </Button>
           </div>
 
-          {/* Marcadores de Proyectos (Simulados en una distribución visual) */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            {filteredProjects.map((project, index) => {
-              // Generar posición pseudo-aleatoria basada en el ID para que sea consistente
+            {filteredProjects.map((project) => {
               const hash = project.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
               const x = (hash % 70) + 15;
               const y = ((hash * 13) % 70) + 15;
+              const colorClass = getMarkerColor(project.id);
 
               return (
                 <div 
@@ -166,19 +240,16 @@ export function MapView() {
                   <div className="relative flex flex-col items-center">
                     <button 
                       onClick={() => setSelectedProject(project)}
-                      className={`group/marker relative z-10 p-2 rounded-full border-2 transition-all duration-300 ${
-                        selectedProject?.id === project.id 
-                          ? 'bg-primary border-white scale-125 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
-                          : 'bg-[#25273c] border-primary/40 hover:border-primary'
+                      className={`group/marker relative z-10 p-2 rounded-full border-2 transition-all duration-300 ${colorClass} ${
+                        selectedProject?.id === project.id ? 'scale-125 shadow-[0_0_20px_rgba(255,255,255,0.3)]' : ''
                       }`}
                     >
-                      <Shield className={`h-4 w-4 ${selectedProject?.id === project.id ? 'text-white' : 'text-primary'}`} />
-                      
-                      {/* Onda de actividad */}
-                      <span className="absolute inset-0 rounded-full bg-primary/20 animate-ping -z-10" />
+                      <Shield className={`h-4 w-4 ${selectedProject?.id === project.id ? 'text-white' : 'text-white/90'}`} />
+                      <span className={`absolute inset-0 rounded-full animate-ping -z-10 opacity-40 ${
+                        projectStatus[project.id]?.status === 'red' ? 'bg-red-500' : 
+                        projectStatus[project.id]?.status === 'yellow' ? 'bg-yellow-500' : 'bg-green-500'
+                      }`} />
                     </button>
-                    
-                    {/* Etiqueta del marcador */}
                     <div className={`mt-2 px-2 py-1 rounded bg-[#0f101d]/90 border border-white/10 backdrop-blur-md transition-opacity duration-300 ${
                       selectedProject?.id === project.id ? 'opacity-100' : 'opacity-0 group-hover/marker:opacity-100'
                     }`}>
@@ -190,17 +261,26 @@ export function MapView() {
             })}
           </div>
 
-          {/* Panel de Información Seleccionado */}
           {selectedProject && (
             <div className="absolute bottom-6 left-6 right-6 bg-[#0f101d]/95 border border-primary/30 backdrop-blur-xl rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-500">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="bg-primary/20 p-4 rounded-xl border border-primary/20">
-                    <Building2 className="h-8 w-8 text-primary" />
+                  <div className={`p-4 rounded-xl border ${
+                    projectStatus[selectedProject.id]?.status === 'green' ? 'bg-green-500/10 border-green-500/20 text-green-500' :
+                    projectStatus[selectedProject.id]?.status === 'yellow' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' :
+                    'bg-red-500/10 border-red-500/20 text-red-500'
+                  }`}>
+                    <Building2 className="h-8 w-8" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge className="bg-primary text-primary-foreground text-[8px] font-black uppercase px-2 py-0">ACTIVO</Badge>
+                      <Badge className={`text-[8px] font-black uppercase px-2 py-0 border-none ${
+                        projectStatus[selectedProject.id]?.status === 'green' ? 'bg-green-500 text-white' :
+                        projectStatus[selectedProject.id]?.status === 'yellow' ? 'bg-yellow-500 text-black' :
+                        'bg-red-500 text-white'
+                      }`}>
+                        {getStatusText(selectedProject.id)}
+                      </Badge>
                       <span className="text-primary font-black text-xs tracking-tighter uppercase">{selectedProject.code}</span>
                     </div>
                     <h3 className="text-xl font-black text-white">{selectedProject.name}</h3>
@@ -214,28 +294,18 @@ export function MapView() {
                 <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
                   <div className="text-center px-4 border-r border-white/10">
                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Estado Fuerza</p>
-                    <p className="text-lg font-black text-green-500">100%</p>
+                    <p className={`text-lg font-black ${
+                      projectStatus[selectedProject.id]?.status === 'green' ? 'text-green-500' :
+                      projectStatus[selectedProject.id]?.status === 'yellow' ? 'text-yellow-500' : 'text-red-500'
+                    }`}>
+                      {projectStatus[selectedProject.id]?.onSite}/{projectStatus[selectedProject.id]?.required}
+                    </p>
                   </div>
                   <div className="text-center px-4">
                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Tipo Servicio</p>
                     <p className="text-lg font-black text-primary">{selectedProject.type.toUpperCase()}</p>
                   </div>
-                  <Button 
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase text-[10px] h-10 px-6 rounded-lg ml-2"
-                  >
-                    Ver Detalles
-                  </Button>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Overlay de Carga */}
-          {!selectedProject && projects.length > 0 && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-              <div className="bg-[#0f101d]/80 backdrop-blur-sm border border-white/5 p-8 rounded-3xl">
-                <MapIcon className="h-12 w-12 text-primary/20 mx-auto mb-4" />
-                <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em]">Seleccione un objetivo táctico</p>
               </div>
             </div>
           )}
