@@ -46,14 +46,14 @@ export function AdminView() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Barra de Comandos Táctica Ajustada */}
+      {/* Barra de Comandos Táctica Restaurada al formato ancho */}
       <div className="bg-card/40 backdrop-blur-md border border-border p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[10px] flex-1 min-w-fit",
+              "flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[10px] flex-1 min-w-fit",
               activeTab === item.id 
                 ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.3)] scale-[1.01]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
