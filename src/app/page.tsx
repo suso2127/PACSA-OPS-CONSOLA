@@ -1,12 +1,12 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PinScreen } from '@/components/auth/PinScreen';
 import { AdminView } from '@/components/dashboard/AdminView';
 import { SupervisorView } from '@/components/dashboard/SupervisorView';
 import { GuardView } from '@/components/dashboard/GuardView';
-import { LogOut, LayoutDashboard, Shield, User, Bell } from 'lucide-react';
+import { LogOut, LayoutDashboard, Shield, User, Bell, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -20,6 +20,23 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
+  const [currentTime, setCurrentTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('es-MX', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit',
+        hour12: false 
+      }));
+    };
+    
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogout = () => setRole(null);
 
@@ -42,7 +59,12 @@ export default function Home() {
           </div>
           <div>
             <h1 className="font-bold text-lg leading-none">PACSA OPS</h1>
-            <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">CONSOLA {ROLE_LABELS[role]}</p>
+            <div className="flex items-center gap-2 mt-1 text-primary">
+              <Clock className="h-3 w-3" />
+              <p className="text-xs font-mono font-bold tracking-widest tabular-nums">
+                {currentTime || '--:--:--'}
+              </p>
+            </div>
           </div>
         </div>
 
