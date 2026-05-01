@@ -51,6 +51,7 @@ interface Shift {
   clientName: string;
   projectName: string;
   projectCode: string;
+  projectLocation?: string;
   entryTime: any;
   exitTime?: any;
   shiftType: string;
@@ -156,7 +157,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     if (!shift.entryTime) return '--:--';
     
     const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
-    // Si ya terminó, usamos exitTime. Si no, usamos la hora actual para el cálculo en vivo.
     const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
     
     if (isNaN(start.getTime())) return '--:--';
@@ -256,7 +256,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   return (
     <div className="space-y-1">
-      {/* Barra de Progreso Visual de Desplazamiento */}
       <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
         <div className="flex items-center gap-3 w-full max-w-[600px]">
           <ChevronLeft className="h-3 w-3 text-primary/30" />
@@ -335,7 +334,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Nombre Completo</TableHead>
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Puesto</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Proyecto</TableHead>
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
                 {!hideExitTime && (
                   <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Término</TableHead>
@@ -372,11 +371,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                           <Building2 className="h-2.5 w-2.5 text-primary/70" />
                           <span className="text-[10px] font-black text-primary uppercase font-mono tracking-widest leading-none">{shift.projectCode}</span>
                         </div>
-                        <span className="text-[8px] text-white font-bold uppercase tracking-tight mt-1 leading-none">
-                          {shift.clientName}
+                        <span className="text-[9px] text-white font-bold uppercase tracking-tight mt-1 leading-none">
+                          {shift.projectName}
                         </span>
                         <span className="text-[7px] text-muted-foreground uppercase font-black tracking-tighter mt-0.5 leading-none">
-                          {shift.projectName}
+                          {shift.projectLocation || 'UBICACIÓN REGISTRADA'}
                         </span>
                       </div>
                     </TableCell>

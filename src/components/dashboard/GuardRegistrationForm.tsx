@@ -54,7 +54,6 @@ export function GuardRegistrationForm() {
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
             const data = snapshot.docs[0].data();
-            // Registramos el nombre exacto del Cliente / Proyecto definido en el comando proyecto
             setDetectedProject({ 
               name: data.name, 
               location: data.location || 'UBICACIÓN REGISTRADA' 
@@ -92,9 +91,9 @@ export function GuardRegistrationForm() {
       await addDoc(collection(db, 'shift-registrations'), {
         guardName: formData.guardName.toUpperCase(),
         projectCode: formData.projectCode.toUpperCase(),
-        // Se guarda el nombre del Cliente / Proyecto registrado oficialmente
         clientName: detectedProject?.name || 'Cliente por Validar',
         projectName: detectedProject?.name || 'Sitio No Identificado',
+        projectLocation: detectedProject?.location || 'UBICACIÓN NO ESPECIFICADA',
         shiftType: formData.shiftType,
         duration: formData.duration,
         entryTime: serverTimestamp(),
