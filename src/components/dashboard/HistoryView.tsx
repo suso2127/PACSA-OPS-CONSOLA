@@ -1,7 +1,8 @@
+
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Printer, 
@@ -9,8 +10,8 @@ import {
   ChevronRight, 
   Search, 
   BarChart3,
-  Calendar as CalendarIcon,
-  User
+  User,
+  Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,8 +92,10 @@ export function HistoryView() {
     let date: Date;
     if (ts && typeof ts.toDate === 'function') {
       date = ts.toDate();
-    } else {
+    } else if (typeof ts === 'number' || !isNaN(Date.parse(ts))) {
       date = new Date(ts);
+    } else {
+      return 'N/A';
     }
 
     if (isNaN(date.getTime())) return 'N/A';
@@ -110,8 +113,10 @@ export function HistoryView() {
     let date: Date;
     if (ts && typeof ts.toDate === 'function') {
       date = ts.toDate();
-    } else {
+    } else if (typeof ts === 'number' || !isNaN(Date.parse(ts))) {
       date = new Date(ts);
+    } else {
+      return '--:--';
     }
 
     if (isNaN(date.getTime())) return '--:--';
@@ -123,170 +128,187 @@ export function HistoryView() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header Seccion */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-12 animate-in fade-in duration-500 pb-10">
+      {/* Cabecera Principal */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-6">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-white uppercase">Historial y Estadísticas</h1>
-          <p className="text-muted-foreground text-sm font-mono">// Semanas y meses anteriores</p>
+          <h1 className="text-4xl font-black tracking-tighter text-white uppercase">Historial Operativo</h1>
+          <p className="text-muted-foreground text-sm font-medium mt-1">Gestión y auditoría de registros de seguridad PACSA</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="bg-[#2563eb] hover:bg-[#2563eb]/90 text-white border-none h-11 px-6 rounded-xl">
+          <Button variant="outline" className="bg-[#2563eb] hover:bg-[#2563eb]/90 text-white border-none h-11 px-6 rounded-xl shadow-lg shadow-blue-500/10">
             <Printer className="mr-2 h-4 w-4" />
-            Imprimir Reporte
+            Descargar PDF
           </Button>
         </div>
       </div>
 
-      {/* Card de Cumplimiento Semanal */}
-      <div className="bg-[#1a1b2e] border border-white/5 rounded-2xl p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <BarChart3 className="h-5 w-5 text-primary" />
-            </div>
-            <h2 className="text-lg font-bold tracking-tight">Cumplimiento Semanal</h2>
+      {/* Bloque de Análisis Estadístico */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <BarChart3 className="h-5 w-5 text-primary" />
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center bg-[#25273c] rounded-lg border border-white/5 p-1">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-white/5">
+          <h2 className="text-xl font-bold tracking-tight uppercase">Análisis de Desempeño</h2>
+        </div>
+        
+        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 shadow-2xl">
+          <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Cumplimiento de Turnos</p>
+              <h3 className="text-2xl font-black">Visualización Semanal</h3>
+            </div>
+            
+            <div className="flex items-center bg-[#25273c] rounded-xl border border-white/5 p-1.5">
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
                 <ChevronLeft className="h-4 w-4" />
-                <span className="sr-only">Anterior</span>
               </Button>
-              <span className="px-4 text-xs font-bold font-mono text-muted-foreground">20 abr — 26 abr 2026</span>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-white/5">
+              <span className="px-6 text-xs font-black font-mono text-primary">20 ABRIL — 26 ABRIL 2026</span>
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
                 <ChevronRight className="h-4 w-4" />
-                <span className="sr-only">Siguiente</span>
               </Button>
             </div>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest cursor-pointer hover:text-primary transition-colors">RESUMEN MENSUAL</span>
+          </div>
+
+          <div className="h-[300px] w-full">
+            <ChartContainer config={{
+              total: { label: "Total Requerido", color: "#7c3aed" },
+              completados: { label: "Total Registrado", color: "#0ea5e9" }
+            }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#ffffff05" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 'bold' }}
+                    dy={10}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend verticalAlign="top" align="right" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }} />
+                  <Bar dataKey="total" fill="#7c3aed" radius={[6, 6, 0, 0]} barSize={40} />
+                  <Bar dataKey="completados" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </div>
+      </section>
 
-        <div className="h-[250px] w-full mt-4">
-          <ChartContainer config={{
-            total: { label: "Total", color: "#7c3aed" },
-            completados: { label: "Completados", color: "#0ea5e9" }
-          }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#ffffff05" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 'bold' }}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Legend verticalAlign="bottom" height={36} iconType="rect" />
-                <Bar dataKey="total" fill="#7c3aed" radius={[4, 4, 0, 0]} barSize={30} />
-                <Bar dataKey="completados" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={30} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </div>
-      </div>
-
-      {/* Filtros de Historial */}
-      <div className="bg-[#1a1b2e] border border-white/5 rounded-2xl p-8 shadow-2xl space-y-6">
-        <div className="flex items-center gap-3 text-primary">
-          <div className="h-2 w-2 bg-primary rotate-45" />
-          <h2 className="text-xs font-black uppercase tracking-[0.2em]">Historial de Registros</h2>
+      {/* Bloque de Listado de Registros */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-accent/10 rounded-lg">
+            <Filter className="h-5 w-5 text-accent" />
+          </div>
+          <h2 className="text-xl font-bold tracking-tight uppercase">Registros Históricos</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-          <div className="md:col-span-3 space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Desde</Label>
-            <div className="relative">
+        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 shadow-2xl">
+          {/* Panel de Filtros */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end pb-8 border-b border-white/5">
+            <div className="md:col-span-3 space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Fecha Inicio</Label>
               <Input 
                 type="date" 
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 font-mono text-sm rounded-xl"
               />
             </div>
-          </div>
-          <div className="md:col-span-3 space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hasta</Label>
-            <div className="relative">
+            <div className="md:col-span-3 space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Fecha Fin</Label>
               <Input 
                 type="date" 
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 font-mono text-sm rounded-xl"
               />
             </div>
-          </div>
-          <div className="md:col-span-4 space-y-2">
-            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Guardia</Label>
-            <div className="relative">
-              <Input 
-                placeholder="Nombre..." 
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 pl-10"
-              />
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="md:col-span-4 space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Buscar Guardia</Label>
+              <div className="relative">
+                <Input 
+                  placeholder="Nombre del elemento..." 
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                  className="bg-[#0f101d] border-none h-12 focus:ring-1 focus:ring-primary/50 pl-11 rounded-xl"
+                />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <Button className="w-full h-12 bg-[#25273c] hover:bg-primary hover:text-primary-foreground border border-white/5 font-bold uppercase tracking-widest rounded-xl transition-all duration-300">
+                <Search className="mr-2 h-4 w-4" />
+                Filtrar
+              </Button>
             </div>
           </div>
-          <div className="md:col-span-2">
-            <Button className="w-full h-12 bg-[#2563eb] hover:bg-[#2563eb]/90 text-white font-bold uppercase tracking-widest rounded-lg">
-              <Search className="mr-2 h-4 w-4" />
-              Buscar
-            </Button>
-          </div>
-        </div>
 
-        {/* Tabla de Registros */}
-        <div className="pt-8 overflow-x-auto">
-          <Table>
-            <TableHeader className="border-b border-white/5">
-              <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12">Fecha</TableHead>
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12">Guardia</TableHead>
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12">Proyecto</TableHead>
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12">Turno</TableHead>
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12 text-center">Entrada</TableHead>
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12 text-center">Salida</TableHead>
-                <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-12 text-right">Estado</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-20 text-muted-foreground italic">Cargando historial...</TableCell>
-                </TableRow>
-              ) : records.length > 0 ? (
-                records.map((record) => (
-                  <TableRow key={record.id} className="border-b border-white/5 hover:bg-white/5">
-                    <TableCell className="font-mono text-xs">{formatDate(record.entryTime)}</TableCell>
-                    <TableCell className="font-bold text-sm">{record.guardName}</TableCell>
-                    <TableCell>
-                      <div className="text-xs font-bold text-primary">{record.projectCode}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase">{record.projectName}</div>
-                    </TableCell>
-                    <TableCell className="text-xs">{record.shiftType}</TableCell>
-                    <TableCell className="text-center font-mono text-xs">{formatTime(record.entryTime)}</TableCell>
-                    <TableCell className="text-center font-mono text-xs">{formatTime(record.exitTime!)}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="outline" className={`text-[9px] font-black uppercase tracking-tighter ${
-                        record.status === 'Activo' ? 'border-green-500/50 text-green-500' : 'border-sky-500/50 text-sky-500'
-                      }`}>
-                        {record.status}
-                      </Badge>
-                    </TableCell>
+          {/* Tabla de Resultados */}
+          <div className="pt-8">
+            <div className="overflow-hidden rounded-xl border border-white/5">
+              <Table>
+                <TableHeader className="bg-[#25273c]/50">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 pl-6">Fecha</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14">Guardia</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14">Proyecto</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14">Turno</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-center">Entrada</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-center">Salida</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-right pr-6">Estado</TableHead>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-20 text-muted-foreground italic">No se encontraron registros para el periodo seleccionado.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-24">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                          <p className="text-muted-foreground text-sm font-medium italic">Sincronizando registros históricos...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : records.length > 0 ? (
+                    records.map((record) => (
+                      <TableRow key={record.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <TableCell className="font-mono text-xs pl-6 text-muted-foreground">{formatDate(record.entryTime)}</TableCell>
+                        <TableCell className="font-bold text-sm tracking-tight">{record.guardName}</TableCell>
+                        <TableCell>
+                          <div className="text-xs font-black text-primary">{record.projectCode}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">{record.projectName}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="bg-[#25273c] text-[9px] font-bold uppercase px-2 py-0">
+                            {record.shiftType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold text-white">{formatTime(record.entryTime)}</TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold text-muted-foreground">{formatTime(record.exitTime!)}</TableCell>
+                        <TableCell className="text-right pr-6">
+                          <Badge className={`text-[9px] font-black uppercase tracking-tighter px-3 ${
+                            record.status === 'Activo' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
+                          } border shadow-sm`}>
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic">
+                        No se han encontrado registros en el periodo seleccionado.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
