@@ -69,7 +69,6 @@ export function ShiftTable() {
         ...doc.data()
       })) as Shift[];
       
-      // Ordenamiento manual: priorizar nulos/serverTimestamp pendientes arriba
       const sortedShifts = [...fetchedShifts].sort((a, b) => {
         const timeA = a.entryTime?.toDate ? a.entryTime.toDate().getTime() : (a.entryTime ? new Date(a.entryTime).getTime() : Infinity);
         const timeB = b.entryTime?.toDate ? b.entryTime.toDate().getTime() : (b.entryTime ? new Date(b.entryTime).getTime() : Infinity);
@@ -195,7 +194,6 @@ export function ShiftTable() {
 
   return (
     <div className="space-y-2">
-      {/* Pasador Operativo Compacto */}
       <div className="w-full flex flex-col items-center px-4 space-y-1 mb-2">
         <div className="flex items-center gap-3 w-full max-w-[600px]">
           <ChevronLeft className="h-3 w-3 text-primary/30" />
@@ -273,7 +271,7 @@ export function ShiftTable() {
           <Table className="min-w-[900px]">
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 pl-6">Elemento</TableHead>
+                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 pl-6">Nombre Completo</TableHead>
                 <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11">Cliente</TableHead>
                 <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Entrada</TableHead>
                 <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Término</TableHead>
