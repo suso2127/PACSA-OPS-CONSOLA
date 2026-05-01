@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, 
@@ -204,22 +204,22 @@ export function GuardRegistrationForm() {
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Nombre del Elemento</Label>
-            <Input 
+            <input 
               placeholder="NOMBRE Y APELLIDO" 
               value={formData.guardName}
               onChange={(e) => setFormData({...formData, guardName: e.target.value.toUpperCase()})}
-              className="h-16 bg-[#1a1b2e] border-white/5 focus-visible:ring-1 focus-visible:ring-primary/50 text-base font-black tracking-tight rounded-2xl pl-6"
+              className="w-full h-16 bg-[#1a1b2e] border border-white/5 focus:ring-1 focus:ring-primary/50 text-base font-black tracking-tight rounded-2xl pl-6 text-white outline-none"
             />
           </div>
 
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Código de Proyecto</Label>
             <div className="relative">
-              <Input 
+              <input 
                 placeholder="ID CLIENTE / CÓDIGO SITIO" 
                 value={formData.projectCode}
                 onChange={(e) => setFormData({...formData, projectCode: e.target.value.toUpperCase()})}
-                className="h-16 bg-[#1a1b2e] border-white/5 focus-visible:ring-1 focus-visible:ring-primary/50 font-mono text-base font-black tracking-widest rounded-2xl pl-6"
+                className="w-full h-16 bg-[#1a1b2e] border border-white/5 focus:ring-1 focus:ring-primary/50 font-mono text-base font-black tracking-widest rounded-2xl pl-6 text-white outline-none"
               />
               <div className="absolute right-6 top-1/2 -translate-y-1/2">
                 {projectLoading ? (
