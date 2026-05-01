@@ -37,8 +37,8 @@ interface HistoryRecord {
   projectCode: string;
   projectName: string;
   shiftType: string;
-  entryTime: Timestamp;
-  exitTime?: Timestamp;
+  entryTime: any;
+  exitTime?: any;
   status: string;
 }
 
@@ -84,18 +84,39 @@ export function HistoryView() {
     }
   };
 
-  const formatDate = (ts: Timestamp) => {
+  const formatDate = (ts: any) => {
     if (!ts) return 'N/A';
-    return ts.toDate().toLocaleDateString('es-MX', {
+    if (typeof ts === 'string') return ts;
+    
+    let date: Date;
+    if (ts && typeof ts.toDate === 'function') {
+      date = ts.toDate();
+    } else {
+      date = new Date(ts);
+    }
+
+    if (isNaN(date.getTime())) return 'N/A';
+
+    return date.toLocaleDateString('es-MX', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
     });
   };
 
-  const formatTime = (ts: Timestamp) => {
+  const formatTime = (ts: any) => {
     if (!ts) return '--:--';
-    return ts.toDate().toLocaleTimeString('es-MX', {
+    
+    let date: Date;
+    if (ts && typeof ts.toDate === 'function') {
+      date = ts.toDate();
+    } else {
+      date = new Date(ts);
+    }
+
+    if (isNaN(date.getTime())) return '--:--';
+
+    return date.toLocaleTimeString('es-MX', {
       hour: '2-digit',
       minute: '2-digit'
     });
