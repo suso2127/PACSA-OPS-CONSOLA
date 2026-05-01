@@ -9,6 +9,7 @@ import { ProjectManagement } from './ProjectManagement';
 import { HistoryView } from './HistoryView';
 import { StatisticsView } from './StatisticsView';
 import { MapView } from './MapView';
+import { DoubleShiftControl } from './DoubleShiftControl';
 import { 
   Users, 
   ShieldCheck, 
@@ -112,6 +113,10 @@ export function AdminView() {
           </div>
         )}
 
+        {activeTab === 'dobles' && (
+          <DoubleShiftControl />
+        )}
+
         {activeTab === 'proyectos' && (
           <ProjectManagement />
         )}
@@ -124,17 +129,15 @@ export function AdminView() {
           <StatisticsView />
         )}
 
-        {activeTab === 'mapa' && (
-          <MapView />
-        )}
+        {activeTab === 'mapa' && <MapView />}
 
-        {['dobles', 'config'].includes(activeTab) && (
+        {activeTab === 'config' && (
           <div className="dashboard-card flex flex-col items-center justify-center py-20 text-center">
             <div className="p-6 bg-secondary rounded-full mb-4">
               <Settings className="h-12 w-12 text-muted-foreground animate-spin-slow" />
             </div>
             <h3 className="text-xl font-bold uppercase tracking-widest">Módulo en Desarrollo</h3>
-            <p className="text-muted-foreground mt-2">La sección de {activeTab.toUpperCase()} estará disponible próximamente.</p>
+            <p className="text-muted-foreground mt-2">La sección de CONFIGuración estará disponible próximamente.</p>
           </div>
         )}
       </div>
