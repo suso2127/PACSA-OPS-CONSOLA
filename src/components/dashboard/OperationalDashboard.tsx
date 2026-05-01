@@ -26,7 +26,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, YAxis, Pie, PieChart, Cell } from "recharts";
 
 export function OperationalDashboard() {
   const [currentDay, setCurrentDay] = useState('');
@@ -111,6 +111,12 @@ export function OperationalDashboard() {
 
     return () => unsubProjects();
   }, []);
+
+  const forceData = [
+    { name: 'Activos', value: stats.active, color: '#3b82f6' },
+    { name: 'Dobles', value: stats.double, color: '#ef4444' },
+    { name: 'Faltantes', value: stats.missing, color: '#f97316' },
+  ];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
@@ -264,9 +270,36 @@ export function OperationalDashboard() {
               <ShieldCheck className="h-5 w-5 text-primary" />
               <h3 className="text-base font-black text-white uppercase tracking-tight">Estado de Fuerza</h3>
             </div>
-            <div className="flex flex-col items-center justify-center h-[240px] text-center bg-white/[0.02] rounded-2xl">
-              <Activity className="h-10 w-10 text-muted-foreground/20 animate-pulse" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/30 mt-4">Sincronizando flujo...</p>
+            <div className="flex flex-col items-center justify-center h-[280px] text-center bg-white/[0.02] rounded-2xl p-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={forceData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {forceData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="grid grid-cols-3 gap-2 w-full mt-4">
+                {forceData.map((item) => (
+                  <div key={item.name} className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-[8px] font-black uppercase text-muted-foreground">{item.name}</span>
+                    </div>
+                    <span className="text-sm font-black text-white">{item.value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
