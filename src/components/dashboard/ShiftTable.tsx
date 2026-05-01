@@ -27,7 +27,8 @@ import {
   Timer,
   RotateCcw,
   Building2,
-  ChevronDown
+  ChevronDown,
+  MapPin
 } from 'lucide-react';
 import {
   Select,
@@ -333,17 +334,17 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
           <Table className="min-w-[950px]">
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Nombre Completo</TableHead>
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Proyecto</TableHead>
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Nombre Completo</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Proyecto / Ubicación</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
                 {!hideExitTime && (
-                  <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Término</TableHead>
+                  <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Término</TableHead>
                 )}
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Jornada</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Jornada</TableHead>
                 {showObservations && (
                   <>
-                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Horas</TableHead>
-                    <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Observaciones</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Horas</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Observaciones</TableHead>
                   </>
                 )}
               </TableRow>
@@ -371,12 +372,15 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                           <Building2 className="h-2.5 w-2.5 text-primary/70" />
                           <span className="text-[10px] font-black text-primary uppercase font-mono tracking-widest leading-none">{shift.projectCode}</span>
                         </div>
-                        <span className="text-[9px] text-white font-bold uppercase tracking-tight mt-1 leading-none">
+                        <span className="text-[10px] text-white font-bold uppercase tracking-tight mt-1 leading-none">
                           {shift.projectName}
                         </span>
-                        <span className="text-[7px] text-muted-foreground uppercase font-black tracking-tighter mt-0.5 leading-none">
-                          {shift.projectLocation || 'UBICACIÓN REGISTRADA'}
-                        </span>
+                        <div className="flex items-center gap-1 mt-1">
+                          <MapPin className="h-2.5 w-2.5 text-red-500/70" />
+                          <span className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter leading-none">
+                            {shift.projectLocation || 'UBICACIÓN REGISTRADA'}
+                          </span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-center py-2.5">
