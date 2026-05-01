@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Clock, Search, Building2, Loader2, LogOut, Shield, Database } from 'lucide-react';
+import { Calendar, Clock, Search, Building2, Loader2, LogOut, Shield, Database, Users } from 'lucide-react';
 
 export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -109,8 +109,11 @@ export function GuardRegistrationForm() {
             <Shield className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight uppercase">Comando Guardia</h2>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Terminal de Registro Sincronizada</p>
+            <h2 className="text-xl font-bold tracking-tight uppercase leading-none">Comando Guardia</h2>
+            <div className="flex flex-col mt-1.5">
+              <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1">Comando Dotación</span>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Terminal de Registro Sincronizada</p>
+            </div>
           </div>
         </div>
         <div className="flex flex-col items-end text-primary/40">
