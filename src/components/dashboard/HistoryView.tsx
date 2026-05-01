@@ -8,7 +8,8 @@ import {
   Printer, 
   Search, 
   User,
-  Filter
+  Filter,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,12 +69,11 @@ export function HistoryView() {
 
   const formatDate = (ts: any) => {
     if (!ts) return 'N/A';
-    if (typeof ts === 'string') return ts;
     
     let date: Date;
     if (ts && typeof ts.toDate === 'function') {
       date = ts.toDate();
-    } else if (typeof ts === 'number' || !isNaN(Date.parse(ts))) {
+    } else if (typeof ts === 'string' || typeof ts === 'number' || !isNaN(Date.parse(ts))) {
       date = new Date(ts);
     } else {
       return 'N/A';
@@ -94,7 +94,7 @@ export function HistoryView() {
     let date: Date;
     if (ts && typeof ts.toDate === 'function') {
       date = ts.toDate();
-    } else if (typeof ts === 'number' || !isNaN(Date.parse(ts))) {
+    } else if (typeof ts === 'string' || typeof ts === 'number' || !isNaN(Date.parse(ts))) {
       date = new Date(ts);
     } else {
       return '--:--';
@@ -106,6 +106,23 @@ export function HistoryView() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const calculateDuration = (start: any, end: any) => {
+    if (!start || !end) return '--:--';
+    
+    const startDate = start.toDate ? start.toDate() : new Date(start);
+    const endDate = end.toDate ? end.toDate() : new Date(end);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return '--:--';
+    
+    const diffMs = endDate.getTime() - startDate.getTime();
+    if (diffMs < 0) return '00:00';
+    
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `${diffHrs.toString().padStart(2, '0')}:${diffMins.toString().padStart(2, '0')} hrs`;
   };
 
   return (
@@ -186,13 +203,14 @@ export function HistoryView() {
                     <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14">Turno</TableHead>
                     <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-center">Entrada</TableHead>
                     <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-center">Salida</TableHead>
+                    <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-center">Hrs. Trabajadas</TableHead>
                     <TableHead className="text-muted-foreground text-[10px] font-black uppercase tracking-widest h-14 text-right pr-6">Estado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-24">
+                      <TableCell colSpan={8} className="text-center py-24">
                         <div className="flex flex-col items-center gap-4">
                           <div className="h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
                           <p className="text-muted-foreground text-sm font-medium italic">Sincronizando registros históricos...</p>
@@ -214,7 +232,13 @@ export function HistoryView() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center font-mono text-xs font-bold text-white">{formatTime(record.entryTime)}</TableCell>
-                        <TableCell className="text-center font-mono text-xs font-bold text-muted-foreground">{formatTime(record.exitTime!)}</TableCell>
+                        <TableCell className="text-center font-mono text-xs font-bold text-muted-foreground">{formatTime(record.exitTime)}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1.5 font-mono text-xs font-black text-accent">
+                            <Clock className="h-3 w-3" />
+                            {calculateDuration(record.entryTime, record.exitTime)}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right pr-6">
                           <Badge className={`text-[9px] font-black uppercase tracking-tighter px-3 ${
                             record.status === 'Activo' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
@@ -226,7 +250,7 @@ export function HistoryView() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic">
+                      <TableCell colSpan={8} className="text-center py-32 text-muted-foreground italic">
                         No se han encontrado registros en el periodo seleccionado.
                       </TableCell>
                     </TableRow>
