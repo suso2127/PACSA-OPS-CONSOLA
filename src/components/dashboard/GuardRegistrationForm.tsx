@@ -19,7 +19,8 @@ import {
   Terminal,
   CheckCircle2,
   LogOut,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  Zap
 } from 'lucide-react';
 
 export function GuardRegistrationForm() {
@@ -74,8 +75,8 @@ export function GuardRegistrationForm() {
     e.preventDefault();
     if (!formData.guardName || !formData.projectCode) {
       toast({
-        title: "Información Faltante",
-        description: "Por favor complete todos los campos obligatorios.",
+        title: "INFORMACIÓN FALTANTE",
+        description: "Debe completar el nombre y el código de proyecto.",
         variant: "destructive"
       });
       return;
@@ -83,28 +84,31 @@ export function GuardRegistrationForm() {
 
     setLoading(true);
     try {
+      // Inserción inmediata con timestamp de servidor para ordenamiento exacto
       await addDoc(collection(db, 'shift-registrations'), {
-        guardName: formData.guardName,
+        guardName: formData.guardName.toUpperCase(),
         projectCode: formData.projectCode.toUpperCase(),
-        clientName: detectedProject?.client || 'Pendiente',
-        projectName: detectedProject?.name || 'No Identificado',
+        clientName: detectedProject?.client || 'Pendiente de Validación',
+        projectName: detectedProject?.name || 'Sitio No Identificado',
         shiftType: formData.shiftType,
         duration: formData.duration,
-        entryTime: serverTimestamp(),
+        entryTime: serverTimestamp(), // Campo clave para el posicionamiento (el más nuevo arriba)
         status: formData.duration === '24h' ? 'Doble' : 'Activo'
       });
       
       toast({
-        title: "Entrada Registrada",
-        description: `Turno iniciado para ${formData.guardName}.`
+        title: "REGISTRO EXITOSO",
+        description: `El elemento ${formData.guardName} ha sido sincronizado en el dashboard.`,
+        variant: "default"
       });
       
+      // Reset táctico de formulario
       setFormData({ guardName: '', projectCode: '', duration: '12h', shiftType: 'Diurno' });
       setDetectedProject(null);
     } catch (err) {
       toast({
-        title: "Error",
-        description: "No se pudo registrar la entrada.",
+        title: "ERROR DE CONEXIÓN",
+        description: "No se pudo sincronizar el registro con el servidor.",
         variant: "destructive"
       });
     } finally {
@@ -132,7 +136,6 @@ export function GuardRegistrationForm() {
     hour12: false
   });
 
-  // Generar opciones de 8 a 24 horas
   const durationOptions = Array.from({ length: 17 }, (_, i) => i + 8);
 
   return (
@@ -151,23 +154,23 @@ export function GuardRegistrationForm() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-2">
-            <Database className="h-3.5 w-3.5 text-primary/50" />
-            <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em]">Real-Time Sync</span>
-          </div>
+          <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px] font-black tracking-widest px-3 py-1">
+            <Database className="h-2.5 w-2.5 mr-1.5" />
+            REAL-TIME SYNC
+          </Badge>
         </div>
       </div>
 
       <div className="p-8 space-y-8">
-        <div className="flex items-center gap-3 text-primary">
+        <div className="flex items-center gap-3 text-primary/70">
           <Terminal className="h-5 w-5" />
-          <h3 className="text-sm font-black uppercase tracking-[0.2em]">Terminal de Registro Táctico</h3>
+          <h3 className="text-xs font-black uppercase tracking-[0.3em]">Terminal de Registro Táctico</h3>
         </div>
 
         <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 shadow-lg space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-secondary/50 rounded-2xl">
+              <div className="p-3 bg-secondary/30 rounded-2xl border border-white/5">
                 <Calendar className="h-6 w-6 text-primary" />
               </div>
               <div className="space-y-1">
@@ -199,7 +202,7 @@ export function GuardRegistrationForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Nombre del Elemento</Label>
             <Input 
               placeholder="NOMBRE Y APELLIDO" 
@@ -209,11 +212,11 @@ export function GuardRegistrationForm() {
             />
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Código de Proyecto</Label>
             <div className="relative">
               <Input 
-                placeholder="ID CLIENTE" 
+                placeholder="ID CLIENTE / CÓDIGO SITIO" 
                 value={formData.projectCode}
                 onChange={(e) => setFormData({...formData, projectCode: e.target.value.toUpperCase()})}
                 className="h-16 bg-[#1a1b2e] border-white/5 focus-visible:ring-1 focus-visible:ring-primary/50 font-mono text-base font-black tracking-widest rounded-2xl pl-6"
@@ -222,7 +225,7 @@ export function GuardRegistrationForm() {
                 {projectLoading ? (
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 ) : (
-                  <Search className="h-6 w-6 text-muted-foreground" />
+                  <Search className="h-6 w-6 text-muted-foreground opacity-50" />
                 )}
               </div>
             </div>
@@ -230,13 +233,13 @@ export function GuardRegistrationForm() {
 
           <div className={`bg-[#1a1b2e] border-2 border-dashed rounded-3xl p-6 transition-all duration-500 ${detectedProject ? 'border-primary/40 bg-primary/5' : 'border-white/5'}`}>
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white' : 'bg-white/5 text-muted-foreground'}`}>
+              <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-muted-foreground'}`}>
                 {detectedProject ? <CheckCircle2 className="h-6 w-6" /> : <Building2 className="h-6 w-6" />}
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cliente Validado</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Validación de Destino</span>
                 <p className={`text-sm font-black uppercase italic tracking-tighter mt-1 ${detectedProject ? 'text-white' : 'text-muted-foreground/30'}`}>
-                  {detectedProject ? `${detectedProject.name} — ${detectedProject.client}` : 'Esperando código...'}
+                  {detectedProject ? `${detectedProject.name} — ${detectedProject.client}` : 'Esperando ID operativo...'}
                 </p>
               </div>
             </div>
@@ -244,29 +247,29 @@ export function GuardRegistrationForm() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Jornada</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Duración Jornada</Label>
               <Select value={formData.duration} onValueChange={(v) => setFormData({...formData, duration: v})}>
                 <SelectTrigger className="h-14 bg-[#1a1b2e] border-white/5 rounded-2xl font-black uppercase text-xs">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1b2e] border-white/10 max-h-60 overflow-y-auto">
+                <SelectContent className="bg-[#1a1b2e] border-white/10 max-h-60">
                   {durationOptions.map((hours) => (
-                    <SelectItem key={hours} value={`${hours}h`}>
-                      {hours} Horas {hours === 24 ? '(Doble)' : ''}
+                    <SelectItem key={hours} value={`${hours}h`} className="font-black text-[10px] uppercase">
+                      {hours} Horas {hours === 24 ? '(DOBLE)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Turno</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Turno Operativo</Label>
               <Select value={formData.shiftType} onValueChange={(v) => setFormData({...formData, shiftType: v})}>
                 <SelectTrigger className="h-14 bg-[#1a1b2e] border-white/5 rounded-2xl font-black uppercase text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a1b2e] border-white/10">
-                  <SelectItem value="Diurno">Diurno</SelectItem>
-                  <SelectItem value="Nocturno">Nocturno</SelectItem>
+                  <SelectItem value="Diurno" className="font-black text-[10px] uppercase">DIURNO</SelectItem>
+                  <SelectItem value="Nocturno" className="font-black text-[10px] uppercase">NOCTURNO</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -275,9 +278,14 @@ export function GuardRegistrationForm() {
           <Button 
             type="submit" 
             disabled={loading}
-            className="w-full h-20 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.3em] rounded-3xl shadow-[0_10px_40px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full h-20 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.4em] rounded-3xl shadow-[0_15px_40px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] group"
           >
-            {loading ? "Sincronizando..." : "Registrar Entrada"}
+            {loading ? "SINCRONIZANDO..." : (
+              <span className="flex items-center gap-3">
+                <Zap className="h-5 w-5 fill-primary-foreground group-hover:animate-bounce" />
+                REGISTRAR ENTRADA
+              </span>
+            )}
           </Button>
         </form>
       </div>
