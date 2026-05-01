@@ -14,6 +14,8 @@ import { PayrollView } from './PayrollView';
 import { ConfigView } from './ConfigView';
 import { EquipmentRegistrationForm } from './EquipmentRegistrationForm';
 import { EquipmentTable } from './EquipmentTable';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { 
   UserPlus,
   History,
@@ -26,9 +28,14 @@ import {
   BarChart3,
   FileSpreadsheet,
   Users,
-  Package
+  Package,
+  Lock,
+  ShieldCheck,
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
 type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'config';
@@ -36,6 +43,26 @@ type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'config';
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [activeRegistroSubTab, setActiveRegistroSubTab] = useState<RegistroSubTab>('guardia');
+  const [configPass, setConfigPass] = useState('');
+  const [isConfigUnlocked, setIsConfigUnlocked] = useState(false);
+  const { toast } = useToast();
+
+  const handleUnlockConfig = () => {
+    if (configPass === 'grupopacsa') {
+      setIsConfigUnlocked(true);
+      toast({
+        title: "ACCESO AUTORIZADO",
+        description: "Terminal de configuración desbloqueada con éxito."
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "CLAVE INCORRECTA",
+        description: "No tiene privilegios para acceder a esta terminal."
+      });
+      setConfigPass('');
+    }
+  };
 
   const COMMAND_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -57,7 +84,10 @@ export function AdminView() {
         {COMMAND_ITEMS.map((item) => (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => {
+              setActiveTab(item.id);
+              if (item.id !== 'registro') setIsConfigUnlocked(false);
+            }}
             style={{ fontFamily: 'Arial, sans-serif' }}
             className={cn(
               "flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[11px] flex-1 min-w-fit",
@@ -81,7 +111,10 @@ export function AdminView() {
             {/* Sub-Navegación Táctica dentro de Registro */}
             <div className="bg-card/40 border border-white/5 p-1 rounded-xl flex items-center gap-1 w-fit overflow-x-auto no-scrollbar">
               <button
-                onClick={() => setActiveRegistroSubTab('guardia')}
+                onClick={() => {
+                  setActiveRegistroSubTab('guardia');
+                  setIsConfigUnlocked(false);
+                }}
                 className={cn(
                   "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
                   activeRegistroSubTab === 'guardia' 
@@ -93,7 +126,10 @@ export function AdminView() {
                 Registro Guardia
               </button>
               <button
-                onClick={() => setActiveRegistroSubTab('proyecto')}
+                onClick={() => {
+                  setActiveRegistroSubTab('proyecto');
+                  setIsConfigUnlocked(false);
+                }}
                 className={cn(
                   "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
                   activeRegistroSubTab === 'proyecto' 
@@ -105,7 +141,10 @@ export function AdminView() {
                 Comando Proyecto
               </button>
               <button
-                onClick={() => setActiveRegistroSubTab('dotacion')}
+                onClick={() => {
+                  setActiveRegistroSubTab('dotacion');
+                  setIsConfigUnlocked(false);
+                }}
                 className={cn(
                   "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
                   activeRegistroSubTab === 'dotacion' 
@@ -157,7 +196,45 @@ export function AdminView() {
             )}
 
             {activeRegistroSubTab === 'config' && (
-              <ConfigView />
+              isConfigUnlocked ? (
+                <ConfigView />
+              ) : (
+                <div className="max-w-md mx-auto bg-[#1a1b2e] border border-red-500/20 rounded-3xl p-10 shadow-2xl space-y-8 animate-in zoom-in-95 duration-300">
+                  <div className="text-center space-y-2">
+                    <div className="bg-red-500/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                      <Lock className="h-10 w-10 text-red-500" />
+                    </div>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Terminal Bloqueada</h3>
+                    <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">Requiere Autorización ADMIN-02</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Clave de Acceso</label>
+                      <Input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={configPass}
+                        onChange={(e) => setConfigPass(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUnlockConfig()}
+                        className="h-14 bg-black/40 border-white/5 rounded-xl text-center tracking-[0.5em] text-white text-lg focus:ring-1 focus:ring-red-500/50"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleUnlockConfig}
+                      className="w-full h-14 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-[0.3em] rounded-xl shadow-lg transition-all"
+                    >
+                      <ShieldCheck className="h-5 w-5 mr-2" />
+                      AUTORIZAR ACCESO
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-3 bg-red-500/5 rounded-xl border border-red-500/10">
+                    <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+                    <p className="text-[9px] font-bold text-red-500/70 uppercase leading-tight">Esta área contiene parámetros críticos del sistema PACSA.</p>
+                  </div>
+                </div>
+              )
             )}
           </div>
         )}
@@ -172,9 +249,7 @@ export function AdminView() {
           <DoubleShiftControl />
         )}
 
-        {activeTab === 'planilla' && (
-          <PayrollView />
-        )}
+        {activeTab === 'planilla' && (activeTab === 'planilla' && <PayrollView />)}
 
         {activeTab === 'proyectos' && (
           <ProjectManagement />
