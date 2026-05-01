@@ -76,7 +76,22 @@ export function ShiftTable() {
         id: doc.id,
         ...doc.data()
       })) as Shift[];
-      setShifts(fetchedShifts);
+      
+      // Ordenamiento manual robusto para asegurar que los nuevos ingresos (incluso con timestamp pendiente)
+      // aparezcan siempre arriba
+      const sortedShifts = [...fetchedShifts].sort((a, b) => {
+        const timeA = a.entryTime?.toDate ? a.entryTime.toDate().getTime() : (a.entryTime ? new Date(a.entryTime).getTime() : Infinity);
+        const timeB = b.entryTime?.toDate ? b.entryTime.toDate().getTime() : (b.entryTime ? new Date(b.entryTime).getTime() : Infinity);
+        
+        // Si el tiempo es el mismo o nulo (recién creado), se mantiene arriba
+        if (timeB === Infinity && timeA === Infinity) return 0;
+        if (timeB === Infinity) return 1;
+        if (timeA === Infinity) return -1;
+        
+        return timeB - timeA;
+      });
+
+      setShifts(sortedShifts);
       setLoading(false);
     }, (error) => {
       console.error("Error en tiempo real de turnos:", error);
@@ -119,8 +134,10 @@ export function ShiftTable() {
   };
 
   const calculateExitTime = (entryTime: any, duration: string) => {
-    if (!entryTime || !duration) return '--:--';
+    if (!entryTime) return '--:--';
     const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
+    if (isNaN(date.getTime())) return '--:--';
+    
     const hoursToAdd = parseInt(duration) || 8;
     const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
     return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -205,7 +222,7 @@ export function ShiftTable() {
                 <TableRow 
                   key={shift.id} 
                   className={`border-b border-white/5 transition-all duration-300 ${
-                    index === 0 && statusFilter === 'all' ? 'bg-primary/[0.03] animate-in slide-in-from-left-2' : ''
+                    index === 0 && statusFilter === 'all' ? 'bg-primary/[0.03] border-l-2 border-l-primary animate-in slide-in-from-left-2' : ''
                   } ${shift.status === 'Finalizado' ? 'opacity-40 grayscale-[0.5]' : 'hover:bg-white/[0.04]'}`}
                 >
                   <TableCell className="pl-8 py-5">
@@ -228,7 +245,7 @@ export function ShiftTable() {
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="font-mono text-xs font-black text-white bg-[#1a1b2e] px-2 py-1 rounded border border-white/5 shadow-inner">
-                      {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+                      {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : 'SINC...'}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
