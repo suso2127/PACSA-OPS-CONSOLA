@@ -23,7 +23,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2
+  CheckCircle2,
+  Copy
 } from 'lucide-react';
 import {
   Select,
@@ -32,6 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -120,6 +127,24 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
     toast({
       title: "TURNO FINALIZADO",
       description: `El elemento ${name} ha concluido su jornada oficialmente.`
+    });
+  };
+
+  const handleSetDouble = (id: string, name: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    updateDoc(shiftRef, {
+      status: 'Doble'
+    }).catch((err) => {
+      toast({
+        variant: "destructive",
+        title: "ERROR",
+        description: `No se pudo marcar como Doble a ${name}.`
+      });
+    });
+
+    toast({
+      title: "OPERACIÓN: DOBLE",
+      description: `El elemento ${name} ha sido marcado para jornada de 24h.`
     });
   };
 
@@ -318,23 +343,11 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                     } ${shift.status === 'Finalizado' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
                   >
                     <TableCell className="pl-6 py-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
-                          <Badge className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
-                            {shift.status || 'Activo'}
-                          </Badge>
-                        </div>
-                        {shift.status !== 'Finalizado' && shift.status !== 'Completo' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-green-500 hover:bg-green-500/10 rounded-md transition-colors"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
+                        <Badge className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
+                          {shift.status || 'Activo'}
+                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -344,9 +357,29 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className="font-mono text-[11px] font-black text-white bg-[#1a1b2e] px-2 py-1 rounded border border-white/5">
-                        {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
-                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="font-mono text-[11px] font-black text-white bg-[#1a1b2e] px-2 py-1 rounded border border-white/5 hover:border-primary/50 transition-colors cursor-pointer outline-none">
+                            {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white">
+                          <DropdownMenuItem 
+                            onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
+                            className="text-[10px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
+                            Finalizar Turno
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleSetDouble(shift.id, shift.guardName)}
+                            className="text-[10px] font-black uppercase tracking-widest text-red-500 focus:text-red-400 focus:bg-white/5"
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-2" />
+                            Colocar Doble
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1.5 text-accent font-mono text-[11px] font-black">
