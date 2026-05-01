@@ -7,6 +7,7 @@ import { ShiftTable } from './ShiftTable';
 import { OperationalDashboard } from './OperationalDashboard';
 import { ProjectManagement } from './ProjectManagement';
 import { HistoryView } from './HistoryView';
+import { StatisticsView } from './StatisticsView';
 import { 
   Users, 
   ShieldCheck, 
@@ -18,12 +19,13 @@ import {
   ListTodo,
   Copy,
   LayoutGrid,
-  Building2
+  Building2,
+  BarChart3
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'proyectos' | 'config';
+type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'proyectos' | 'config' | 'estadistica';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -39,6 +41,7 @@ export function AdminView() {
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Estado', icon: ListTodo },
     { id: 'dobles', label: 'Dobles', icon: Copy },
+    { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'proyectos', label: 'Proyectos', icon: Building2 },
@@ -47,7 +50,7 @@ export function AdminView() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Estadísticas Rápidas (Solo visibles en ciertas vistas si se desea) */}
+      {/* Estadísticas Rápidas */}
       {activeTab === 'dashboard' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {stats.map((stat, i) => (
@@ -68,7 +71,7 @@ export function AdminView() {
         </div>
       )}
 
-      {/* Barra de Comandos (Navegación Moderna) */}
+      {/* Barra de Comandos */}
       <div className="bg-card/40 backdrop-blur-md border border-white/5 p-1.5 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar max-w-fit mb-4">
         {COMMAND_ITEMS.map((item) => (
           <button
@@ -87,7 +90,7 @@ export function AdminView() {
         ))}
       </div>
 
-      {/* Contenido Dinámico según Tab */}
+      {/* Contenido Dinámico */}
       <div className="animate-in fade-in duration-300">
         {activeTab === 'dashboard' && <OperationalDashboard />}
         
@@ -114,6 +117,10 @@ export function AdminView() {
 
         {activeTab === 'historial' && (
           <HistoryView />
+        )}
+
+        {activeTab === 'estadistica' && (
+          <StatisticsView />
         )}
 
         {['dobles', 'mapa', 'config'].includes(activeTab) && (

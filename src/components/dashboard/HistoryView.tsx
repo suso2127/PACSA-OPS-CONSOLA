@@ -6,10 +6,7 @@ import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Printer, 
-  ChevronLeft, 
-  ChevronRight, 
   Search, 
-  BarChart3,
   User,
   Filter
 } from 'lucide-react';
@@ -25,12 +22,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, Legend } from "recharts";
 
 interface HistoryRecord {
   id: string;
@@ -42,16 +33,6 @@ interface HistoryRecord {
   exitTime?: any;
   status: string;
 }
-
-const chartData = [
-  { name: 'Lun', total: 12, completados: 10 },
-  { name: 'Mar', total: 15, completados: 14 },
-  { name: 'Mie', total: 10, completados: 8 },
-  { name: 'Jue', total: 18, completados: 17 },
-  { name: 'Vie', total: 14, completados: 14 },
-  { name: 'Sab', total: 20, completados: 19 },
-  { name: 'Dom', total: 15, completados: 12 },
-];
 
 export function HistoryView() {
   const [records, setRecords] = useState<HistoryRecord[]>([]);
@@ -128,7 +109,7 @@ export function HistoryView() {
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in duration-500 pb-10">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-6">
         <div>
@@ -142,59 +123,6 @@ export function HistoryView() {
           </Button>
         </div>
       </div>
-
-      {/* Bloque de Análisis Estadístico */}
-      <section className="space-y-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <BarChart3 className="h-5 w-5 text-primary" />
-          </div>
-          <h2 className="text-xl font-bold tracking-tight uppercase">Análisis de Desempeño</h2>
-        </div>
-        
-        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 shadow-2xl">
-          <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Cumplimiento de Turnos</p>
-              <h3 className="text-2xl font-black">Visualización Semanal</h3>
-            </div>
-            
-            <div className="flex items-center bg-[#25273c] rounded-xl border border-white/5 p-1.5">
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="px-6 text-xs font-black font-mono text-primary">20 ABRIL — 26 ABRIL 2026</span>
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="h-[300px] w-full">
-            <ChartContainer config={{
-              total: { label: "Total Requerido", color: "#7c3aed" },
-              completados: { label: "Total Registrado", color: "#0ea5e9" }
-            }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#ffffff05" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 'bold' }}
-                    dy={10}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend verticalAlign="top" align="right" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }} />
-                  <Bar dataKey="total" fill="#7c3aed" radius={[6, 6, 0, 0]} barSize={40} />
-                  <Bar dataKey="completados" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </div>
-        </div>
-      </section>
 
       {/* Bloque de Listado de Registros */}
       <section className="space-y-6">
