@@ -15,7 +15,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { 
   Clock, 
-  Hourglass, 
   LogOut, 
   RefreshCw,
   Zap,
@@ -25,7 +24,8 @@ import {
   ChevronRight,
   CheckCircle2,
   Copy,
-  Timer
+  Timer,
+  RotateCcw
 } from 'lucide-react';
 import {
   Select,
@@ -112,41 +112,27 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
     scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
   };
 
-  const handleFinalizeShift = (id: string, name: string) => {
+  const handleUpdateStatus = (id: string, name: string, status: string) => {
     const shiftRef = doc(db, 'shift-registrations', id);
+    const updateData: any = { status };
     
-    updateDoc(shiftRef, {
-      status: 'Finalizado',
-      exitTime: serverTimestamp()
-    }).catch((err) => {
+    if (status === 'Finalizado') {
+      updateData.exitTime = serverTimestamp();
+    } else {
+      updateData.exitTime = null;
+    }
+
+    updateDoc(shiftRef, updateData).catch((err) => {
       toast({
         variant: "destructive",
         title: "ERROR DE SINCRONIZACIÓN",
-        description: `No se pudo finalizar el turno de ${name}.`
+        description: `No se pudo actualizar el estado de ${name}.`
       });
     });
 
     toast({
-      title: "TURNO FINALIZADO",
-      description: `El elemento ${name} ha concluido su jornada oficialmente.`
-    });
-  };
-
-  const handleSetDouble = (id: string, name: string) => {
-    const shiftRef = doc(db, 'shift-registrations', id);
-    updateDoc(shiftRef, {
-      status: 'Doble'
-    }).catch((err) => {
-      toast({
-        variant: "destructive",
-        title: "ERROR",
-        description: `No se pudo marcar como Doble a ${name}.`
-      });
-    });
-
-    toast({
-      title: "OPERACIÓN: DOBLE",
-      description: `El elemento ${name} ha sido marcado para jornada de 24h.`
+      title: "ESTADO ACTUALIZADO",
+      description: `El elemento ${name} ha sido actualizado a ${status}.`
     });
   };
 
@@ -383,17 +369,24 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                             {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white">
+                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
                           <DropdownMenuItem 
-                            onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
-                            className="text-[10px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5"
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Finalizado')}
+                            className="text-[10px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5 py-2 cursor-pointer"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
                             Finalizar Turno
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => handleSetDouble(shift.id, shift.guardName)}
-                            className="text-[10px] font-black uppercase tracking-widest text-red-500 focus:text-red-400 focus:bg-white/5"
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Activo')}
+                            className="text-[10px] font-black uppercase tracking-widest text-primary focus:text-primary focus:bg-white/5 py-2 cursor-pointer"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                            Restablecer Status
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Doble')}
+                            className="text-[10px] font-black uppercase tracking-widest text-red-500 focus:text-red-400 focus:bg-white/5 py-2 cursor-pointer"
                           >
                             <Copy className="h-3.5 w-3.5 mr-2" />
                             Colocar Doble
