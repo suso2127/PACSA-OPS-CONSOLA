@@ -53,7 +53,7 @@ export function AdminView() {
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[10px] flex-1 min-w-fit",
+              "flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[14px] flex-1 min-w-fit",
               activeTab === item.id 
                 ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.3)] scale-[1.01]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
