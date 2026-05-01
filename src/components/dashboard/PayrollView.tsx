@@ -10,7 +10,8 @@ import {
   ChevronRight,
   User,
   Download,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,6 +64,13 @@ export function PayrollView() {
     return () => unsubscribe();
   }, []);
 
+  const calculateTotalHours = (record: PayrollRecord) => {
+    // Calculamos 12h por defecto para los 7 días, sumando 12 extra si es "Doble" hoy
+    const baseHours = 12 * 7;
+    const extraHours = record.status === 'Doble' ? 12 : 0;
+    return baseHours + extraHours;
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Cabecera */}
@@ -85,7 +93,7 @@ export function PayrollView() {
 
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm overflow-hidden">
         <div className="overflow-x-auto no-scrollbar">
-          <Table className="min-w-[1000px]">
+          <Table className="min-w-[1100px]">
             <TableHeader>
               <TableRow className="border-border">
                 <TableHead className="text-[10px] font-black uppercase tracking-widest h-12">Nombre del Guardia</TableHead>
@@ -95,16 +103,17 @@ export function PayrollView() {
                     {day}
                   </TableHead>
                 ))}
+                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-right pr-6">Total Hrs</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-20 text-muted-foreground italic">Cargando planilla...</TableCell>
+                  <TableCell colSpan={10} className="text-center py-20 text-muted-foreground italic">Cargando planilla...</TableCell>
                 </TableRow>
               ) : data.length > 0 ? (
                 data.map((record) => (
-                  <TableRow key={record.id} className="border-border">
+                  <TableRow key={record.id} className="border-border hover:bg-white/[0.02] transition-colors">
                     <TableCell className="font-bold">
                       <div className="flex items-center gap-2">
                         <User className="h-3 w-3 text-primary" />
@@ -129,11 +138,17 @@ export function PayrollView() {
                         </TableCell>
                       );
                     })}
+                    <TableCell className="text-right pr-6">
+                      <div className="flex items-center justify-end gap-2 text-primary font-black">
+                        <Clock className="h-3 w-3 opacity-50" />
+                        <span className="text-sm">{calculateTotalHours(record)}H</span>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-20 text-muted-foreground italic">No hay datos disponibles.</TableCell>
+                  <TableCell colSpan={10} className="text-center py-20 text-muted-foreground italic">No hay datos disponibles.</TableCell>
                 </TableRow>
               )}
             </TableBody>
