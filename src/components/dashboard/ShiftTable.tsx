@@ -17,26 +17,13 @@ import {
   Clock, 
   Hourglass, 
   LogOut, 
-  UserCheck,
-  ShieldCheck,
-  Copy,
-  Settings2,
   RefreshCw,
-  UserMinus,
   Zap,
   Filter,
   Trash2,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -46,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Shift {
   id: string;
@@ -67,7 +53,6 @@ export function ShiftTable() {
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   
-  // Referencias para el pasador de desplazamiento
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const scrollTrackerRef = useRef<HTMLDivElement>(null);
 
@@ -105,13 +90,11 @@ export function ShiftTable() {
     return () => unsubscribe();
   }, []);
 
-  // Sincronización del pasador con el scroll de la tabla
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (!tableContainerRef.current || !scrollTrackerRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
     const scrollPercentage = (scrollLeft / (scrollWidth - clientWidth)) * 100;
     
-    // Mover el "thumb" del pasador
     scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
   };
 
@@ -154,33 +137,6 @@ export function ShiftTable() {
     return base.filter(shift => shift.status === statusFilter);
   }, [shifts, statusFilter, hiddenIds]);
 
-  const handleUpdateStatus = async (shiftId: string, newStatus: string, observation?: string) => {
-    try {
-      const shiftRef = doc(db, 'shift-registrations', shiftId);
-      const updateData: any = { status: newStatus };
-      if (observation) {
-        updateData.observation = observation;
-      }
-      
-      if (newStatus === 'Finalizado') {
-        updateData.exitTime = serverTimestamp();
-      }
-      
-      await updateDoc(shiftRef, updateData);
-      
-      toast({
-        title: "ESTADO ACTUALIZADO",
-        description: `El turno ha sido modificado a: ${newStatus.toUpperCase()}`
-      });
-    } catch (err) {
-      toast({
-        title: "ERROR DE SINCRONIZACIÓN",
-        description: "No se pudo actualizar el estado del turno.",
-        variant: "destructive"
-      });
-    }
-  };
-
   const calculateExitTime = (entryTime: any, duration: string) => {
     if (!entryTime) return '--:--';
     const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
@@ -218,12 +174,10 @@ export function ShiftTable() {
 
   return (
     <div className="space-y-4">
-      {/* Pasador de Desplazamiento Sincronizado (Control Táctico) */}
       <div className="w-full flex flex-col items-center px-4 space-y-2">
         <div className="flex items-center gap-4 w-full max-w-[800px]">
           <ChevronLeft className="h-4 w-4 text-primary/40" />
           <div className="h-2 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
-            {/* El Pasador (Thumb) que se mueve con el scroll */}
             <div 
               ref={scrollTrackerRef}
               className="absolute top-0 left-0 h-full w-[20%] bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-transform duration-75 ease-out"
@@ -303,7 +257,6 @@ export function ShiftTable() {
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Entrada</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Término</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Jornada</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Comandos</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-right pr-8">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -351,84 +304,6 @@ export function ShiftTable() {
                         {shift.duration || '12h'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-10 w-10 text-primary hover:bg-primary/20 rounded-xl transition-all"
-                                onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Relevo efectuado')}
-                                disabled={shift.status === 'Finalizado'}
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent className="bg-[#1a1b2e] border-primary/30 text-[9px] font-black uppercase tracking-widest">Relevo de Turno</TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-10 w-10 text-orange-500 hover:bg-orange-500/20 rounded-xl transition-all"
-                                onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Retiro de puesto')}
-                                disabled={shift.status === 'Finalizado'}
-                              >
-                                <UserMinus className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent className="bg-[#1a1b2e] border-orange-500/30 text-[9px] font-black uppercase tracking-widest">Retiro Anticipado</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        <div className="h-6 w-[1px] bg-white/10 mx-1" />
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-10 px-3 text-muted-foreground hover:text-white rounded-xl">
-                              <Settings2 className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-[#1a1b2e] border-white/10 text-white min-w-[180px] p-2 rounded-2xl shadow-2xl">
-                            <DropdownMenuLabel className="text-[9px] uppercase tracking-[0.2em] font-black opacity-50 mb-1">Comandos de Estado</DropdownMenuLabel>
-                            <DropdownMenuSeparator className="bg-white/5" />
-                            <DropdownMenuItem 
-                              onClick={() => handleUpdateStatus(shift.id, 'Activo')}
-                              className="text-[10px] font-black uppercase tracking-widest cursor-pointer focus:bg-green-500/20 focus:text-green-500 rounded-lg py-2.5"
-                            >
-                              <UserCheck className="h-4 w-4 mr-3 text-green-500" />
-                              Sincronizar Activo
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleUpdateStatus(shift.id, 'Completo')}
-                              className="text-[10px] font-black uppercase tracking-widest cursor-pointer focus:bg-blue-500/20 focus:text-blue-500 rounded-lg py-2.5"
-                            >
-                              <ShieldCheck className="h-4 w-4 mr-3 text-blue-500" />
-                              Validar Completo
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleUpdateStatus(shift.id, 'Doble')}
-                              className="text-[10px] font-black uppercase tracking-widest cursor-pointer focus:bg-red-500/20 focus:text-red-500 rounded-lg py-2.5"
-                            >
-                              <Copy className="h-4 w-4 mr-3 text-red-500" />
-                              Marcar Doble
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-white/5" />
-                            <DropdownMenuItem 
-                              onClick={() => handleUpdateStatus(shift.id, 'Finalizado', 'Operación concluida')}
-                              className="text-[10px] font-black uppercase tracking-widest cursor-pointer focus:bg-muted focus:text-white rounded-lg py-2.5"
-                            >
-                              <LogOut className="h-4 w-4 mr-3 text-muted-foreground" />
-                              Cerrar Turno
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
                     <TableCell className="text-right pr-8">
                       <Badge 
                         className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 border shadow-sm rounded-full ${getStatusBadgeStyles(shift.status || 'Activo')}`}
@@ -440,7 +315,7 @@ export function ShiftTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
+                  <TableCell colSpan={6} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
                     No se han detectado operaciones activas.
                   </TableCell>
                 </TableRow>
