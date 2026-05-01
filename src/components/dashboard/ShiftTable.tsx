@@ -26,7 +26,8 @@ import {
   Copy,
   Timer,
   RotateCcw,
-  Building2
+  Building2,
+  ChevronDown
 } from 'lucide-react';
 import {
   Select,
@@ -112,7 +113,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
     const scrollPercentage = (scrollLeft / (scrollWidth - clientWidth)) * 100;
     
-    scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
+    if (scrollTrackerRef.current) {
+      scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
+    }
   };
 
   const handleUpdateStatus = (id: string, name: string, status: string) => {
@@ -150,15 +153,16 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   };
 
   const calculateWorkedHours = (shift: Shift) => {
-    if (shift.status === 'Doble') return '24.00';
     if (!shift.entryTime) return '--:--';
     
     const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
+    // Si ya terminó, usamos exitTime. Si no, usamos la hora actual para el cálculo en vivo.
     const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
     
     if (isNaN(start.getTime())) return '--:--';
 
     const diffMs = end.getTime() - start.getTime();
+    if (diffMs < 0) return '0.00';
     const diffHrs = diffMs / (1000 * 60 * 60);
     
     return diffHrs.toFixed(2);
@@ -252,6 +256,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   return (
     <div className="space-y-1">
+      {/* Barra de Progreso Visual de Desplazamiento */}
       <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
         <div className="flex items-center gap-3 w-full max-w-[600px]">
           <ChevronLeft className="h-3 w-3 text-primary/30" />
@@ -376,10 +381,26 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                       </div>
                     </TableCell>
                     <TableCell className="text-center py-2.5">
+                      <div className="font-mono text-[10px] font-black text-white bg-[#1a1b2e] px-1.5 py-0.5 rounded border border-white/5 select-none">
+                        {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
+                      </div>
+                    </TableCell>
+                    {!hideExitTime && (
+                      <TableCell className="text-center py-2.5">
+                        <div className="flex items-center justify-center gap-1 text-accent font-mono text-[10px] font-black">
+                          <LogOut className="h-2.5 w-2.5" />
+                          {calculateExitTime(shift.entryTime, shift.duration)}
+                        </div>
+                      </TableCell>
+                    )}
+                    <TableCell className="text-center py-2.5">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="font-mono text-[10px] font-black text-white bg-[#1a1b2e] px-1.5 py-0.5 rounded border border-white/5 hover:border-primary/50 transition-colors cursor-pointer outline-none">
-                            {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
+                          <button className="outline-none group">
+                            <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[8px] tracking-widest py-0 px-1.5 hover:bg-primary hover:text-primary-foreground cursor-pointer transition-colors flex items-center gap-1">
+                              {shift.duration || '12h'}
+                              <ChevronDown className="h-2 w-2 opacity-50 group-hover:opacity-100" />
+                            </Badge>
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[140px]">
@@ -407,30 +428,13 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                    {!hideExitTime && (
-                      <TableCell className="text-center py-2.5">
-                        <div className="flex items-center justify-center gap-1 text-accent font-mono text-[10px] font-black">
-                          <LogOut className="h-2.5 w-2.5" />
-                          {calculateExitTime(shift.entryTime, shift.duration)}
-                        </div>
-                      </TableCell>
-                    )}
-                    <TableCell className="text-center py-2.5">
-                      <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[8px] tracking-widest py-0 px-1.5">
-                        {shift.duration || '12h'}
-                      </Badge>
-                    </TableCell>
                     {showObservations && (
                       <>
                         <TableCell className="text-center py-2.5">
-                          {(shift.status === 'Finalizado' || shift.status === 'Completo' || shift.status === 'Doble') ? (
-                            <div className="flex items-center justify-center gap-1 font-mono text-[10px] font-black text-primary">
-                              <Timer className="h-2.5 w-2.5" />
-                              {calculateWorkedHours(shift)}H
-                            </div>
-                          ) : (
-                            <span className="text-[8px] text-muted-foreground/30 font-bold uppercase">En curso</span>
-                          )}
+                          <div className="flex items-center justify-center gap-1 font-mono text-[10px] font-black text-primary">
+                            <Timer className="h-2.5 w-2.5" />
+                            {calculateWorkedHours(shift)}H
+                          </div>
                         </TableCell>
                         <TableCell className="text-center py-2.5">
                           <Select 
