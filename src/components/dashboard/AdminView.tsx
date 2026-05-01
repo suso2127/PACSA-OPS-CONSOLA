@@ -30,6 +30,7 @@ type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'histo
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [activeRegistroSubTab, setActiveRegistroSubTab] = useState<'guardia' | 'proyecto'>('guardia');
 
   const COMMAND_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -71,13 +72,47 @@ export function AdminView() {
         {activeTab === 'dashboard' && <OperationalDashboard />}
         
         {activeTab === 'registro' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div className="lg:col-span-5">
-              <GuardRegistrationForm />
+          <div className="space-y-6">
+            {/* Sub-Navegación Táctica dentro de Registro */}
+            <div className="bg-card/40 border border-white/5 p-1 rounded-xl flex items-center gap-1 w-fit">
+              <button
+                onClick={() => setActiveRegistroSubTab('guardia')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  activeRegistroSubTab === 'guardia' 
+                    ? "bg-primary text-primary-foreground shadow-lg" 
+                    : "text-muted-foreground hover:text-white"
+                )}
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Registro Guardia
+              </button>
+              <button
+                onClick={() => setActiveRegistroSubTab('proyecto')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  activeRegistroSubTab === 'proyecto' 
+                    ? "bg-[#6366f1] text-white shadow-lg" 
+                    : "text-muted-foreground hover:text-white"
+                )}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                Comando Proyecto
+              </button>
             </div>
-            <div className="lg:col-span-7">
-              <ShiftTable hideExitTime={true} />
-            </div>
+
+            {activeRegistroSubTab === 'guardia' ? (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className="lg:col-span-5">
+                  <GuardRegistrationForm />
+                </div>
+                <div className="lg:col-span-7">
+                  <ShiftTable hideExitTime={true} />
+                </div>
+              </div>
+            ) : (
+              <ProjectManagement />
+            )}
           </div>
         )}
 
