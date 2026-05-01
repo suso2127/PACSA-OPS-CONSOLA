@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
@@ -70,6 +69,7 @@ export function ShiftTable() {
         ...doc.data()
       })) as Shift[];
       
+      // Ordenamiento manual: priorizar nulos/serverTimestamp pendientes arriba
       const sortedShifts = [...fetchedShifts].sort((a, b) => {
         const timeA = a.entryTime?.toDate ? a.entryTime.toDate().getTime() : (a.entryTime ? new Date(a.entryTime).getTime() : Infinity);
         const timeB = b.entryTime?.toDate ? b.entryTime.toDate().getTime() : (b.entryTime ? new Date(b.entryTime).getTime() : Infinity);
@@ -211,14 +211,13 @@ export function ShiftTable() {
       </div>
 
       <div className="bg-[#12121c] border border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-500">
-        {/* Cabecera Refinada Estilo Imagen */}
         <div className="px-6 py-5 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
               <Clock className="h-5 w-5 text-primary" />
             </div>
             <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight">
-              REGISTRO DE OPERACIONES
+              ESTADO DE TURNOS EN TIEMPO REAL
             </h3>
           </div>
           
