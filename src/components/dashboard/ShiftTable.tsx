@@ -58,9 +58,10 @@ interface Shift {
 
 interface ShiftTableProps {
   showObservations?: boolean;
+  hideExitTime?: boolean;
 }
 
-export function ShiftTable({ showObservations = false }: ShiftTableProps) {
+export function ShiftTable({ showObservations = false, hideExitTime = false }: ShiftTableProps) {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -329,7 +330,9 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 pl-6">Nombre Completo</TableHead>
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11">Cliente</TableHead>
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Entrada</TableHead>
-                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Término</TableHead>
+                {!hideExitTime && (
+                  <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Término</TableHead>
+                )}
                 <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Jornada</TableHead>
                 {showObservations && (
                   <>
@@ -394,12 +397,14 @@ export function ShiftTable({ showObservations = false }: ShiftTableProps) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-accent font-mono text-[11px] font-black">
-                        <LogOut className="h-3 w-3" />
-                        {calculateExitTime(shift.entryTime, shift.duration)}
-                      </div>
-                    </TableCell>
+                    {!hideExitTime && (
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-accent font-mono text-[11px] font-black">
+                          <LogOut className="h-3 w-3" />
+                          {calculateExitTime(shift.entryTime, shift.duration)}
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="text-center">
                       <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[9px] tracking-widest py-0.5 px-2">
                         {shift.duration || '12h'}

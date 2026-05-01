@@ -76,7 +76,7 @@ export function AdminView() {
               <GuardRegistrationForm />
             </div>
             <div className="lg:col-span-7">
-              <ShiftTable />
+              <ShiftTable hideExitTime={true} />
             </div>
           </div>
         )}
