@@ -33,10 +33,10 @@ export function GuardRegistrationForm() {
     return () => clearInterval(timer);
   }, []);
 
-  // Búsqueda de proyecto por código
+  // Búsqueda de proyecto por código sincronizada con ProjectManagement
   useEffect(() => {
     const searchProject = async () => {
-      if (formData.projectCode.length >= 4) {
+      if (formData.projectCode.length >= 3) {
         setProjectLoading(true);
         try {
           const q = query(collection(db, 'projects'), where('code', '==', formData.projectCode.toUpperCase()));
@@ -121,7 +121,7 @@ export function GuardRegistrationForm() {
   };
 
   return (
-    <div className="bg-[#1a1b2e] border border-white/5 rounded-2xl shadow-2xl p-8 max-w-xl mx-auto space-y-8">
+    <div className="bg-[#1a1b2e] border border-white/5 rounded-2xl shadow-2xl p-6 w-full space-y-6">
       {/* Título */}
       <div className="flex items-center gap-3 text-primary">
         <UserPlus className="h-6 w-6" />
@@ -129,71 +129,71 @@ export function GuardRegistrationForm() {
       </div>
 
       {/* Header de Fecha/Hora */}
-      <div className="bg-[#25273c] border border-white/5 rounded-xl p-5 flex items-center justify-between">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-primary/10 rounded-lg">
-            <Calendar className="h-6 w-6 text-primary" />
+      <div className="bg-[#25273c] border border-white/5 rounded-xl p-4 flex items-center justify-between">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Calendar className="h-5 w-5 text-primary" />
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Fecha de Operación</p>
-            <p className="text-sm font-semibold">{currentTime ? formatDate(currentTime) : 'Cargando...'}</p>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
+            <p className="text-xs font-semibold">{currentTime ? formatDate(currentTime) : 'Cargando...'}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Hora de Entrada</p>
-          <p className="text-3xl font-black text-primary tracking-tighter tabular-nums">
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Entrada</p>
+          <p className="text-2xl font-black text-primary tracking-tighter tabular-nums">
             {currentTime ? formatTime(currentTime) : '--:-- --'}
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
-        <div className="space-y-3">
-          <Label className="text-sm font-bold tracking-tight">Nombre Completo del Guardia</Label>
+        <div className="space-y-2">
+          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nombre del Guardia</Label>
           <Input 
             placeholder="Ingrese el nombre del elemento" 
             value={formData.guardName}
             onChange={(e) => setFormData({...formData, guardName: e.target.value})}
-            className="h-14 bg-[#25273c] border-white/5 focus:ring-primary/20 text-lg placeholder:text-muted-foreground/30"
+            className="h-11 bg-[#25273c] border-white/5 focus:ring-primary/20 text-md"
           />
         </div>
 
         {/* Código de Proyecto */}
-        <div className="space-y-3">
-          <Label className="text-sm font-bold tracking-tight">Código del Proyecto / Cliente</Label>
+        <div className="space-y-2">
+          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Código de Proyecto</Label>
           <div className="relative">
             <Input 
-              placeholder="INGRESE EL CÓDIGO (EJ. EP01)" 
+              placeholder="EJ. ABC-01" 
               value={formData.projectCode}
               onChange={(e) => setFormData({...formData, projectCode: e.target.value.toUpperCase()})}
-              className="h-14 bg-[#25273c] border-white/5 focus:ring-primary/20 text-lg font-mono uppercase pr-12 placeholder:text-muted-foreground/30"
+              className="h-11 bg-[#25273c] border-white/5 focus:ring-primary/20 text-md font-mono"
             />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              {projectLoading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : <Search className="h-5 w-5 text-muted-foreground" />}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              {projectLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Search className="h-4 w-4 text-muted-foreground" />}
             </div>
           </div>
         </div>
 
         {/* Status Detección */}
-        <div className={`bg-[#25273c] border ${detectedProject ? 'border-primary/20' : 'border-dashed border-white/10'} rounded-xl p-4 flex items-center gap-4 transition-all duration-300`}>
-          <div className={`p-3 rounded-lg ${detectedProject ? 'bg-primary/20' : 'bg-muted/10'}`}>
-            <Building2 className={`h-5 w-5 ${detectedProject ? 'text-primary' : 'text-muted-foreground/50'}`} />
+        <div className={`bg-[#25273c] border ${detectedProject ? 'border-primary/20' : 'border-dashed border-white/10'} rounded-xl p-3 flex items-center gap-3 transition-all duration-300`}>
+          <div className={`p-2 rounded-lg ${detectedProject ? 'bg-primary/20' : 'bg-muted/10'}`}>
+            <Building2 className={`h-4 w-4 ${detectedProject ? 'text-primary' : 'text-muted-foreground/50'}`} />
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cliente Detectado</p>
-            <p className={`text-sm italic ${detectedProject ? 'text-foreground font-medium' : 'text-muted-foreground/50'}`}>
-              {detectedProject ? `${detectedProject.client} - ${detectedProject.name}` : 'Esperando código válido...'}
+          <div className="overflow-hidden">
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Proyecto Detectado</p>
+            <p className={`text-xs truncate ${detectedProject ? 'text-foreground font-medium' : 'text-muted-foreground/50 italic'}`}>
+              {detectedProject ? detectedProject.name : 'Ingrese código de proyecto...'}
             </p>
           </div>
         </div>
 
         {/* Selectores */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <Label className="text-sm font-bold tracking-tight">Duración Turno (Hrs)</Label>
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duración</Label>
             <Select value={formData.duration} onValueChange={(v) => setFormData({...formData, duration: v})}>
-              <SelectTrigger className="h-12 bg-[#25273c] border-white/5">
+              <SelectTrigger className="h-11 bg-[#25273c] border-white/5">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -203,10 +203,10 @@ export function GuardRegistrationForm() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-3">
-            <Label className="text-sm font-bold tracking-tight">Tipo de Turno</Label>
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Turno</Label>
             <Select value={formData.shiftType} onValueChange={(v) => setFormData({...formData, shiftType: v})}>
-              <SelectTrigger className="h-12 bg-[#25273c] border-white/5">
+              <SelectTrigger className="h-11 bg-[#25273c] border-white/5">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -221,7 +221,7 @@ export function GuardRegistrationForm() {
         <Button 
           type="submit" 
           disabled={loading}
-          className="w-full h-16 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-lg uppercase tracking-wider rounded-xl shadow-lg transition-all"
+          className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-md uppercase tracking-wider rounded-xl shadow-lg mt-2"
         >
           {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Registrar Entrada"}
         </Button>
