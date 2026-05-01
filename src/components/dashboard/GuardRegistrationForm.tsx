@@ -132,6 +132,9 @@ export function GuardRegistrationForm() {
     hour12: false
   });
 
+  // Generar opciones de 8 a 24 horas
+  const durationOptions = Array.from({ length: 17 }, (_, i) => i + 8);
+
   return (
     <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-700">
       <div className="p-8 bg-[#1a1b2e]/80 border-b border-white/5 flex items-center justify-between">
@@ -246,10 +249,12 @@ export function GuardRegistrationForm() {
                 <SelectTrigger className="h-14 bg-[#1a1b2e] border-white/5 rounded-2xl font-black uppercase text-xs">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1b2e] border-white/10">
-                  <SelectItem value="8h">8 Horas</SelectItem>
-                  <SelectItem value="12h">12 Horas</SelectItem>
-                  <SelectItem value="24h">24 Horas (Doble)</SelectItem>
+                <SelectContent className="bg-[#1a1b2e] border-white/10 max-h-60 overflow-y-auto">
+                  {durationOptions.map((hours) => (
+                    <SelectItem key={hours} value={`${hours}h`}>
+                      {hours} Horas {hours === 24 ? '(Doble)' : ''}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
