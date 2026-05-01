@@ -108,7 +108,7 @@ export default function Home() {
         <div className="flex items-center gap-3 mb-8">
           <LayoutDashboard className="h-6 w-6 text-accent" />
           <h2 className="text-2xl font-black tracking-tighter uppercase">
-            {role === 'Admin' && 'Panel de Operaciones'}
+            {role === 'Admin' && 'PACSA-CONTROL-CONSOLE'}
             {role === 'Supervisor' && 'Supervisión de Sitio'}
             {role === 'Guard' && 'Control de Puesto'}
           </h2>
