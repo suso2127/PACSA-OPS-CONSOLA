@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Calendar, Clock, Search, Building2, Loader2, LogOut } from 'lucide-react';
+import { UserPlus, Calendar, Clock, Search, Building2, Loader2, LogOut, Shield, Database } from 'lucide-react';
 
 export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -122,9 +122,26 @@ export function GuardRegistrationForm() {
 
   return (
     <div className="bg-[#1a1b2e] border border-white/5 rounded-2xl shadow-2xl p-6 w-full space-y-6">
-      <div className="flex items-center gap-3 text-primary">
-        <UserPlus className="h-6 w-6" />
-        <h2 className="text-xl font-bold tracking-tight">Nuevo Registro de Turno</h2>
+      {/* Cabecera Táctica (Basada en Imagen) */}
+      <div className="bg-[#242544] rounded-2xl p-5 mb-2 flex items-center justify-between border border-white/5 shadow-inner">
+        <div className="flex items-center gap-4">
+          <div className="bg-[#4f46e5] p-3 rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.3)]">
+            <Shield className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white tracking-tighter uppercase leading-none">Comando Guardia</h2>
+            <p className="text-[10px] font-black text-muted-foreground mt-1.5 uppercase tracking-widest leading-none">
+              Terminal de Registro Sincronizada
+            </p>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 text-primary/40">
+          <Database className="h-4 w-4" />
+          <div className="flex flex-col items-start leading-[0.8] font-black">
+            <span className="text-[7px] uppercase tracking-tighter">Real-Time</span>
+            <span className="text-[7px] uppercase tracking-tighter">Sync</span>
+          </div>
+        </div>
       </div>
 
       <div className="bg-[#25273c] border border-white/5 rounded-xl p-4 grid grid-cols-2 gap-4">
