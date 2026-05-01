@@ -38,7 +38,7 @@ interface PayrollGuard {
   projectName: string;
   projectCode: string;
   totalHours: number;
-  shiftsByDay: Record<string, { hours: number, status: string }>;
+  shiftsByDay: Record<string, { displayHours: string, decimalHours: number, status: string }>;
 }
 
 export function PayrollView() {
@@ -74,6 +74,20 @@ export function PayrollView() {
     setWeekDays(currentWeek);
   }, []);
 
+  const calculateDuration = (entry: any, exit: any) => {
+    if (!entry) return 0;
+    const start = entry.toDate ? entry.toDate() : new Date(entry);
+    const end = exit?.toDate ? exit.toDate() : (exit ? new Date(exit) : new Date());
+    const diffMs = end.getTime() - start.getTime();
+    return Math.max(0, diffMs / (1000 * 60 * 60));
+  };
+
+  const formatToHHMM = (hoursDecimal: number) => {
+    const hrs = Math.floor(hoursDecimal);
+    const mins = Math.round((hoursDecimal - hrs) * 60);
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
+
   useEffect(() => {
     const q = query(collection(db, 'shift-registrations'), orderBy('entryTime', 'desc'));
     
@@ -99,17 +113,32 @@ export function PayrollView() {
         const entryDate = curr.entryTime?.toDate ? curr.entryTime.toDate() : new Date(curr.entryTime);
         const dateKey = entryDate.toDateString();
         
-        // Solo procesar si no hay un turno ya registrado para ese día o si el actual es más relevante
+        // Calcular horas reales basadas en entrada/salida capturada en Operaciones
+        const decimalHours = calculateDuration(curr.entryTime, curr.exitTime);
+        const displayHours = formatToHHMM(decimalHours);
+
         if (!acc[name].shiftsByDay[dateKey]) {
-          const hours = curr.status === 'Doble' ? 24 : 12;
-          acc[name].shiftsByDay[dateKey] = { hours, status: curr.status };
-          acc[name].totalHours += hours;
+          acc[name].shiftsByDay[dateKey] = { 
+            displayHours, 
+            decimalHours, 
+            status: curr.status 
+          };
+        } else {
+          // Acumulación diaria por si existen múltiples relevos
+          acc[name].shiftsByDay[dateKey].decimalHours += decimalHours;
+          acc[name].shiftsByDay[dateKey].displayHours = formatToHHMM(acc[name].shiftsByDay[dateKey].decimalHours);
         }
         
         return acc;
       }, {});
 
-      setGuardsData(Object.values(grouped));
+      // Mapeo final y cálculo de totales por fila
+      const finalData = Object.values(grouped).map((guard: any) => {
+        const total = Object.values(guard.shiftsByDay).reduce((sum: number, day: any) => sum + day.decimalHours, 0);
+        return { ...guard, totalHours: total };
+      });
+
+      setGuardsData(finalData);
       setLoading(false);
     });
 
@@ -244,9 +273,9 @@ export function PayrollView() {
                           {shift ? (
                             <Badge 
                               variant="outline" 
-                              className={`text-[9px] font-bold px-2 py-0 ${shift.hours === 24 ? 'bg-destructive text-white border-destructive' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}
+                              className={`text-[9px] font-bold px-2 py-0 ${shift.status === 'Doble' ? 'bg-destructive text-white border-destructive' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}
                             >
-                              {shift.hours}H
+                              {shift.displayHours}H
                             </Badge>
                           ) : (
                             <span className="text-[9px] text-muted-foreground/20 font-mono">—</span>
@@ -257,7 +286,7 @@ export function PayrollView() {
                     <TableCell className="text-right pr-6">
                       <div className="flex items-center justify-end gap-2 text-primary font-black">
                         <Clock className="h-3 w-3 opacity-50" />
-                        <span className="text-sm">{guard.totalHours}H</span>
+                        <span className="text-sm">{formatToHHMM(guard.totalHours)}H</span>
                       </div>
                     </TableCell>
                   </TableRow>
