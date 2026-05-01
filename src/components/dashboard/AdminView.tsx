@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState } from 'react';
@@ -74,21 +73,21 @@ export function AdminView() {
         </div>
       )}
 
-      {/* Barra de Comandos */}
-      <div className="bg-card/40 backdrop-blur-md border border-white/5 p-2 rounded-2xl flex items-center gap-2 overflow-x-auto no-scrollbar w-full mb-6">
+      {/* Barra de Comandos - Mejorada para ser más larga y sin scroll visible */}
+      <div className="bg-card/40 backdrop-blur-md border border-white/5 p-1 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar w-full mb-8 shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 whitespace-nowrap font-bold text-sm flex-1 min-w-fit",
+              "flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[10px] flex-1 min-w-fit",
               activeTab === item.id 
                 ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-white/5"
             )}
           >
             <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : "text-primary")} />
-            <span className="uppercase tracking-wider">{item.label}</span>
+            <span className="uppercase tracking-widest">{item.label}</span>
           </button>
         ))}
       </div>
