@@ -49,7 +49,7 @@ export function AdminView() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Barra de Comandos Táctica Restaurada al formato ancho */}
+      {/* Barra de Comandos Táctica */}
       <div className="bg-card/40 backdrop-blur-md border border-border p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
@@ -133,7 +133,7 @@ export function AdminView() {
             {activeRegistroSubTab === 'dotacion' && (
               <div className="space-y-6">
                 <div className="bg-[#12121c] border border-white/5 rounded-3xl p-8 shadow-2xl">
-                  <div className="flex items-center gap-4 mb-8">
+                  <div className="flex items-center gap-4 mb-4">
                     <div className="bg-[#10b981]/10 p-3 rounded-2xl border border-[#10b981]/20">
                       <Users className="h-8 w-8 text-[#10b981]" />
                     </div>
@@ -142,9 +142,11 @@ export function AdminView() {
                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-1.5">Control de fuerza operativa y despliegue</p>
                     </div>
                   </div>
-                  <GuardRegistrationForm />
+                  {/* Módulo de Gestión de Fuerza en Preparación */}
+                  <div className="flex items-center justify-center py-20 border border-dashed border-white/5 rounded-2xl">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em]">Módulo de Gestión de Fuerza en Preparación</p>
+                  </div>
                 </div>
-                <ShiftTable hideExitTime={true} />
               </div>
             )}
           </div>
