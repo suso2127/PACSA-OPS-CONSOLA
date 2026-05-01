@@ -118,9 +118,9 @@ export function PayrollView() {
 
   const filteredData = useMemo(() => {
     return guardsData.filter(guard => {
-      const matchesName = guard.guardName.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesProject = guard.projectCode.toLowerCase().includes(projectSearch.toLowerCase()) || 
-                             guard.projectName.toLowerCase().includes(projectSearch.toLowerCase());
+      const matchesName = (guard.guardName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesProject = (guard.projectCode || '').toLowerCase().includes(projectSearch.toLowerCase()) || 
+                             (guard.projectName || '').toLowerCase().includes(projectSearch.toLowerCase());
       return matchesName && matchesProject;
     });
   }, [guardsData, searchTerm, projectSearch]);

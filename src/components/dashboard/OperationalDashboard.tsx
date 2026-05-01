@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Lock,
-  LayoutGrid
+  LayoutGrid,
+  AlertTriangle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -23,6 +24,7 @@ import { Progress } from '@/components/ui/progress';
 
 export function OperationalDashboard() {
   const [currentDay, setCurrentDay] = useState('');
+  const [deficits, setDeficits] = useState<{name: string, required: number, onSite: number}[]>([]);
   const [stats, setStats] = useState({
     required: 0,
     active: 0,
@@ -33,7 +35,6 @@ export function OperationalDashboard() {
 
   useEffect(() => {
     const d = new Date();
-    // Obtener fecha completa en español
     const fullDate = d.toLocaleDateString('es-MX', { 
       weekday: 'long', 
       day: 'numeric', 
@@ -43,14 +44,9 @@ export function OperationalDashboard() {
     setCurrentDay(fullDate);
 
     const unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
-      // Los días para la búsqueda en el esquema de requisitos
+      const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
-      const dayKey = dayNames[d.getDay()] as any;
-      
-      const totalReq = snapshot.docs.reduce((acc, doc) => {
-        const reqs = doc.data().requirements || {};
-        return acc + (reqs[dayKey] || 0);
-      }, 0);
+      const dayKey = dayNames[d.getDay()];
       
       const qShifts = query(
         collection(db, 'shift-registrations'),
@@ -58,8 +54,27 @@ export function OperationalDashboard() {
       );
 
       const unsubShifts = onSnapshot(qShifts, (shiftSnap) => {
-        const activeCount = shiftSnap.docs.filter(s => s.data().status === 'Activo').length;
-        const doubleCount = shiftSnap.docs.filter(s => s.data().status === 'Doble').length;
+        const shifts = shiftSnap.docs.map(doc => doc.data());
+        const newDeficits: {name: string, required: number, onSite: number}[] = [];
+        let totalReq = 0;
+        let activeCount = 0;
+        let doubleCount = 0;
+
+        projects.forEach(p => {
+          const req = p.requirements?.[dayKey] || 0;
+          totalReq += req;
+          const onSite = shifts.filter((s: any) => s.projectCode === p.code).length;
+          const actives = shifts.filter((s: any) => s.projectCode === p.code && s.status === 'Activo').length;
+          const doubles = shifts.filter((s: any) => s.projectCode === p.code && s.status === 'Doble').length;
+          
+          activeCount += actives;
+          doubleCount += doubles;
+
+          if (onSite < req) {
+            newDeficits.push({ name: p.name, required: req, onSite });
+          }
+        });
+
         const totalInSite = activeCount + doubleCount;
         const missing = Math.max(0, totalReq - totalInSite);
         const coverage = totalReq > 0 ? Math.round((totalInSite / totalReq) * 100) : 0;
@@ -71,6 +86,7 @@ export function OperationalDashboard() {
           missing,
           coverage
         });
+        setDeficits(newDeficits);
       });
 
       return () => unsubShifts();
@@ -81,7 +97,7 @@ export function OperationalDashboard() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
-      {/* Cabecera Táctica Estilo Imagen */}
+      {/* Cabecera Táctica */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
@@ -112,180 +128,78 @@ export function OperationalDashboard() {
         </div>
       </div>
 
-      {/* Grid de Métricas Superiores con Impacto Visual */}
+      {/* Grid de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Guardias Requeridos */}
-        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group transition-all hover:border-primary/20">
+        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start relative z-10">
+            <div className="flex justify-between items-start">
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Guardias Requeridos</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Requeridos</p>
                 <h4 className="text-4xl font-black text-white">{stats.required}</h4>
               </div>
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <Users className="h-5 w-5 text-blue-500" />
-              </div>
+              <Users className="h-5 w-5 text-blue-500" />
             </div>
             <div className="h-1 w-full bg-blue-500/10 rounded-full mt-6" />
-            <div className="absolute -bottom-2 -right-2 opacity-5">
-              <Users className="h-20 w-20 text-white" />
-            </div>
           </CardContent>
         </Card>
 
-        {/* Guardias en Puesto */}
-        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group transition-all hover:border-sky-400/20">
+        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start relative z-10">
+            <div className="flex justify-between items-start">
               <div className="space-y-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Guardias en Puesto</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">En Puesto</p>
                 <h4 className="text-4xl font-black text-white">{stats.active}</h4>
               </div>
-              <div className="p-2 bg-sky-400/10 rounded-lg">
-                <User className="h-5 w-5 text-sky-400" />
-              </div>
+              <User className="h-5 w-5 text-sky-400" />
             </div>
             <div className="h-1 w-full bg-sky-400/10 rounded-full mt-6" />
-            <div className="absolute -bottom-2 -right-2 opacity-5">
-              <User className="h-20 w-20 text-white" />
-            </div>
           </CardContent>
         </Card>
 
-        {/* En Doble */}
-        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group transition-all hover:border-red-500/20">
+        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start relative z-10">
+            <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">En Doble</p>
                 <h4 className="text-4xl font-black text-red-500">{stats.double}</h4>
               </div>
-              <div className="p-2 bg-red-500/10 rounded-lg">
-                <Copy className="h-5 w-5 text-red-500" />
-              </div>
+              <Copy className="h-5 w-5 text-red-500" />
             </div>
             <div className="h-1 w-full bg-red-500/10 rounded-full mt-6" />
-            <div className="absolute -bottom-2 -right-2 opacity-5">
-              <Copy className="h-20 w-20 text-white" />
-            </div>
           </CardContent>
         </Card>
 
-        {/* Faltantes */}
-        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group transition-all hover:border-orange-500/20">
+        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start relative z-10">
+            <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Faltantes</p>
                 <h4 className="text-4xl font-black text-orange-500">{stats.missing}</h4>
               </div>
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <UserMinus className="h-5 w-5 text-orange-500" />
-              </div>
+              <UserMinus className="h-5 w-5 text-orange-500" />
             </div>
             <div className="h-1 w-full bg-orange-500/10 rounded-full mt-6" />
-            <div className="absolute -bottom-2 -right-2 opacity-5">
-              <UserMinus className="h-20 w-20 text-white" />
-            </div>
           </CardContent>
         </Card>
 
-        {/* Cobertura */}
-        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group transition-all hover:border-green-500/20">
+        <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group">
           <CardContent className="p-6">
-            <div className="flex justify-between items-start relative z-10">
-              <div className="space-y-1 w-full">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Cobertura Total</p>
-                <div className="flex items-center justify-between">
-                  <h4 className="text-4xl font-black text-green-500">{stats.coverage}%</h4>
-                  <div className="p-2 bg-green-500/10 rounded-lg">
-                    <TrendingUp className="h-5 w-5 text-green-500" />
-                  </div>
-                </div>
-                <Progress value={stats.coverage} className="h-2 mt-4 bg-green-500/10" />
+            <div className="space-y-1 w-full">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Cobertura</p>
+              <div className="flex items-center justify-between">
+                <h4 className="text-4xl font-black text-green-500">{stats.coverage}%</h4>
+                <TrendingUp className="h-5 w-5 text-green-500" />
               </div>
-            </div>
-            <div className="absolute -bottom-2 -right-2 opacity-5">
-              <TrendingUp className="h-20 w-20 text-white" />
+              <Progress value={stats.coverage} className="h-2 mt-4 bg-green-500/10" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Paneles de Visualización Central */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Estado de Fuerza */}
-        <Card className="lg:col-span-4 bg-[#1a1b2e] border-white/5 h-[400px] shadow-2xl">
-          <CardContent className="p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-white uppercase tracking-tight">Estado de Fuerza</h3>
-                <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Distribución Operativa Hoy</p>
-              </div>
-            </div>
-            
-            <div className="flex flex-col items-center justify-center h-[240px] text-center border-y border-white/5 bg-white/[0.02] rounded-2xl">
-              <div className="p-5 bg-white/5 rounded-full mb-4 animate-pulse">
-                <Activity className="h-10 w-10 text-muted-foreground/40" />
-              </div>
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/50 px-8">
-                Esperando flujo de registros para generar métricas visuales
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="flex items-center gap-2">
-                <div className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                <span className="text-[9px] font-black text-muted-foreground uppercase">Activos</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                <span className="text-[9px] font-black text-muted-foreground uppercase">Dobles</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]" />
-                <span className="text-[9px] font-black text-muted-foreground uppercase">Histórico</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Cobertura por Proyecto */}
-        <Card className="lg:col-span-8 bg-[#1a1b2e] border-white/5 h-[400px] shadow-2xl">
-          <CardContent className="p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-10 w-10 rounded-xl bg-sky-400/10 flex items-center justify-center border border-sky-400/20">
-                <Activity className="h-5 w-5 text-sky-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-white uppercase tracking-tight">Cobertura por Proyecto</h3>
-                <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Análisis de Despliegue en Tiempo Real</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-center h-[280px] text-center bg-white/[0.02] border border-white/5 rounded-3xl group">
-              <div className="space-y-4">
-                <p className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground/30 group-hover:text-primary transition-colors duration-500">
-                  SINCRONIZANDO BASE DE DATOS ESTRUCTURAL...
-                </p>
-                <div className="flex justify-center gap-1.5">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-1 w-8 bg-white/5 rounded-full" />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Panel de Alertas Estilo Imagen */}
+      {/* Protocolo de Alerta de Cobertura */}
       <Card className={`bg-[#1a1b2e] border-white/5 border-l-[6px] ${stats.missing > 0 ? 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)]' : 'border-l-green-500 shadow-[0_0_30px_rgba(34,197,94,0.1)]'} shadow-2xl transition-all`}>
         <CardContent className="p-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="flex flex-col gap-8">
             <div className="flex items-center gap-6">
               <div className={`p-5 rounded-2xl border ${stats.missing > 0 ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
                 <ShieldAlert className="h-10 w-10" />
@@ -294,30 +208,64 @@ export function OperationalDashboard() {
                 <h3 className={`text-xl font-black ${stats.missing > 0 ? 'text-red-500' : 'text-green-500'} uppercase tracking-tighter mb-1`}>
                   {stats.missing > 0 ? 'Protocolo de Alerta de Cobertura' : 'Sistema de Cobertura Optima'}
                 </h3>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest max-w-md">
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest max-w-2xl">
                   {stats.missing > 0 
-                    ? `Se han detectado ${stats.missing} puestos sin cubrir en la planilla del ${currentDay.toLowerCase()}. Se requiere atención inmediata.`
+                    ? `Se han detectado ${stats.missing} puestos sin cubrir en la planilla del ${currentDay.toLowerCase()}. Se requiere atención inmediata en los siguientes puestos:`
                     : `Todos los requerimientos operativos para el ${currentDay.toLowerCase()} han sido satisfechos según la planilla central.`
                   }
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 bg-black/20 p-6 rounded-2xl border border-white/5">
-              <div className="text-center px-6 border-r border-white/10">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Status</p>
-                <p className={`text-lg font-black uppercase ${stats.missing > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                  {stats.missing > 0 ? 'Déficit' : 'Completo'}
-                </p>
+            {stats.missing > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {deficits.map((d, i) => (
+                  <div key={i} className="bg-black/20 p-4 rounded-xl border border-red-500/10 flex items-center justify-between group hover:border-red-500/30 transition-all">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-red-500/50 uppercase tracking-widest leading-none">Puesto</span>
+                      <span className="text-xs font-black text-white uppercase mt-1.5">{d.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-black text-muted-foreground uppercase block leading-none">Faltantes</span>
+                      <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] font-black mt-1.5 px-2">
+                        {d.required - d.onSite} DE {d.required}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="text-center px-6">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Audit</p>
-                <p className="text-lg font-black text-white">Verified</p>
-              </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Paneles Centrales */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <Card className="lg:col-span-4 bg-[#1a1b2e] border-white/5 h-[400px] shadow-2xl">
+          <CardContent className="p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <h3 className="text-base font-black text-white uppercase tracking-tight">Estado de Fuerza</h3>
+            </div>
+            <div className="flex flex-col items-center justify-center h-[240px] text-center bg-white/[0.02] rounded-2xl">
+              <Activity className="h-10 w-10 text-muted-foreground/20 animate-pulse" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/30 mt-4">Sincronizando flujo...</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-8 bg-[#1a1b2e] border-white/5 h-[400px] shadow-2xl">
+          <CardContent className="p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Activity className="h-5 w-5 text-sky-400" />
+              <h3 className="text-base font-black text-white uppercase tracking-tight">Cobertura por Proyecto</h3>
+            </div>
+            <div className="flex items-center justify-center h-[280px] bg-white/[0.02] border border-white/5 rounded-3xl">
+              <span className="text-[10px] font-black text-muted-foreground/20 uppercase tracking-[0.3em]">ANALIZANDO DESPLIEGUE...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
