@@ -20,7 +20,7 @@ export function GuardRegistrationForm() {
   const [formData, setFormData] = useState({
     guardName: '',
     projectCode: '',
-    duration: '8h',
+    duration: '12h',
     shiftType: 'Diurno'
   });
 
@@ -99,7 +99,7 @@ export function GuardRegistrationForm() {
         description: `Turno iniciado para ${formData.guardName}.`
       });
       
-      setFormData({ guardName: '', projectCode: '', duration: '8h', shiftType: 'Diurno' });
+      setFormData({ guardName: '', projectCode: '', duration: '12h', shiftType: 'Diurno' });
       setDetectedProject(null);
     } catch (err) {
       toast({
@@ -110,15 +110,6 @@ export function GuardRegistrationForm() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('es-MX', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    }).format(date).replace(/^\w/, (c) => c.toUpperCase());
   };
 
   const formatTime = (date: Date) => {
@@ -201,15 +192,15 @@ export function GuardRegistrationForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duración</Label>
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duración del Turno</Label>
             <Select value={formData.duration} onValueChange={(v) => setFormData({...formData, duration: v})}>
               <SelectTrigger className="h-11 bg-[#25273c] border-white/5">
-                <SelectValue />
+                <SelectValue placeholder="Seleccione horas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="8h">8h</SelectItem>
-                <SelectItem value="12h">12h</SelectItem>
-                <SelectItem value="24h">24h</SelectItem>
+                <SelectItem value="8h">8 Horas (Estándar)</SelectItem>
+                <SelectItem value="12h">12 Horas (Operativo)</SelectItem>
+                <SelectItem value="24h">24 Horas (Doble)</SelectItem>
               </SelectContent>
             </Select>
           </div>
