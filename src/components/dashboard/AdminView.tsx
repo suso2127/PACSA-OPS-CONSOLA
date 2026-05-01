@@ -40,7 +40,7 @@ export function AdminView() {
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
-    { id: 'proyectos', label: 'Proyectos', icon: Building2 },
+    { id: 'proyectos', label: 'Proyecto', icon: Building2 },
     { id: 'config', label: 'Configuración', icon: Settings },
   ] as const;
 
