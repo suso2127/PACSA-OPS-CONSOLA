@@ -31,7 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 
 type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
-type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion';
+type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'config';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -79,11 +79,11 @@ export function AdminView() {
         {activeTab === 'registro' && (
           <div className="space-y-6">
             {/* Sub-Navegación Táctica dentro de Registro */}
-            <div className="bg-card/40 border border-white/5 p-1 rounded-xl flex items-center gap-1 w-fit">
+            <div className="bg-card/40 border border-white/5 p-1 rounded-xl flex items-center gap-1 w-fit overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setActiveRegistroSubTab('guardia')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
                   activeRegistroSubTab === 'guardia' 
                     ? "bg-primary text-primary-foreground shadow-lg" 
                     : "text-muted-foreground hover:text-white"
@@ -95,7 +95,7 @@ export function AdminView() {
               <button
                 onClick={() => setActiveRegistroSubTab('proyecto')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
                   activeRegistroSubTab === 'proyecto' 
                     ? "bg-[#6366f1] text-white shadow-lg" 
                     : "text-muted-foreground hover:text-white"
@@ -107,7 +107,7 @@ export function AdminView() {
               <button
                 onClick={() => setActiveRegistroSubTab('dotacion')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
                   activeRegistroSubTab === 'dotacion' 
                     ? "bg-[#10b981] text-white shadow-lg" 
                     : "text-muted-foreground hover:text-white"
@@ -115,6 +115,18 @@ export function AdminView() {
               >
                 <Package className="h-3.5 w-3.5" />
                 Comando Dotación
+              </button>
+              <button
+                onClick={() => setActiveRegistroSubTab('config')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
+                  activeRegistroSubTab === 'config' 
+                    ? "bg-slate-700 text-white shadow-lg" 
+                    : "text-muted-foreground hover:text-white"
+                )}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Configuración
               </button>
             </div>
 
@@ -142,6 +154,10 @@ export function AdminView() {
                   <EquipmentTable />
                 </div>
               </div>
+            )}
+
+            {activeRegistroSubTab === 'config' && (
+              <ConfigView />
             )}
           </div>
         )}
