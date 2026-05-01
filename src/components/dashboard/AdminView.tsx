@@ -43,10 +43,10 @@ export function AdminView() {
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Estado', icon: ListTodo },
     { id: 'dobles', label: 'Dobles', icon: Copy },
-    { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
+    { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
     { id: 'proyectos', label: 'Proyectos', icon: Building2 },
     { id: 'config', label: 'Config', icon: Settings },
   ] as const;
