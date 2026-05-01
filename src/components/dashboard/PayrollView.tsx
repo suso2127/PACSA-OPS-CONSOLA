@@ -10,7 +10,8 @@ import {
   ChevronRight,
   User,
   Clock,
-  Download
+  Download,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -69,6 +70,10 @@ export function PayrollView() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <Button variant="outline" className="bg-red-600 hover:bg-red-700 text-white border-none h-11 px-6 rounded-xl shadow-lg shadow-red-500/10">
+            <Printer className="mr-2 h-4 w-4" />
+            Descargar PDF
+          </Button>
           <Button variant="outline" className="bg-[#2563eb] hover:bg-[#2563eb]/90 text-white border-none h-11 px-6 rounded-xl shadow-lg shadow-blue-500/10">
             <Download className="mr-2 h-4 w-4" />
             Descargar Excel
@@ -169,3 +174,4 @@ export function PayrollView() {
     </div>
   );
 }
+
