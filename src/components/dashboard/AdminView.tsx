@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { GuardRegistrationForm } from './GuardRegistrationForm';
 import { ShiftTable } from './ShiftTable';
+import { OperationalDashboard } from './OperationalDashboard';
 import { 
   Users, 
   ShieldCheck, 
@@ -23,7 +24,7 @@ import { cn } from '@/lib/utils';
 type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'proyectos' | 'config';
 
 export function AdminView() {
-  const [activeTab, setActiveTab] = useState<AdminTab>('registro');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
 
   const stats = [
     { label: 'Guardias Activos', value: '42', icon: Users, color: 'text-primary' },
@@ -32,17 +33,38 @@ export function AdminView() {
   ];
 
   const COMMAND_ITEMS = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Estado', icon: ListTodo },
     { id: 'dobles', label: 'Dobles', icon: Copy },
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'proyectos', label: 'Proyectos', icon: Building2 },
     { id: 'config', label: 'Config', icon: Settings },
   ] as const;
 
-  return (
+  return (activeTab === 'dashboard' ? (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="bg-card/40 backdrop-blur-md border border-white/5 p-1.5 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar max-w-fit mb-8">
+        {COMMAND_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={cn(
+              "flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 whitespace-nowrap font-medium text-sm",
+              activeTab === item.id 
+                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+            )}
+          >
+            <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : "text-primary")} />
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <OperationalDashboard />
+    </div>
+  ) : (
     <div className="space-y-8 animate-in slide-in-from-bottom-2 duration-500">
       {/* Estadísticas Rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -101,7 +123,7 @@ export function AdminView() {
           </div>
         )}
 
-        {['dobles', 'dashboard', 'mapa', 'historial', 'proyectos', 'config'].includes(activeTab) && (
+        {['dobles', 'mapa', 'historial', 'proyectos', 'config'].includes(activeTab) && ( activeTab !== 'dashboard' &&
           <div className="dashboard-card flex flex-col items-center justify-center py-20 text-center">
             <div className="p-6 bg-secondary rounded-full mb-4">
               <Settings className="h-12 w-12 text-muted-foreground animate-spin-slow" />
@@ -112,5 +134,5 @@ export function AdminView() {
         )}
       </div>
     </div>
-  );
+  ));
 }
