@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -148,7 +149,6 @@ export function GuardRegistrationForm() {
           <div>
             <h2 className="text-3xl font-black tracking-tighter text-white uppercase leading-none">Comando Guardia</h2>
             <div className="flex flex-col mt-1">
-              <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none">Comando Dotación</span>
               <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mt-0.5">Terminal Sincronizada</span>
             </div>
           </div>
