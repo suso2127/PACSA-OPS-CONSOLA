@@ -9,7 +9,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Clock, Search, Building2, Loader2, LogOut, Shield, Database, Users } from 'lucide-react';
+import { 
+  Calendar, 
+  Clock, 
+  Search, 
+  Building2, 
+  Loader2, 
+  Shield, 
+  Database, 
+  Terminal,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 
 export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -101,90 +112,151 @@ export function GuardRegistrationForm() {
     }
   };
 
+  const formattedDate = currentTime?.toLocaleDateString('es-MX', { 
+    weekday: 'long', 
+    day: 'numeric', 
+    month: 'long', 
+    year: 'numeric' 
+  });
+
+  const formattedTime = currentTime?.toLocaleTimeString('es-MX', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm p-6 space-y-8">
-      {/* Cabecera del Formulario estilo Imagen */}
-      <div className="bg-[#1a1b2e] rounded-xl p-5 flex items-center justify-between border border-white/5">
+    <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-700">
+      {/* Cabecera Principal - Estilo Imagen */}
+      <div className="p-8 bg-[#1a1b2e]/80 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="bg-primary/20 p-3 rounded-xl border border-primary/20">
-            <Shield className="h-7 w-7 text-primary" />
+          <div className="bg-primary/20 p-3 rounded-2xl border border-primary/30">
+            <Shield className="h-8 w-8 text-primary" />
           </div>
-          <div className="flex flex-col">
-            <h2 className="text-2xl font-black tracking-tight text-white uppercase leading-none">Comando Guardia</h2>
+          <div>
+            <h2 className="text-3xl font-black tracking-tighter text-white uppercase leading-none">Comando Guardia</h2>
             <div className="flex flex-col mt-1">
-              <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1">Comando Dotación</span>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Terminal de Registro Sincronizada</p>
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none">Terminal de Registro</span>
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none">Sincronizada</span>
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-end text-primary/30">
-          <Database className="h-4 w-4" />
-          <span className="text-[7px] uppercase font-black mt-1">Sync Active</span>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <Database className="h-3.5 w-3.5 text-primary/50" />
+            <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em]">Real-Time Sync</span>
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-3">
-          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Nombre del Guardia</Label>
-          <Input 
-            placeholder="Ingrese el nombre" 
-            value={formData.guardName}
-            onChange={(e) => setFormData({...formData, guardName: e.target.value})}
-            className="h-12 bg-[#0f101d] border-none focus-visible:ring-1 focus-visible:ring-primary/50 text-sm rounded-xl"
-          />
+      <div className="p-8 space-y-8">
+        {/* Título de Sección Táctico */}
+        <div className="flex items-center gap-3 text-primary">
+          <Terminal className="h-5 w-5" />
+          <h3 className="text-sm font-black uppercase tracking-[0.2em]">Terminal de Registro Táctico</h3>
         </div>
 
-        <div className="space-y-3">
-          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Código de Proyecto</Label>
-          <div className="relative">
-            <Input 
-              placeholder="EJ. ABC-01" 
-              value={formData.projectCode}
-              onChange={(e) => setFormData({...formData, projectCode: e.target.value.toUpperCase()})}
-              className="h-12 bg-[#0f101d] border-none focus-visible:ring-1 focus-visible:ring-primary/50 font-mono text-sm rounded-xl"
-            />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-              {projectLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+        {/* Card de Fecha y Reloj - Estilo Imagen */}
+        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-secondary/50 rounded-2xl">
+              <Calendar className="h-6 w-6 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
+              <p className="text-base font-black text-white capitalize">{formattedDate}</p>
             </div>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Duración</Label>
-            <Select value={formData.duration} onValueChange={(v) => setFormData({...formData, duration: v})}>
-              <SelectTrigger className="h-12 bg-[#0f101d] border-none focus:ring-1 focus:ring-primary/50 rounded-xl text-xs font-bold uppercase">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1a1b2e] border-white/10">
-                <SelectItem value="8h">8 Horas</SelectItem>
-                <SelectItem value="12h">12 Horas</SelectItem>
-                <SelectItem value="24h">24 Horas (Doble)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/90">Turno</Label>
-            <Select value={formData.shiftType} onValueChange={(v) => setFormData({...formData, shiftType: v})}>
-              <SelectTrigger className="h-12 bg-[#0f101d] border-none focus:ring-1 focus:ring-primary/50 rounded-xl text-xs font-bold uppercase">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1a1b2e] border-white/10">
-                <SelectItem value="Diurno">Diurno</SelectItem>
-                <SelectItem value="Nocturno">Nocturno</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="text-right space-y-1">
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Reloj de Comando</p>
+            <p className="text-4xl font-black font-mono text-primary leading-none tracking-tighter">{formattedTime}</p>
           </div>
         </div>
 
-        <Button 
-          type="submit" 
-          disabled={loading}
-          className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest rounded-xl shadow-xl transition-all duration-300"
-        >
-          {loading ? "PROCESANDO REGISTRO..." : "REGISTRAR ENTRADA"}
-        </Button>
-      </form>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Nombre del Elemento */}
+          <div className="space-y-4">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Nombre del Elemento</Label>
+            <Input 
+              placeholder="NOMBRE Y APELLIDO" 
+              value={formData.guardName}
+              onChange={(e) => setFormData({...formData, guardName: e.target.value.toUpperCase()})}
+              className="h-16 bg-[#1a1b2e] border-white/5 focus-visible:ring-1 focus-visible:ring-primary/50 text-base font-black tracking-tight rounded-2xl pl-6"
+            />
+          </div>
+
+          {/* Código de Proyecto */}
+          <div className="space-y-4">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Código de Proyecto</Label>
+            <div className="relative">
+              <Input 
+                placeholder="ID CLIENTE" 
+                value={formData.projectCode}
+                onChange={(e) => setFormData({...formData, projectCode: e.target.value.toUpperCase()})}
+                className="h-16 bg-[#1a1b2e] border-white/5 focus-visible:ring-1 focus-visible:ring-primary/50 font-mono text-base font-black tracking-widest rounded-2xl pl-6"
+              />
+              <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                {projectLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                ) : (
+                  <Search className="h-6 w-6 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Validador de Cliente - Estilo Imagen */}
+          <div className={`bg-[#1a1b2e] border-2 border-dashed rounded-3xl p-6 transition-all duration-500 ${detectedProject ? 'border-primary/40 bg-primary/5' : 'border-white/5'}`}>
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white' : 'bg-white/5 text-muted-foreground'}`}>
+                {detectedProject ? <CheckCircle2 className="h-6 w-6" /> : <Building2 className="h-6 w-6" />}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cliente Validado</span>
+                <p className={`text-sm font-black uppercase italic tracking-tighter mt-1 ${detectedProject ? 'text-white' : 'text-muted-foreground/30'}`}>
+                  {detectedProject ? `${detectedProject.name} — ${detectedProject.client}` : 'Esperando código...'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Jornada</Label>
+              <Select value={formData.duration} onValueChange={(v) => setFormData({...formData, duration: v})}>
+                <SelectTrigger className="h-14 bg-[#1a1b2e] border-white/5 rounded-2xl font-black uppercase text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1b2e] border-white/10">
+                  <SelectItem value="8h">8 Horas</SelectItem>
+                  <SelectItem value="12h">12 Horas</SelectItem>
+                  <SelectItem value="24h">24 Horas (Doble)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Turno</Label>
+              <Select value={formData.shiftType} onValueChange={(v) => setFormData({...formData, shiftType: v})}>
+                <SelectTrigger className="h-14 bg-[#1a1b2e] border-white/5 rounded-2xl font-black uppercase text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1b2e] border-white/10">
+                  <SelectItem value="Diurno">Diurno</SelectItem>
+                  <SelectItem value="Nocturno">Nocturno</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button 
+            type="submit" 
+            disabled={loading}
+            className="w-full h-20 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.3em] rounded-3xl shadow-[0_10px_40px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {loading ? "Sincronizando..." : "Registrar Entrada"}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
