@@ -29,6 +29,7 @@ export function EquipmentRegistrationForm() {
     shirtSize: 'M',
     pantsSize: '',
     bootsSize: '',
+    status: 'SOLICITUD',
     equipment: {
       vest: false,
       flashlight: false,
@@ -70,6 +71,7 @@ export function EquipmentRegistrationForm() {
         shirtSize: 'M',
         pantsSize: '',
         bootsSize: '',
+        status: 'SOLICITUD',
         equipment: {
           vest: false,
           flashlight: false,

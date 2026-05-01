@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Table,
@@ -13,9 +13,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Package, User } from 'lucide-react';
+import { Trash2, Package, User, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EquipmentRecord {
   id: string;
@@ -23,6 +30,7 @@ interface EquipmentRecord {
   shirtSize: string;
   pantsSize: string;
   bootsSize: string;
+  status?: string;
   equipment: {
     vest: boolean;
     flashlight: boolean;
@@ -60,6 +68,18 @@ export function EquipmentTable() {
     return () => unsubscribe();
   }, []);
 
+  const handleUpdateStatus = async (id: string, status: string) => {
+    try {
+      await updateDoc(doc(db, 'equipment-registrations', id), { status });
+      toast({ 
+        title: "ESTADO ACTUALIZADO", 
+        description: `La dotación ahora se encuentra en estado: ${status}` 
+      });
+    } catch (err) {
+      toast({ title: "ERROR", description: "No se pudo actualizar el estado.", variant: "destructive" });
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'equipment-registrations', id));
@@ -83,6 +103,19 @@ export function EquipmentTable() {
     return active.length > 0 ? active.join(', ') : 'SIN EQUIPO';
   };
 
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'ENTREGADO':
+        return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      case 'PROBADO':
+        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'SOLICITUD':
+        return 'bg-sky-500/10 text-sky-500 border-sky-500/20';
+      default:
+        return 'bg-white/5 text-white/50 border-white/10';
+    }
+  };
+
   return (
     <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-500 h-full">
       <div className="px-5 py-3 bg-[#1a1b2e]/60 border-b border-white/5 flex items-center justify-between">
@@ -98,18 +131,19 @@ export function EquipmentTable() {
       </div>
 
       <div className="overflow-x-auto no-scrollbar">
-        <Table className="min-w-[800px]">
+        <Table className="min-w-[1000px]">
           <TableHeader className="bg-white/[0.01]">
             <TableRow className="border-b border-white/5 hover:bg-transparent">
               <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground pl-5">Guardia</TableHead>
               <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground text-center">Camisa / Pantalón / Botas</TableHead>
               <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground">Equipo Asignado</TableHead>
+              <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground text-center">Estado de Entrega</TableHead>
               <TableHead className="text-right text-[11px] font-black uppercase tracking-tight text-muted-foreground pr-5">Acción</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-20 opacity-50">Sincronizando...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-20 opacity-50">Sincronizando...</TableCell></TableRow>
             ) : records.length > 0 ? (
               records.map((record) => (
                 <TableRow key={record.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
@@ -137,6 +171,24 @@ export function EquipmentTable() {
                       </span>
                     </div>
                   </TableCell>
+                  <TableCell className="text-center">
+                    <Select 
+                      value={record.status || 'SOLICITUD'} 
+                      onValueChange={(val) => handleUpdateStatus(record.id, val)}
+                    >
+                      <SelectTrigger className={`h-8 border font-black text-[9px] uppercase tracking-widest rounded-lg px-2 w-[140px] mx-auto ${getStatusStyle(record.status || 'SOLICITUD')}`}>
+                        <div className="flex items-center justify-center gap-2">
+                          {(record.status === 'ENTREGADO') && <CheckCircle2 className="h-3 w-3" />}
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                        <SelectItem value="SOLICITUD" className="text-[9px] font-black uppercase text-sky-500">SOLICITUD</SelectItem>
+                        <SelectItem value="PROBADO" className="text-[9px] font-black uppercase text-amber-500">PROBADO</SelectItem>
+                        <SelectItem value="ENTREGADO" className="text-[9px] font-black uppercase text-emerald-500">ENTREGADO (OK)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                   <TableCell className="text-right pr-5">
                     <Button 
                       variant="ghost" 
@@ -150,7 +202,7 @@ export function EquipmentTable() {
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">No hay registros de dotación.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground italic">No hay registros de dotación.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
