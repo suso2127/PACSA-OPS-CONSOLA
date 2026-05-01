@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -23,7 +23,8 @@ import {
   Settings2,
   RefreshCw,
   UserMinus,
-  Zap
+  Zap,
+  Filter
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -33,6 +34,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,14 +60,15 @@ interface Shift {
 export function ShiftTable() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const { toast } = useToast();
 
   useEffect(() => {
-    // Consulta optimizada para tiempo real: Orden descendente por tiempo de entrada (el más nuevo arriba)
+    // Consulta optimizada para tiempo real: Orden descendente por tiempo de entrada
     const q = query(
       collection(db, 'shift-registrations'),
       orderBy('entryTime', 'desc'),
-      limit(50)
+      limit(100)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -76,6 +85,11 @@ export function ShiftTable() {
 
     return () => unsubscribe();
   }, []);
+
+  const filteredShifts = useMemo(() => {
+    if (statusFilter === 'all') return shifts;
+    return shifts.filter(shift => shift.status === statusFilter);
+  }, [shifts, statusFilter]);
 
   const handleUpdateStatus = async (shiftId: string, newStatus: string, observation?: string) => {
     try {
@@ -139,7 +153,7 @@ export function ShiftTable() {
 
   return (
     <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-700">
-      <div className="p-8 bg-[#1a1b2e]/80 border-b border-white/5 flex items-center justify-between">
+      <div className="p-8 bg-[#1a1b2e]/80 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
             <Clock className="h-6 w-6 text-primary animate-pulse" />
@@ -147,10 +161,27 @@ export function ShiftTable() {
           </h3>
           <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black">Monitoreo de Fuerza Operativa en Sitio</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black tracking-widest px-4 py-1.5 rounded-full">
+        
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-3 bg-[#12121c] px-4 py-2 rounded-2xl border border-white/5">
+            <Filter className="h-4 w-4 text-primary" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] h-9 bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0">
+                <SelectValue placeholder="FILTRAR ESTADO" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">ESTADO GLOBAL</SelectItem>
+                <SelectItem value="Activo" className="text-[10px] font-black uppercase tracking-widest text-green-500">SOLO ACTIVOS</SelectItem>
+                <SelectItem value="Doble" className="text-[10px] font-black uppercase tracking-widest text-red-500">SOLO DOBLES</SelectItem>
+                <SelectItem value="Finalizado" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SOLO FINALIZADOS</SelectItem>
+                <SelectItem value="Completo" className="text-[10px] font-black uppercase tracking-widest text-blue-500">SOLO COMPLETOS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black tracking-widest px-4 py-2 rounded-full hidden sm:flex">
             <Zap className="h-3 w-3 mr-1.5 fill-primary" />
-            LIVE OPS
+            LIVE OPS: {filteredShifts.length}
           </Badge>
         </div>
       </div>
@@ -169,12 +200,12 @@ export function ShiftTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {shifts.length > 0 ? (
-              shifts.map((shift, index) => (
+            {filteredShifts.length > 0 ? (
+              filteredShifts.map((shift, index) => (
                 <TableRow 
                   key={shift.id} 
                   className={`border-b border-white/5 transition-all duration-300 ${
-                    index === 0 ? 'bg-primary/[0.03] animate-in slide-in-from-left-2' : ''
+                    index === 0 && statusFilter === 'all' ? 'bg-primary/[0.03] animate-in slide-in-from-left-2' : ''
                   } ${shift.status === 'Finalizado' ? 'opacity-40 grayscale-[0.5]' : 'hover:bg-white/[0.04]'}`}
                 >
                   <TableCell className="pl-8 py-5">
@@ -302,7 +333,7 @@ export function ShiftTable() {
             ) : (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
-                  No se han detectado operaciones activas en la terminal.
+                  No se han detectado operaciones con el estado seleccionado.
                 </TableCell>
               </TableRow>
             )}
