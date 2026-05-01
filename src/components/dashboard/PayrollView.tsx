@@ -72,7 +72,7 @@ export function PayrollView() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-6">
         <div>
           <h1 className="text-4xl font-black tracking-tighter text-white uppercase">Planilla Operativa</h1>
-          <p className="text-muted-foreground text-sm font-medium mt-1">Control de asistencia y cobertura semanal PACSA</p>
+          <p className="text-muted-foreground text-sm font-medium mt-1">Control de asistencia y cobertura semanal</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-[#25273c] rounded-xl border border-white/5 p-1.5">
