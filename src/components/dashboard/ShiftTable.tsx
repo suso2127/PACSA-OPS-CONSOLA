@@ -271,11 +271,11 @@ export function ShiftTable() {
           <Table className="min-w-[900px]">
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 pl-6">Nombre Completo</TableHead>
-                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11">Cliente</TableHead>
-                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Entrada</TableHead>
-                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Término</TableHead>
-                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Jornada</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 pl-6">Nombre Completo</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11">Cliente</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Entrada</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Término</TableHead>
+                <TableHead className="text-[16px] font-black uppercase tracking-tight text-muted-foreground h-11 text-center">Jornada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
