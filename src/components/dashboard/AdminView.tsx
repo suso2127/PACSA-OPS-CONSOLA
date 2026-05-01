@@ -22,15 +22,17 @@ import {
   LayoutGrid,
   Building2,
   BarChart3,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
+type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
-  const [activeRegistroSubTab, setActiveRegistroSubTab] = useState<'guardia' | 'proyecto'>('guardia');
+  const [activeRegistroSubTab, setActiveRegistroSubTab] = useState<RegistroSubTab>('guardia');
 
   const COMMAND_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -99,9 +101,21 @@ export function AdminView() {
                 <Building2 className="h-3.5 w-3.5" />
                 Comando Proyecto
               </button>
+              <button
+                onClick={() => setActiveRegistroSubTab('dotacion')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  activeRegistroSubTab === 'dotacion' 
+                    ? "bg-[#10b981] text-white shadow-lg" 
+                    : "text-muted-foreground hover:text-white"
+                )}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Comando Dotación
+              </button>
             </div>
 
-            {activeRegistroSubTab === 'guardia' ? (
+            {activeRegistroSubTab === 'guardia' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5">
                   <GuardRegistrationForm />
@@ -110,8 +124,28 @@ export function AdminView() {
                   <ShiftTable hideExitTime={true} />
                 </div>
               </div>
-            ) : (
+            )}
+
+            {activeRegistroSubTab === 'proyecto' && (
               <ProjectManagement />
+            )}
+
+            {activeRegistroSubTab === 'dotacion' && (
+              <div className="space-y-6">
+                <div className="bg-[#12121c] border border-white/5 rounded-3xl p-8 shadow-2xl">
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="bg-[#10b981]/10 p-3 rounded-2xl border border-[#10b981]/20">
+                      <Users className="h-8 w-8 text-[#10b981]" />
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-black tracking-tighter text-white uppercase leading-none">Comando Dotación</h2>
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-1.5">Control de fuerza operativa y despliegue</p>
+                    </div>
+                  </div>
+                  <GuardRegistrationForm />
+                </div>
+                <ShiftTable hideExitTime={true} />
+              </div>
             )}
           </div>
         )}
