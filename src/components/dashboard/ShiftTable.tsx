@@ -194,70 +194,72 @@ export function ShiftTable() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="w-full flex flex-col items-center px-4 space-y-2">
-        <div className="flex items-center gap-4 w-full max-w-[800px]">
-          <ChevronLeft className="h-4 w-4 text-primary/40" />
-          <div className="h-2 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
+    <div className="space-y-2">
+      {/* Pasador Operativo Compacto */}
+      <div className="w-full flex flex-col items-center px-4 space-y-1 mb-2">
+        <div className="flex items-center gap-3 w-full max-w-[600px]">
+          <ChevronLeft className="h-3 w-3 text-primary/30" />
+          <div className="h-1.5 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
             <div 
               ref={scrollTrackerRef}
-              className="absolute top-0 left-0 h-full w-[20%] bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-transform duration-75 ease-out"
+              className="absolute top-0 left-0 h-full w-[15%] bg-primary rounded-full shadow-[0_0_10px_rgba(59,130,246,0.4)] transition-transform duration-75 ease-out"
               style={{ transform: 'translateX(0%)' }}
             />
           </div>
-          <ChevronRight className="h-4 w-4 text-primary/40" />
+          <ChevronRight className="h-3 w-3 text-primary/30" />
         </div>
-        <span className="text-[8px] font-black uppercase tracking-[0.3em] text-primary/40">Pasador de Información Operativa</span>
       </div>
 
-      <div className="bg-[#12121c] border border-white/5 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in duration-700">
-        <div className="p-8 bg-[#1a1b2e]/80 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1">
-            <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-              <Clock className="h-6 w-6 text-primary animate-pulse" />
+      <div className="bg-[#12121c] border border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-500">
+        {/* Cabecera Refinada Estilo Imagen */}
+        <div className="px-6 py-5 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
+              <Clock className="h-5 w-5 text-primary" />
+            </div>
+            <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight">
               REGISTRO DE OPERACIONES
             </h3>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {hiddenIds.size > 0 && (
               <Button 
                 variant="outline" 
                 onClick={handleRestoreView}
-                className="h-9 bg-secondary/30 border-white/10 text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-white"
+                className="h-8 bg-secondary/20 border-white/10 text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-white"
               >
-                <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                <RefreshCw className="h-3 w-3 mr-2" />
                 Restaurar ({hiddenIds.size})
               </Button>
             )}
 
             <Button 
               onClick={handleClearMonitor}
-              className="h-9 bg-destructive/10 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all"
+              className="h-8 bg-destructive/5 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all px-4"
             >
               <Trash2 className="h-3.5 w-3.5 mr-2" />
-              Limpiar Mesa
+              LIMPIAR MESA
             </Button>
 
-            <div className="h-8 w-[1px] bg-white/10 mx-1 hidden sm:block" />
+            <div className="h-6 w-[1px] bg-white/10 mx-1" />
 
-            <div className="flex items-center gap-3 bg-[#12121c] px-4 py-0 rounded-2xl border border-white/5 h-9">
-              <Filter className="h-4 w-4 text-primary" />
+            <div className="flex items-center gap-2 bg-[#0f101d] px-3 py-0 rounded-lg border border-white/5 h-8">
+              <Filter className="h-3.5 w-3.5 text-primary" />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px] h-full bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
-                  <SelectValue placeholder="ESTADO" />
+                <SelectTrigger className="w-[120px] h-full bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
+                  <SelectValue placeholder="FILTRO" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
-                  <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">GLOBAL</SelectItem>
+                  <SelectItem value="all" className="text-[10px] font-black uppercase tracking-widest">TODOS</SelectItem>
                   <SelectItem value="Activo" className="text-[10px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
                   <SelectItem value="Doble" className="text-[10px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
                   <SelectItem value="Finalizado" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
-                  <SelectItem value="Completo" className="text-[10px] font-black uppercase tracking-widest text-blue-500">COMPLETOS</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black tracking-widest px-4 py-2 rounded-full hidden lg:flex">
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg">
               <Zap className="h-3 w-3 mr-1.5 fill-primary" />
               OPS: {filteredShifts.length}
             </Badge>
@@ -269,14 +271,14 @@ export function ShiftTable() {
           onScroll={handleScroll}
           className="overflow-x-auto no-scrollbar"
         >
-          <Table className="min-w-[1000px]">
-            <TableHeader className="bg-white/[0.02]">
+          <Table className="min-w-[900px]">
+            <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 pl-8">Elemento</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14">Cliente</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Entrada</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Término</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground h-14 text-center">Jornada</TableHead>
+                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 pl-6">Elemento</TableHead>
+                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11">Cliente</TableHead>
+                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Entrada</TableHead>
+                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Término</TableHead>
+                <TableHead className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-11 text-center">Jornada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -285,57 +287,48 @@ export function ShiftTable() {
                   <TableRow 
                     key={shift.id} 
                     className={`border-b border-white/5 transition-all duration-300 ${
-                      index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.03] border-l-2 border-l-primary animate-in slide-in-from-left-2' : ''
-                    } ${shift.status === 'Finalizado' ? 'opacity-40 grayscale-[0.5]' : 'hover:bg-white/[0.04]'}`}
+                      index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.02] border-l-2 border-l-primary' : ''
+                    } ${shift.status === 'Finalizado' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
                   >
-                    <TableCell className="pl-8 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="flex flex-col flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
-                            <Badge className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
-                              {shift.status || 'Activo'}
-                            </Badge>
-                          </div>
-                          {shift.observation && (
-                            <span className="text-[9px] text-primary font-black uppercase tracking-tighter mt-1 bg-primary/10 w-fit px-2 py-0.5 rounded-md">
-                              NOTA: {shift.observation}
-                            </span>
-                          )}
+                    <TableCell className="pl-6 py-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
+                          <Badge className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
+                            {shift.status || 'Activo'}
+                          </Badge>
                         </div>
                         {shift.status !== 'Finalizado' && shift.status !== 'Completo' && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleFinalizeShift(shift.id, shift.guardName)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
-                            title="Finalizar Turno"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-green-500 hover:bg-green-500/10 rounded-md transition-colors"
                           >
-                            <CheckCircle2 className="h-5 w-5" />
+                            <CheckCircle2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="text-xs font-black text-primary uppercase font-mono tracking-widest">{shift.projectCode}</span>
-                        <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter mt-0.5 truncate max-w-[150px]">{shift.clientName}</span>
+                        <span className="text-xs font-black text-primary uppercase font-mono tracking-widest leading-none">{shift.projectCode}</span>
+                        <span className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter mt-1">{shift.clientName}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className="font-mono text-xs font-black text-white bg-[#1a1b2e] px-2 py-1 rounded border border-white/5 shadow-inner">
-                        {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : 'SINC...'}
+                      <span className="font-mono text-[11px] font-black text-white bg-[#1a1b2e] px-2 py-1 rounded border border-white/5">
+                        {shift.entryTime?.toDate ? shift.entryTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-accent font-mono text-xs font-black">
+                      <div className="flex items-center justify-center gap-1.5 text-accent font-mono text-[11px] font-black">
                         <LogOut className="h-3 w-3" />
                         {calculateExitTime(shift.entryTime, shift.duration)}
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[9px] tracking-widest py-1 px-3">
-                        <Hourglass className="h-3 w-3 mr-1.5 opacity-50" />
+                      <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[9px] tracking-widest py-0.5 px-2">
                         {shift.duration || '12h'}
                       </Badge>
                     </TableCell>
@@ -343,8 +336,8 @@ export function ShiftTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-32 text-muted-foreground italic font-medium bg-white/[0.01]">
-                    No se han detectado operaciones activas.
+                  <TableCell colSpan={5} className="text-center py-24 text-muted-foreground italic font-medium">
+                    No hay operaciones activas detectadas.
                   </TableCell>
                 </TableRow>
               )}
