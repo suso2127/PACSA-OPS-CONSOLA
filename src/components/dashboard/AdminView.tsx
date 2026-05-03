@@ -12,6 +12,7 @@ import { MapView } from './MapView';
 import { DoubleShiftControl } from './DoubleShiftControl';
 import { PayrollView } from './PayrollView';
 import { ConfigView } from './ConfigView';
+import { EmergencyNumbersView } from './EmergencyNumbersView';
 import { EquipmentRegistrationForm } from './EquipmentRegistrationForm';
 import { EquipmentTable } from './EquipmentTable';
 import { Input } from '@/components/ui/input';
@@ -27,17 +28,16 @@ import {
   Building2,
   BarChart3,
   FileSpreadsheet,
-  Users,
   Package,
   Lock,
   ShieldCheck,
-  ArrowRight,
-  AlertCircle
+  AlertCircle,
+  PhoneCall
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
+type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica' | 'emergencia';
 type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'config';
 
 export function AdminView() {
@@ -74,6 +74,7 @@ export function AdminView() {
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
     { id: 'proyectos', label: 'Proyecto', icon: Building2 },
+    { id: 'emergencia', label: 'Emergencias', icon: PhoneCall },
     { id: 'config', label: 'Configuración', icon: Settings },
   ] as const;
 
@@ -108,7 +109,6 @@ export function AdminView() {
         
         {activeTab === 'registro' && (
           <div className="space-y-6">
-            {/* Sub-Navegación Táctica dentro de Registro */}
             <div className="bg-card/40 border border-white/5 p-1 rounded-xl flex items-center gap-1 w-fit overflow-x-auto no-scrollbar">
               <button
                 onClick={() => {
@@ -249,7 +249,7 @@ export function AdminView() {
           <DoubleShiftControl />
         )}
 
-        {activeTab === 'planilla' && (activeTab === 'planilla' && <PayrollView />)}
+        {activeTab === 'planilla' && <PayrollView />}
 
         {activeTab === 'proyectos' && (
           <ProjectManagement />
@@ -262,6 +262,8 @@ export function AdminView() {
         {activeTab === 'estadistica' && <StatisticsView />}
 
         {activeTab === 'mapa' && <MapView />}
+
+        {activeTab === 'emergencia' && <EmergencyNumbersView />}
 
         {activeTab === 'config' && <ConfigView />}
       </div>
