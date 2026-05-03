@@ -37,8 +37,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica' | 'emergencia';
-type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'config';
+type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
+type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -74,7 +74,6 @@ export function AdminView() {
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
     { id: 'proyectos', label: 'Proyecto', icon: Building2 },
-    { id: 'emergencia', label: 'Emergencias', icon: PhoneCall },
     { id: 'config', label: 'Configuración', icon: Settings },
   ] as const;
 
@@ -156,6 +155,21 @@ export function AdminView() {
                 Comando Dotación
               </button>
               <button
+                onClick={() => {
+                  setActiveRegistroSubTab('emergencia');
+                  setIsConfigUnlocked(false);
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
+                  activeRegistroSubTab === 'emergencia' 
+                    ? "bg-red-600 text-white shadow-lg" 
+                    : "text-muted-foreground hover:text-white"
+                )}
+              >
+                <PhoneCall className="h-3.5 w-3.5" />
+                Emergencias
+              </button>
+              <button
                 onClick={() => setActiveRegistroSubTab('config')}
                 className={cn(
                   "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
@@ -193,6 +207,10 @@ export function AdminView() {
                   <EquipmentTable />
                 </div>
               </div>
+            )}
+
+            {activeRegistroSubTab === 'emergencia' && (
+              <EmergencyNumbersView />
             )}
 
             {activeRegistroSubTab === 'config' && (
@@ -251,9 +269,7 @@ export function AdminView() {
 
         {activeTab === 'planilla' && <PayrollView />}
 
-        {activeTab === 'proyectos' && (
-          <ProjectManagement />
-        )}
+        {activeTab === 'proyectos' && <ProjectManagement />}
 
         {activeTab === 'historial' && (
           <HistoryView />
@@ -262,8 +278,6 @@ export function AdminView() {
         {activeTab === 'estadistica' && <StatisticsView />}
 
         {activeTab === 'mapa' && <MapView />}
-
-        {activeTab === 'emergencia' && <EmergencyNumbersView />}
 
         {activeTab === 'config' && <ConfigView />}
       </div>
