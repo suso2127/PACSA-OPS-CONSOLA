@@ -12,7 +12,8 @@ import {
   Save,
   Lock,
   AlertTriangle,
-  Fingerprint
+  LifeBuoy,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,6 +126,32 @@ export function ConfigView() {
           <div className="flex items-center justify-center gap-2 text-[9px] font-bold text-muted-foreground uppercase tracking-widest pt-2">
             <Lock className="h-3 w-3" />
             EL RESPALDO INCLUYE: 0 PROYECTOS Y 0 REGISTROS
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Panel de Soporte Técnico PACSA */}
+      <Card className="bg-[#1a1b2e] border-primary/20 shadow-2xl rounded-3xl overflow-hidden border-dashed">
+        <CardContent className="p-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+            <div className="space-y-2">
+              <div className="flex items-center justify-center md:justify-start gap-3 text-primary mb-1">
+                <LifeBuoy className="h-6 w-6" />
+                <h4 className="text-lg font-black uppercase tracking-tighter">Soporte Técnico de Terminal</h4>
+              </div>
+              <p className="text-sm text-muted-foreground max-w-md font-medium">
+                ¿Problemas con la sincronización de la consola? Contacte al centro de sistemas de PACSA Ops para soporte inmediato.
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <Button variant="outline" className="h-14 px-8 border-white/10 hover:bg-white/5 text-[10px] font-black uppercase tracking-widest rounded-2xl">
+                Manual de Usuario
+              </Button>
+              <Button className="h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Abrir Ticket
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
