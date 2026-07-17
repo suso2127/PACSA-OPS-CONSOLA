@@ -227,7 +227,8 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     let base = shifts.filter(s => !hiddenIds.has(s.id));
     
     if (statusFilter !== 'all') {
-      base = base.filter(shift => shift.status === statusFilter);
+      // Se añade la validación de fallback a 'Activo' para coincidir con la visualización de la UI
+      base = base.filter(shift => (shift.status || 'Activo') === statusFilter);
     }
 
     if (dateFilter) {
