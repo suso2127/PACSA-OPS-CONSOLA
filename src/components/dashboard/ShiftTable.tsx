@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   Table,
@@ -124,7 +124,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const shiftRef = doc(db, 'shift-registrations', id);
     const updateData: any = { status };
     
-    // Cuando el turno se marca como Finalizado o Completo, capturamos la hora de salida para calcular horas
     if (status === 'Finalizado' || status === 'Completo') {
       updateData.exitTime = serverTimestamp();
     } else {
@@ -143,6 +142,24 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       title: "OPERACIÓN REGISTRADA",
       description: `El elemento ${name} ha sido actualizado a: ${status.toUpperCase()}.`
     });
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    deleteDoc(shiftRef)
+      .then(() => {
+        toast({
+          title: "REGISTRO ELIMINADO",
+          description: `El registro de ${name} ha sido removido del sistema.`
+        });
+      })
+      .catch((err) => {
+        toast({
+          variant: "destructive",
+          title: "ERROR AL ELIMINAR",
+          description: `No se pudo eliminar el registro de ${name}.`
+        });
+      });
   };
 
   const handleUpdateObservation = (id: string, observation: string) => {
@@ -356,6 +373,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Observaciones</TableHead>
                   </>
                 )}
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-right pr-5">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -467,11 +485,22 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                         </TableCell>
                       </>
                     )}
+                    <TableCell className="text-right pr-5 py-2.5">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleDelete(shift.id, shift.guardName)}
+                        className="h-8 w-8 text-muted-foreground hover:text-red-500 transition-colors"
+                        title="Eliminar Registro"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={showObservations ? 7 : 5} className="text-center py-16 text-muted-foreground italic font-medium">
+                  <TableCell colSpan={showObservations ? 8 : 6} className="text-center py-16 text-muted-foreground italic font-medium">
                     No hay operaciones activas detectadas.
                   </TableCell>
                 </TableRow>
@@ -483,3 +512,4 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     </div>
   );
 }
+
