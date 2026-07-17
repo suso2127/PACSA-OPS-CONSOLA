@@ -28,7 +28,8 @@ import {
   RotateCcw,
   Building2,
   ChevronDown,
-  MapPin
+  MapPin,
+  Calendar
 } from 'lucide-react';
 import {
   Select,
@@ -70,6 +71,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('');
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   
@@ -214,6 +216,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   const handleRestoreView = () => {
     setHiddenIds(new Set());
+    setDateFilter('');
     toast({
       title: "VISTA RESTAURADA",
       description: "Todos los registros son visibles nuevamente."
@@ -222,9 +225,22 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   const filteredShifts = useMemo(() => {
     let base = shifts.filter(s => !hiddenIds.has(s.id));
-    if (statusFilter === 'all') return base;
-    return base.filter(shift => shift.status === statusFilter);
-  }, [shifts, statusFilter, hiddenIds]);
+    
+    if (statusFilter !== 'all') {
+      base = base.filter(shift => shift.status === statusFilter);
+    }
+
+    if (dateFilter) {
+      base = base.filter(shift => {
+        if (!shift.entryTime) return false;
+        const date = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
+        const isoDate = date.toISOString().split('T')[0];
+        return isoDate === dateFilter;
+      });
+    }
+
+    return base;
+  }, [shifts, statusFilter, hiddenIds, dateFilter]);
 
   const calculateExitTime = (entryTime: any, duration: string) => {
     if (!entryTime) return '--:--';
@@ -318,6 +334,16 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                 Restaurar ({hiddenIds.size})
               </Button>
             )}
+
+            <div className="flex items-center gap-1.5 bg-[#0f101d] px-2 py-0 rounded-lg border border-white/5 h-7">
+              <Calendar className="h-3 w-3 text-primary" />
+              <input 
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0 outline-none w-[100px] h-full"
+              />
+            </div>
 
             <Button 
               onClick={handleClearMonitor}
