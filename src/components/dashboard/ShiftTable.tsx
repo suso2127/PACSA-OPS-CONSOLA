@@ -512,4 +512,3 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     </div>
   );
 }
-
