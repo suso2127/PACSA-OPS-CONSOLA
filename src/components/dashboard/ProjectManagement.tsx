@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -88,6 +88,22 @@ export function ProjectManagement() {
         [day]: numValue
       }
     }));
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'projects', id));
+      toast({
+        title: "PROYECTO ELIMINADO",
+        description: "El registro del proyecto ha sido removido del sistema."
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el proyecto.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -279,7 +295,12 @@ export function ProjectManagement() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right pr-6">
-                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleDelete(project.id)}
+                        className="text-muted-foreground hover:text-destructive h-8 w-8"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
