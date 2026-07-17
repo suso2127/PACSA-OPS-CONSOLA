@@ -365,7 +365,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                   <SelectItem value="all" className="text-[9px] font-black uppercase tracking-widest">TODOS</SelectItem>
                   <SelectItem value="Activo" className="text-[9px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
                   <SelectItem value="Doble" className="text-[9px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
-                  <SelectItem value="Completo" className="text-[9px] font-black uppercase tracking-widest text-blue-500">COMPLETOS</SelectItem>
+                  <SelectItem value="Completo" className="text-[9px] font-black uppercase tracking-widest text-blue-500">COMPLETADOS</SelectItem>
                   <SelectItem value="Finalizado" className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
                 </SelectContent>
               </Select>
