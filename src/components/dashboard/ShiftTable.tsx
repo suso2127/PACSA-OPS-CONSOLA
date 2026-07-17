@@ -43,6 +43,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -146,6 +150,35 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     });
   };
 
+  const handleUpdateDuration = (id: string, name: string, duration: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    const updateData: any = { duration };
+    
+    // Si se cambia a 24h, automáticamente se marca como estado Doble
+    if (duration === '24h') {
+      updateData.status = 'Doble';
+    } else {
+      // Si estaba en Doble y baja de 24h, vuelve a Activo
+      const currentShift = shifts.find(s => s.id === id);
+      if (currentShift?.status === 'Doble') {
+        updateData.status = 'Activo';
+      }
+    }
+
+    updateDoc(shiftRef, updateData).catch((err) => {
+      toast({
+        variant: "destructive",
+        title: "ERROR DE SINCRONIZACIÓN",
+        description: `No se pudo actualizar la jornada de ${name}.`
+      });
+    });
+
+    toast({
+      title: "JORNADA ACTUALIZADA",
+      description: `El elemento ${name} ahora tiene una jornada de ${duration}.`
+    });
+  };
+
   const handleDelete = (id: string, name: string) => {
     const shiftRef = doc(db, 'shift-registrations', id);
     deleteDoc(shiftRef)
@@ -226,12 +259,10 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   const filteredShifts = useMemo(() => {
     let base = shifts.filter(s => !hiddenIds.has(s.id));
     
-    // Filtro por Estado (sensible al valor por defecto)
     if (statusFilter !== 'all') {
       base = base.filter(shift => (shift.status || 'Activo') === statusFilter);
     }
 
-    // Filtro por Fecha (Comparación local robusta para evitar desfases UTC)
     if (dateFilter) {
       base = base.filter(shift => {
         if (!shift.entryTime) return false;
@@ -484,7 +515,27 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                             </Badge>
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[140px]">
+                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="text-[9px] font-black uppercase tracking-widest text-white py-1.5 focus:bg-primary/20">
+                              <Timer className="h-3 w-3 mr-2" />
+                              Ajustar Horas (1h-24h)
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent className="bg-[#1a1b2e] border-white/10 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {Array.from({ length: 24 }, (_, i) => i + 1).map((h) => (
+                                  <DropdownMenuItem 
+                                    key={h}
+                                    onClick={() => handleUpdateDuration(shift.id, shift.guardName, `${h}h`)}
+                                    className="text-[9px] font-black uppercase tracking-widest text-white focus:bg-primary focus:text-primary-foreground py-1.5 cursor-pointer"
+                                  >
+                                    {h} Horas {h === 24 ? '(DOBLE)' : ''}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                          
                           <DropdownMenuItem 
                             onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Completo')}
                             className="text-[9px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5 py-1.5 cursor-pointer"
