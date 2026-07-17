@@ -227,7 +227,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     let base = shifts.filter(s => !hiddenIds.has(s.id));
     
     if (statusFilter !== 'all') {
-      // Se añade la validación de fallback a 'Activo' para coincidir con la visualización de la UI
       base = base.filter(shift => (shift.status || 'Activo') === statusFilter);
     }
 
@@ -273,6 +272,17 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const date = ts.toDate ? ts.toDate() : new Date(ts);
     if (isNaN(date.getTime())) return '--:--';
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const formatDisplayDate = (ts: any) => {
+    if (!ts) return '--/--/--';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    if (isNaN(date.getTime())) return '--/--/--';
+    return date.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
   const OBSERVATION_OPTIONS = [
@@ -384,10 +394,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
           onScroll={handleScroll}
           className="overflow-x-auto no-scrollbar"
         >
-          <Table className="min-w-[950px]">
+          <Table className="min-w-[1050px]">
             <TableHeader className="bg-white/[0.01]">
               <TableRow className="border-b border-white/5 hover:bg-transparent">
-                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Nombre Completo</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Fecha</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10">Nombre Completo</TableHead>
                 <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Proyecto / Ubicación</TableHead>
                 <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
                 {!hideExitTime && (
@@ -413,6 +424,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     } ${shift.status === 'Finalizado' || shift.status === 'Completo' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
                   >
                     <TableCell className="pl-5 py-2.5">
+                      <div className="font-mono text-[10px] font-bold text-muted-foreground select-none">
+                        {formatDisplayDate(shift.entryTime)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2.5">
                       <div className="flex items-center gap-2.5">
                         <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
                         <Badge className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
@@ -527,7 +543,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={showObservations ? 8 : 6} className="text-center py-16 text-muted-foreground italic font-medium">
+                  <TableCell colSpan={showObservations ? 9 : 7} className="text-center py-16 text-muted-foreground italic font-medium">
                     No hay operaciones activas detectadas.
                   </TableCell>
                 </TableRow>
