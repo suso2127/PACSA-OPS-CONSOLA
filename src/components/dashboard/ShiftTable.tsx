@@ -226,16 +226,24 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   const filteredShifts = useMemo(() => {
     let base = shifts.filter(s => !hiddenIds.has(s.id));
     
+    // Filtro por Estado (sensible al valor por defecto)
     if (statusFilter !== 'all') {
       base = base.filter(shift => (shift.status || 'Activo') === statusFilter);
     }
 
+    // Filtro por Fecha (Comparación local robusta para evitar desfases UTC)
     if (dateFilter) {
       base = base.filter(shift => {
         if (!shift.entryTime) return false;
         const date = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
-        const isoDate = date.toISOString().split('T')[0];
-        return isoDate === dateFilter;
+        if (isNaN(date.getTime())) return false;
+        
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
+        
+        return localDateStr === dateFilter;
       });
     }
 
@@ -352,7 +360,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                 type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0 outline-none w-[100px] h-full"
+                className="bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0 outline-none w-[110px] h-full"
               />
             </div>
 
@@ -369,7 +377,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
             <div className="flex items-center gap-1.5 bg-[#0f101d] px-2 py-0 rounded-lg border border-white/5 h-7">
               <Filter className="h-3 w-3 text-primary" />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[100px] h-full bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
+                <SelectTrigger className="w-[120px] h-full bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
                   <SelectValue placeholder="FILTRO" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
@@ -544,7 +552,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
               ) : (
                 <TableRow>
                   <TableCell colSpan={showObservations ? 9 : 7} className="text-center py-16 text-muted-foreground italic font-medium">
-                    No hay operaciones activas detectadas.
+                    No se han detectado registros para los filtros seleccionados.
                   </TableCell>
                 </TableRow>
               )}
