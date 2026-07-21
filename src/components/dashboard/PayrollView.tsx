@@ -33,6 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface PayrollGuard {
   guardName: string;
@@ -120,7 +122,6 @@ export function PayrollView() {
 
         const dateKey = entryDate.toDateString();
         
-        // Calcular horas reales basadas en entrada/salida capturada en Operaciones
         const decimalHours = calculateDuration(curr.entryTime, curr.exitTime);
         const displayHours = formatToHHMM(decimalHours);
 
@@ -131,7 +132,6 @@ export function PayrollView() {
             status: curr.status 
           };
         } else {
-          // Acumulación diaria por si existen múltiples relevos
           acc[name].shiftsByDay[dateKey].decimalHours += decimalHours;
           acc[name].shiftsByDay[dateKey].displayHours = formatToHHMM(acc[name].shiftsByDay[dateKey].decimalHours);
         }
@@ -139,7 +139,6 @@ export function PayrollView() {
         return acc;
       }, {});
 
-      // Mapeo final y cálculo de totales por fila
       const finalData = Object.values(grouped).map((guard: any) => {
         const total = Object.values(guard.shiftsByDay).reduce((sum: number, day: any) => sum + day.decimalHours, 0);
         return { ...guard, totalHours: total };
@@ -167,6 +166,53 @@ export function PayrollView() {
     });
   }, [guardsData, searchTerm, projectSearch]);
 
+  const exportPDF = () => {
+    const doc = new jsPDF('landscape');
+    doc.setFontSize(16);
+    doc.text('PLANILLA OPERATIVA PACSA - REPORTE DE HORAS', 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Semana del ${weekDays[0].date} al ${weekDays[6].date}`, 14, 28);
+    
+    const head = [['GUARDIA', 'PUESTO', ...weekDays.map(d => d.name.substring(0, 3)), 'TOTAL']];
+    const body = filteredData.map(g => [
+      g.guardName,
+      g.projectCode,
+      ...weekDays.map(d => g.shiftsByDay[d.fullDate]?.displayHours || '-'),
+      formatToHHMM(g.totalHours)
+    ]);
+
+    autoTable(doc, {
+      startY: 35,
+      head,
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246] },
+      styles: { fontSize: 8 }
+    });
+
+    doc.save('Planilla_PACSA_Ops.pdf');
+  };
+
+  const exportExcel = () => {
+    // Generar CSV como alternativa rápida para Excel
+    const headers = ['Guardia', 'Proyecto', ...weekDays.map(d => d.name), 'Total Horas'];
+    const rows = filteredData.map(g => [
+      g.guardName,
+      g.projectCode,
+      ...weekDays.map(d => g.shiftsByDay[d.fullDate]?.displayHours || '00:00'),
+      formatToHHMM(g.totalHours)
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "Planilla_PACSA_Ops.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const todayDateString = new Date().toDateString();
 
   return (
@@ -179,11 +225,11 @@ export function PayrollView() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="bg-destructive hover:bg-destructive/90 text-white border-none h-11 px-6 rounded-lg">
+          <Button onClick={exportPDF} variant="outline" className="bg-destructive hover:bg-destructive/90 text-white border-none h-11 px-6 rounded-lg">
             <Printer className="mr-2 h-4 w-4" />
             PDF
           </Button>
-          <Button variant="outline" className="bg-primary hover:bg-primary/90 text-primary-foreground border-none h-11 px-6 rounded-lg">
+          <Button onClick={exportExcel} variant="outline" className="bg-primary hover:bg-primary/90 text-primary-foreground border-none h-11 px-6 rounded-lg">
             <Download className="mr-2 h-4 w-4" />
             Excel
           </Button>
@@ -266,7 +312,7 @@ export function PayrollView() {
                     </TableHead>
                   );
                 })}
-                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-right pr-6">Horas Reales</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-right pr-6">Horas Totales</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -289,7 +335,6 @@ export function PayrollView() {
                     </TableCell>
                     {weekDays.map((day) => {
                       const shift = guard.shiftsByDay[day.fullDate];
-                      const isToday = day.fullDate === todayDateString;
                       const isFiltered = selectedDayFilter !== 'all' && selectedDayFilter !== day.fullDate;
                       
                       return (
