@@ -22,13 +22,13 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, Legend } from "recharts";
 
 const chartData = [
-  { name: 'Lun', total: 12, completados: 10 },
-  { name: 'Mar', total: 15, completados: 14 },
-  { name: 'Mie', total: 10, completados: 8 },
-  { name: 'Jue', total: 18, completados: 17 },
-  { name: 'Vie', total: 14, completados: 14 },
-  { name: 'Sab', total: 20, completados: 19 },
-  { name: 'Dom', total: 15, completados: 12 },
+  { name: 'Lun', total: 12, completados: 10, dobles: 2 },
+  { name: 'Mar', total: 15, completados: 14, dobles: 1 },
+  { name: 'Mie', total: 10, completados: 8, dobles: 3 },
+  { name: 'Jue', total: 18, completados: 17, dobles: 2 },
+  { name: 'Vie', total: 14, completados: 14, dobles: 4 },
+  { name: 'Sab', total: 20, completados: 19, dobles: 5 },
+  { name: 'Dom', total: 15, completados: 12, dobles: 2 },
 ];
 
 export function StatisticsView() {
@@ -114,7 +114,8 @@ export function StatisticsView() {
             <div className="h-[400px] w-full">
               <ChartContainer config={{
                 total: { label: "Total Requerido", color: "#1e3a8a" },
-                completados: { label: "Total Registrado", color: "#10b981" }
+                completados: { label: "Total Registrado", color: "#10b981" },
+                dobles: { label: "Turnos Dobles", color: "#ef4444" }
               }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -128,8 +129,9 @@ export function StatisticsView() {
                     />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend verticalAlign="top" align="right" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }} />
-                    <Bar dataKey="total" fill="#1e3a8a" radius={[6, 6, 0, 0]} barSize={50} />
-                    <Bar dataKey="completados" fill="#10b981" radius={[6, 6, 0, 0]} barSize={50} />
+                    <Bar dataKey="total" fill="#1e3a8a" radius={[6, 6, 0, 0]} barSize={35} />
+                    <Bar dataKey="completados" fill="#10b981" radius={[6, 6, 0, 0]} barSize={35} />
+                    <Bar dataKey="dobles" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={35} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
