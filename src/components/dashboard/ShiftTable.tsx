@@ -30,7 +30,9 @@ import {
   ChevronDown,
   MapPin,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import {
   Select,
@@ -49,7 +51,16 @@ import {
   DropdownMenuPortal,
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 interface Shift {
@@ -78,6 +89,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  
+  // Estados para el Formulario de Seguridad de Eliminación
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  
   const { toast } = useToast();
   
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -196,41 +212,35 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       });
   };
 
-  const handleDeleteAll = async () => {
-    const password = prompt("TERMINAL DE SEGURIDAD - INGRESE CLAVE (GP) PARA ELIMINAR TODO EL REGISTRO:");
-    
-    if (password === null) return; // Usuario canceló
-
-    if (password !== 'GP') {
+  const handleConfirmDeleteAll = async () => {
+    if (deletePassword !== 'GP') {
       toast({
         variant: "destructive",
-        title: "ACCESO DENEGADO",
-        description: "La clave de seguridad es incorrecta."
+        title: "CLAVE INCORRECTA",
+        description: "El acceso a la purga de registros ha sido denegado."
       });
       return;
     }
 
-    if (!confirm("ADVERTENCIA CRÍTICA: ¿Está seguro de que desea eliminar permanentemente TODOS los registros? Esta acción no se puede deshacer.")) {
-      return;
-    }
-
     setLoading(true);
+    setIsDeleteDialogOpen(false);
+    setDeletePassword('');
+    
     try {
       const q = query(collection(db, 'shift-registrations'));
       const snapshot = await getDocs(q);
-      
       const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
       
       toast({
         title: "BASE DE DATOS DEPURADA",
-        description: "Se han eliminado todos los registros exitosamente."
+        description: "Se han eliminado todos los registros operativos exitosamente."
       });
     } catch (error) {
       toast({
         variant: "destructive",
         title: "ERROR OPERATIVO",
-        description: "No se pudo completar la eliminación masiva. Verifique su conexión."
+        description: "No se pudo completar la purga de datos."
       });
     } finally {
       setLoading(false);
@@ -367,6 +377,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   return (
     <div className="space-y-1">
+      {/* Indicador de Desplazamiento */}
       <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
         <div className="flex items-center gap-3 w-full max-w-[600px]">
           <ChevronLeft className="h-3 w-3 text-primary/30" />
@@ -382,6 +393,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       </div>
 
       <div className="bg-[#12121c] border border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-500">
+        {/* Barra de Herramientas Táctica */}
         <div className="px-5 py-3 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-primary/10 rounded-lg border border-primary/20">
@@ -423,7 +435,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
             </Button>
 
             <Button 
-              onClick={handleDeleteAll}
+              onClick={() => setIsDeleteDialogOpen(true)}
               className="h-7 bg-red-600 hover:bg-red-700 text-white border border-red-500/20 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
             >
               <AlertTriangle className="h-3 w-3 mr-1.5" />
@@ -640,6 +652,56 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
           </Table>
         </div>
       </div>
+
+      {/* Formulario de Seguridad de Eliminación (Dialog) */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="bg-[#1a1b2e] border border-red-500/20 text-white max-w-sm rounded-3xl p-8 shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 border border-red-500/20">
+              <ShieldAlert className="h-8 w-8 text-red-500" />
+            </div>
+            <DialogTitle className="text-center text-xl font-black uppercase tracking-tighter">Acceso Restringido</DialogTitle>
+            <DialogDescription className="text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground leading-relaxed">
+              Está a punto de depurar permanentemente todos los registros del sistema operativo. Ingrese la clave de mando para proceder.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Clave de Seguridad</label>
+              <Input 
+                type="password"
+                placeholder="••••"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleConfirmDeleteAll()}
+                className="h-14 bg-black/40 border-white/5 rounded-xl text-center tracking-[0.5em] text-white text-lg focus:ring-1 focus:ring-red-500/50"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-col gap-2">
+            <Button 
+              onClick={handleConfirmDeleteAll}
+              className="w-full h-14 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-[0.3em] rounded-xl shadow-lg transition-all"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              DEPURAR REGISTROS
+            </Button>
+            <Button 
+              variant="ghost"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setDeletePassword('');
+              }}
+              className="w-full h-10 text-muted-foreground font-bold uppercase text-[9px] tracking-widest"
+            >
+              CANCELAR OPERACIÓN
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
