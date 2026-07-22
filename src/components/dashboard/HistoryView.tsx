@@ -48,10 +48,14 @@ export function HistoryView() {
   const [loading, setLoading] = useState(true);
   const [searchName, setSearchName] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [fromDate, setFromDate] = useState('2026-04-20');
-  const [toDate, setToDate] = useState('2026-04-26');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   useEffect(() => {
+    const today = new Date();
+    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    setFromDate(lastWeek.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
     fetchRecords();
   }, []);
 
@@ -78,7 +82,7 @@ export function HistoryView() {
 
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
-      const matchesName = record.guardName.toLowerCase().includes(searchName.toLowerCase());
+      const matchesName = (record.guardName || '').toLowerCase().includes(searchName.toLowerCase());
       const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
       return matchesName && matchesStatus;
     });
@@ -121,7 +125,8 @@ export function HistoryView() {
 
     return date.toLocaleTimeString('es-MX', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: false
     });
   };
 

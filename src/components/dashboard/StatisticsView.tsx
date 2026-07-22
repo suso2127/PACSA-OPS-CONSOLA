@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart3,
   ChevronLeft, 
@@ -42,11 +42,17 @@ const MONTHS = [
   'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
 ];
 
-const YEARS = ['2024', '2025', '2026'];
+const YEARS = ['2024', '2025', '2026', '2027'];
 
 export function StatisticsView() {
-  const [selectedMonth, setSelectedMonth] = useState('ABRIL');
-  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
+
+  useEffect(() => {
+    const now = new Date();
+    setSelectedMonth(MONTHS[now.getMonth()]);
+    setSelectedYear(now.getFullYear().toString());
+  }, []);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
