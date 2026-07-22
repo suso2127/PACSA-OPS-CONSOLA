@@ -121,7 +121,7 @@ export function ProjectManagement() {
     try {
       await addDoc(collection(db, 'projects'), {
         ...formData,
-        code: formData.code.toUpperCase(),
+        code: formData.code.trim().toUpperCase(),
         createdAt: serverTimestamp()
       });
       

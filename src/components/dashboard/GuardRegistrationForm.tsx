@@ -47,10 +47,11 @@ export function GuardRegistrationForm() {
 
   useEffect(() => {
     const searchProject = async () => {
-      if (formData.projectCode.length >= 3) {
+      const code = formData.projectCode.trim().toUpperCase();
+      if (code.length >= 3) {
         setProjectLoading(true);
         try {
-          const q = query(collection(db, 'projects'), where('code', '==', formData.projectCode.toUpperCase()));
+          const q = query(collection(db, 'projects'), where('code', '==', code));
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
             const data = snapshot.docs[0].data();
@@ -89,8 +90,8 @@ export function GuardRegistrationForm() {
     setLoading(true);
     try {
       await addDoc(collection(db, 'shift-registrations'), {
-        guardName: formData.guardName.toUpperCase(),
-        projectCode: formData.projectCode.toUpperCase(),
+        guardName: formData.guardName.trim().toUpperCase(),
+        projectCode: formData.projectCode.trim().toUpperCase(),
         clientName: detectedProject?.name || 'Cliente por Validar',
         projectName: detectedProject?.name || 'Sitio No Identificado',
         projectLocation: detectedProject?.location || 'UBICACIÓN NO ESPECIFICADA',

@@ -56,12 +56,15 @@ export default function Home() {
       );
 
       const unsubShifts = onSnapshot(qShifts, (shiftSnap) => {
-        const activeRegs = shiftSnap.docs.map(doc => doc.data());
+        const activeRegs = shiftSnap.docs.map(doc => doc.data() as any);
         const newDeficits: {name: string, count: number}[] = [];
         
         projects.forEach((p: any) => {
-          const required = p.requirements?.[dayKey] || 0;
-          const onSite = activeRegs.filter((r: any) => r.projectCode === p.code).length;
+          const required = Number(p.requirements?.[dayKey] || 0);
+          const onSite = activeRegs.filter((r: any) => 
+            r.projectCode?.trim().toUpperCase() === p.code?.trim().toUpperCase()
+          ).length;
+          
           if (onSite < required) {
             newDeficits.push({
               name: p.name,

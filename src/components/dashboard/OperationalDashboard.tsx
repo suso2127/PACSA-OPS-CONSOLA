@@ -73,11 +73,13 @@ export function OperationalDashboard() {
         let doubleCount = 0;
 
         projects.forEach(p => {
-          const req = p.requirements?.[dayKey] || 0;
+          const req = Number(p.requirements?.[dayKey] || 0);
           totalReq += req;
           
-          // Filtrar registros específicos de este proyecto
-          const projectShifts = shifts.filter((s: any) => s.projectCode === p.code);
+          // Filtrar registros específicos de este proyecto con normalización estricta
+          const projectShifts = shifts.filter((s: any) => 
+            s.projectCode?.trim().toUpperCase() === p.code?.trim().toUpperCase()
+          );
           const onSite = projectShifts.length;
           const actives = projectShifts.filter((s: any) => s.status === 'Activo').length;
           const doubles = projectShifts.filter((s: any) => s.status === 'Doble').length;
