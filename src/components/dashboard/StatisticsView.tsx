@@ -10,6 +10,7 @@ import {
   PieChart as PieIcon,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Clock,
   Zap,
   CalendarDays,
@@ -220,4 +221,3 @@ export function StatisticsView() {
     </div>
   );
 }
-
