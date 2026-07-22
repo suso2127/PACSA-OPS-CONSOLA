@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp, deleteDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   Table,
@@ -29,7 +29,8 @@ import {
   Building2,
   ChevronDown,
   MapPin,
-  Calendar
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 import {
   Select,
@@ -154,11 +155,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const shiftRef = doc(db, 'shift-registrations', id);
     const updateData: any = { duration };
     
-    // Si se cambia a 24h, automáticamente se marca como estado Doble
     if (duration === '24h') {
       updateData.status = 'Doble';
     } else {
-      // Si estaba en Doble y baja de 24h, vuelve a Activo
       const currentShift = shifts.find(s => s.id === id);
       if (currentShift?.status === 'Doble') {
         updateData.status = 'Activo';
@@ -197,6 +196,43 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       });
   };
 
+  const handleDeleteAll = async () => {
+    const password = prompt("INGRESE CLAVE DE AUTORIZACIÓN (GP):");
+    if (password !== 'GP') {
+      toast({
+        variant: "destructive",
+        title: "ACCESO DENEGADO",
+        description: "Clave de seguridad incorrecta."
+      });
+      return;
+    }
+
+    if (!confirm("¿ESTÁ SEGURO? Esta acción eliminará permanentemente TODOS los registros de la base de datos.")) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const q = query(collection(db, 'shift-registrations'));
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+      
+      toast({
+        title: "SISTEMA DEPURADO",
+        description: "Se han eliminado todos los registros exitosamente."
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ERROR",
+        description: "No se pudo completar la purga de datos."
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateObservation = (id: string, observation: string) => {
     const shiftRef = doc(db, 'shift-registrations', id);
     updateDoc(shiftRef, { observation });
@@ -209,16 +245,12 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   const calculateWorkedHours = (shift: Shift) => {
     if (!shift.entryTime) return '--:--';
-    
     const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
     const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
-    
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return '0.00';
-
     const diffMs = end.getTime() - start.getTime();
     if (diffMs < 0) return '0.00';
     const diffHrs = diffMs / (1000 * 60 * 60);
-    
     return diffHrs.toFixed(2);
   };
 
@@ -268,12 +300,10 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
         if (!shift.entryTime) return false;
         const date = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
         if (isNaN(date.getTime())) return false;
-        
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         const localDateStr = `${year}-${month}-${day}`;
-        
         return localDateStr === dateFilter;
       });
     }
@@ -285,7 +315,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     if (!entryTime) return '--:--';
     const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
     if (isNaN(date.getTime())) return '--:--';
-    
     const hoursToAdd = parseInt(duration) || 8;
     const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
     return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -325,15 +354,8 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   };
 
   const OBSERVATION_OPTIONS = [
-    'SE RETIRO', 
-    'FINALIZADO', 
-    'DOBLE', 
-    'COMPLETADO', 
-    'EMERGENCIA', 
-    'URGENCIA', 
-    'ABANDONO', 
-    'ENFERMEDAD', 
-    'CAMBIO DE TURNO'
+    'SE RETIRO', 'FINALIZADO', 'DOBLE', 'COMPLETADO', 'EMERGENCIA', 
+    'URGENCIA', 'ABANDONO', 'ENFERMEDAD', 'CAMBIO DE TURNO'
   ];
 
   if (loading) {
@@ -401,6 +423,14 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
             >
               <Trash2 className="h-3 w-3 mr-1.5" />
               LIMPIAR MESA
+            </Button>
+
+            <Button 
+              onClick={handleDeleteAll}
+              className="h-7 bg-red-600 hover:bg-red-700 text-white border border-red-500/20 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
+            >
+              <AlertTriangle className="h-3 w-3 mr-1.5" />
+              ELIMINAR TODO EL REGISTRO
             </Button>
 
             <div className="h-5 w-[1px] bg-white/10 mx-0.5" />
@@ -588,15 +618,17 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                       </>
                     )}
                     <TableCell className="text-right pr-5 py-2.5">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleDelete(shift.id, shift.guardName)}
-                        className="h-8 w-8 text-muted-foreground hover:text-red-500 transition-colors"
-                        title="Eliminar Registro"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDelete(shift.id, shift.guardName)}
+                          className="h-8 w-8 text-muted-foreground hover:text-red-500 transition-colors"
+                          title="Eliminar Registro"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
