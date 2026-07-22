@@ -165,7 +165,7 @@ export function AdminView() {
                 )}
               >
                 <PhoneCall className="h-3.5 w-3.5" />
-                Emergencias
+                Emergencia Base
               </button>
               <button
                 onClick={() => setActiveRegistroSubTab('config')}
