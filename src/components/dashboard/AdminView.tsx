@@ -73,7 +73,6 @@ export function AdminView() {
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
-    { id: 'config', label: 'Configuración', icon: Settings },
   ] as const;
 
   return (
@@ -275,8 +274,6 @@ export function AdminView() {
         {activeTab === 'estadistica' && <StatisticsView />}
 
         {activeTab === 'mapa' && <MapView />}
-
-        {activeTab === 'config' && <ConfigView />}
       </div>
     </div>
   );
