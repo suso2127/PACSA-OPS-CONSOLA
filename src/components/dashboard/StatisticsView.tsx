@@ -31,10 +31,11 @@ import {
 } from "@/components/ui/select";
 
 const chartData = [
-  { name: 'Sem 1', total: 60, completados: 55, dobles: 5 },
-  { name: 'Sem 2', total: 75, completados: 70, dobles: 8 },
-  { name: 'Sem 3', total: 50, completados: 45, dobles: 12 },
-  { name: 'Sem 4', total: 90, completados: 85, dobles: 10 },
+  { name: 'LUNES', total: 60, completados: 55, dobles: 5 },
+  { name: 'MARTES', total: 75, completados: 70, dobles: 8 },
+  { name: 'MIÉRCOLES', total: 50, completados: 45, dobles: 12 },
+  { name: 'JUEVES', total: 90, completados: 85, dobles: 10 },
+  { name: 'VIERNES', total: 85, completados: 80, dobles: 5 },
 ];
 
 const MONTHS = [
@@ -151,8 +152,8 @@ export function StatisticsView() {
           <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 shadow-2xl">
             <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
               <div className="space-y-1">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Planilla vs Realidad</p>
-                <h3 className="text-2xl font-black uppercase">Registros de Turnos — {selectedMonth} {selectedYear}</h3>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Todos los Clientes — Planilla vs Realidad</p>
+                <h3 className="text-2xl font-black uppercase">Tendencia Lunes a Viernes — {selectedMonth} {selectedYear}</h3>
               </div>
               
               <div className="flex items-center bg-[#25273c] rounded-xl border border-white/5 p-1.5">
