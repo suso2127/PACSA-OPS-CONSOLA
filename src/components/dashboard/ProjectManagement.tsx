@@ -22,7 +22,8 @@ import {
   Power,
   PowerOff,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Clock
 } from 'lucide-react';
 import {
   Table,
@@ -59,6 +60,15 @@ interface Project {
     sab: number;
     dom: number;
   };
+  shiftHours: {
+    lun: string;
+    mar: string;
+    mie: string;
+    jue: string;
+    vie: string;
+    sab: string;
+    dom: string;
+  };
 }
 
 export function ProjectManagement() {
@@ -73,15 +83,14 @@ export function ProjectManagement() {
     location: '',
     type: 'Comercial',
     requirements: {
-      lun: 0,
-      mar: 0,
-      mie: 0,
-      jue: 0,
-      vie: 0,
-      sab: 0,
-      dom: 0,
+      lun: 0, mar: 0, mie: 0, jue: 0, vie: 0, sab: 0, dom: 0,
+    },
+    shiftHours: {
+      lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h',
     }
   });
+
+  const hourOptions = Array.from({ length: 24 }, (_, i) => `${i + 1}h`);
 
   useEffect(() => {
     const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
@@ -106,6 +115,16 @@ export function ProjectManagement() {
     }));
   };
 
+  const handleShiftHoursChange = (day: keyof typeof formData.shiftHours, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      shiftHours: {
+        ...prev.shiftHours,
+        [day]: value
+      }
+    }));
+  };
+
   const handleEditRequirementChange = (day: keyof Project['requirements'], value: string) => {
     const numValue = parseInt(value) || 0;
     if (editingProject) {
@@ -114,6 +133,18 @@ export function ProjectManagement() {
         requirements: {
           ...editingProject.requirements,
           [day]: numValue
+        }
+      });
+    }
+  };
+
+  const handleEditShiftHoursChange = (day: keyof Project['shiftHours'], value: string) => {
+    if (editingProject) {
+      setEditingProject({
+        ...editingProject,
+        shiftHours: {
+          ...editingProject.shiftHours,
+          [day]: value
         }
       });
     }
@@ -184,7 +215,8 @@ export function ProjectManagement() {
         name: '',
         location: '',
         type: 'Comercial',
-        requirements: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0, sab: 0, dom: 0 }
+        requirements: { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0, sab: 0, dom: 0 },
+        shiftHours: { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' }
       });
     } catch (err) {
       toast({
@@ -208,7 +240,8 @@ export function ProjectManagement() {
         name: editingProject.name,
         location: editingProject.location,
         type: editingProject.type,
-        requirements: editingProject.requirements
+        requirements: editingProject.requirements,
+        shiftHours: editingProject.shiftHours || { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' }
       });
 
       toast({
@@ -231,6 +264,12 @@ export function ProjectManagement() {
     const days = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
     const today = days[new Date().getDay()] as keyof typeof project.requirements;
     return project.requirements[today] || 0;
+  };
+
+  const getTodayHours = (project: Project) => {
+    const days = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+    const today = days[new Date().getDay()] as keyof typeof project.shiftHours;
+    return project.shiftHours?.[today] || '12h';
   };
 
   return (
@@ -296,36 +335,45 @@ export function ProjectManagement() {
             <div className="pt-4">
               <div className="flex items-center gap-2 mb-3 text-[9px] font-black text-muted-foreground uppercase tracking-widest">
                 <Calendar className="h-3 w-3" />
-                Guardias Requeridos por Día
+                Requerimientos Semanales
               </div>
               
-              <div className="space-y-2">
-                <div className="grid grid-cols-4 gap-2">
-                  {(['lun', 'mar', 'mie', 'jue'] as const).map((day) => (
-                    <div key={day} className="space-y-1 text-center">
-                      <Label className="text-[8px] font-black uppercase text-muted-foreground">{day === 'mie' ? 'MIÉ' : day.toUpperCase()}</Label>
-                      <Input 
-                        type="number"
-                        value={formData.requirements[day]}
-                        onChange={(e) => handleRequirementChange(day, e.target.value)}
-                        className="bg-[#252535] border-none h-8 text-center p-0 font-bold text-xs"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-2 px-6">
-                  {(['vie', 'sab', 'dom'] as const).map((day) => (
-                    <div key={day} className="space-y-1 text-center">
-                      <Label className="text-[8px] font-black uppercase text-muted-foreground">{day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
-                      <Input 
-                        type="number"
-                        value={formData.requirements[day]}
-                        onChange={(e) => handleRequirementChange(day, e.target.value)}
-                        className="bg-[#252535] border-none h-8 text-center p-0 font-bold text-xs"
-                      />
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-3">
+                {([['lun', 'mar', 'mie', 'jue'], ['vie', 'sab', 'dom']] as const).map((group, groupIdx) => (
+                  <div key={groupIdx} className="grid grid-cols-1 gap-3">
+                    {group.map((day) => (
+                      <div key={day} className="flex items-center gap-4 bg-[#252535]/50 p-3 rounded-xl border border-white/5">
+                        <div className="w-10">
+                          <Label className="text-[10px] font-black uppercase text-primary">{day === 'mie' ? 'MIÉ' : day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
+                        </div>
+                        
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Guardias</Label>
+                          <Input 
+                            type="number"
+                            value={formData.requirements[day]}
+                            onChange={(e) => handleRequirementChange(day, e.target.value)}
+                            className="bg-[#1a1a2e] border-none h-8 text-center font-bold text-xs"
+                          />
+                        </div>
+
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Horas</Label>
+                          <Select value={formData.shiftHours[day]} onValueChange={(v) => handleShiftHoursChange(day, v)}>
+                            <SelectTrigger className="bg-[#1a1a2e] border-none h-8 text-xs font-bold p-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#1c1c28] border-white/10">
+                              {hourOptions.map((h) => (
+                                <SelectItem key={h} value={h} className="text-[10px] font-bold">{h}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -353,7 +401,7 @@ export function ProjectManagement() {
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="text-muted-foreground text-[11px] font-bold h-12">Código</TableHead>
                 <TableHead className="text-muted-foreground text-[11px] font-bold h-12">Cliente / Proyecto</TableHead>
-                <TableHead className="text-muted-foreground text-[11px] font-bold h-12 text-center">Req. Hoy</TableHead>
+                <TableHead className="text-muted-foreground text-[11px] font-bold h-12 text-center">Plan Hoy</TableHead>
                 <TableHead className="text-muted-foreground text-[11px] font-bold h-12 text-center">Estado</TableHead>
                 <TableHead className="text-right text-muted-foreground text-[11px] font-bold h-12 pr-6">Acciones</TableHead>
               </TableRow>
@@ -368,8 +416,13 @@ export function ProjectManagement() {
                       <div className="text-[9px] text-muted-foreground uppercase font-medium">{project.location || 'UBICACIÓN PENDIENTE'}</div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="bg-[#6366f1]/10 text-[#6366f1] px-3 py-0.5 rounded-full text-xs font-black inline-block">
-                        {getTodayRequirement(project)}
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge variant="outline" className="bg-[#6366f1]/10 text-[#6366f1] border-none px-2 py-0 text-[9px] font-black">
+                          {getTodayRequirement(project)} ELMS
+                        </Badge>
+                        <Badge variant="outline" className="bg-white/5 text-muted-foreground border-none px-2 py-0 text-[8px] font-bold">
+                          {getTodayHours(project)}
+                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
@@ -430,7 +483,7 @@ export function ProjectManagement() {
 
       {/* Dialogo de Edición */}
       <Dialog open={!!editingProject} onOpenChange={(open) => !open && setEditingProject(null)}>
-        <DialogContent className="bg-[#1c1c28] border border-white/10 text-white max-w-2xl rounded-2xl">
+        <DialogContent className="bg-[#1c1c28] border border-white/10 text-white max-w-2xl rounded-2xl overflow-y-auto max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
               <Edit2 className="h-5 w-5 text-primary" />
@@ -439,8 +492,8 @@ export function ProjectManagement() {
           </DialogHeader>
           
           {editingProject && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-              <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-bold text-white/70">Nombre del Cliente</Label>
                   <Input 
@@ -457,51 +510,44 @@ export function ProjectManagement() {
                     className="bg-[#252535] border-none h-11 text-sm text-white"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] font-bold text-white/70">Tipo de Servicio</Label>
-                  <Select value={editingProject.type} onValueChange={(v) => setEditingProject({...editingProject, type: v})}>
-                    <SelectTrigger className="bg-[#252535] border-none h-11 text-sm text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1c1c28] border-white/10 text-white">
-                      <SelectItem value="Comercial">Comercial</SelectItem>
-                      <SelectItem value="Industrial">Industrial</SelectItem>
-                      <SelectItem value="Residencial">Residencial</SelectItem>
-                      <SelectItem value="Bancario">Bancario</SelectItem>
-                      <SelectItem value="Construcción">Construcción</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <div className="space-y-4">
                 <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5" />
-                  Actualizar Requerimientos
+                  Planilla Semanal
                 </Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['lun', 'mar', 'mie', 'jue'] as const).map((day) => (
-                    <div key={day} className="space-y-1 text-center">
-                      <Label className="text-[8px] font-black uppercase text-muted-foreground">{day === 'mie' ? 'MIÉ' : day.toUpperCase()}</Label>
-                      <Input 
-                        type="number"
-                        value={editingProject.requirements[day]}
-                        onChange={(e) => handleEditRequirementChange(day, e.target.value)}
-                        className="bg-[#252535] border-none h-9 text-center p-0 font-bold text-xs text-white"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-2 px-4">
-                  {(['vie', 'sab', 'dom'] as const).map((day) => (
-                    <div key={day} className="space-y-1 text-center">
-                      <Label className="text-[8px] font-black uppercase text-muted-foreground">{day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
-                      <Input 
-                        type="number"
-                        value={editingProject.requirements[day]}
-                        onChange={(e) => handleEditRequirementChange(day, e.target.value)}
-                        className="bg-[#252535] border-none h-9 text-center p-0 font-bold text-xs text-white"
-                      />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const).map((day) => (
+                    <div key={day} className="flex items-center gap-3 bg-[#252535] p-3 rounded-xl border border-white/5">
+                      <div className="w-12">
+                        <Label className="text-[10px] font-black uppercase text-primary">{day === 'mie' ? 'MIÉ' : day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-[8px] font-bold text-muted-foreground uppercase">Elms</Label>
+                        <Input 
+                          type="number"
+                          value={editingProject.requirements[day]}
+                          onChange={(e) => handleEditRequirementChange(day, e.target.value)}
+                          className="bg-[#1a1a2e] border-none h-8 text-center text-xs font-bold text-white"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-[8px] font-bold text-muted-foreground uppercase">Hrs</Label>
+                        <Select 
+                          value={editingProject.shiftHours?.[day] || '12h'} 
+                          onValueChange={(v) => handleEditShiftHoursChange(day, v)}
+                        >
+                          <SelectTrigger className="bg-[#1a1a2e] border-none h-8 text-xs font-bold p-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#1c1c28] border-white/10 text-white">
+                            {hourOptions.map((h) => (
+                              <SelectItem key={h} value={h} className="text-[10px] font-bold">{h}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   ))}
                 </div>
