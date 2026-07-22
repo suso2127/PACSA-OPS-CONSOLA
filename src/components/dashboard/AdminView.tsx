@@ -37,7 +37,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'proyectos' | 'config' | 'estadistica';
+type AdminTab = 'registro' | 'estado' | 'dobles' | 'dashboard' | 'mapa' | 'historial' | 'planilla' | 'estadistica';
 type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config';
 
 export function AdminView() {
@@ -77,7 +77,7 @@ export function AdminView() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Barra de Comandos Táctica - Agrupada y con fuente de 12px */}
+      {/* Barra de Comandos Táctica - Fuente 12px */}
       <div className="bg-card/40 backdrop-blur-md border border-border p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
@@ -182,13 +182,8 @@ export function AdminView() {
             </div>
 
             {activeRegistroSubTab === 'guardia' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5">
-                  <GuardRegistrationForm />
-                </div>
-                <div className="lg:col-span-7">
-                  <ShiftTable hideExitTime={true} />
-                </div>
+              <div className="max-w-4xl mx-auto">
+                <GuardRegistrationForm />
               </div>
             )}
 
