@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState } from 'react';
@@ -153,7 +154,7 @@ export function StatisticsView() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-6 text-[11px] font-black font-mono text-primary uppercase tracking-widest">
-                  PANEL OPERATIVO {selectedMONTH}
+                  PANEL OPERATIVO {selectedMonth}
                 </span>
                 <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
                   <ChevronRight className="h-4 w-4" />
