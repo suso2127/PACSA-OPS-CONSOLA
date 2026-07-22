@@ -17,7 +17,9 @@ import {
   Building2,
   Loader2,
   Save,
-  Terminal
+  Terminal,
+  RotateCcw,
+  Filter
 } from 'lucide-react';
 import { collection, onSnapshot, query, addDoc, deleteDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -68,6 +70,8 @@ export function EmergencyNumbersView() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [zoneFilter, setZoneFilter] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const { toast } = useToast();
 
@@ -142,14 +146,22 @@ export function EmergencyNumbersView() {
     }
   };
 
+  const resetFilters = () => {
+    setSearchTerm('');
+    setCategoryFilter('all');
+    setZoneFilter('all');
+  };
+
   const filteredContacts = useMemo(() => {
-    return contacts.filter(c => 
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.number.includes(searchTerm) ||
-      c.zone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.category.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [contacts, searchTerm]);
+    return contacts.filter(c => {
+      const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           c.number.includes(searchTerm);
+      const matchesCategory = categoryFilter === 'all' || c.category === categoryFilter;
+      const matchesZone = zoneFilter === 'all' || c.zone === zoneFilter;
+      
+      return matchesSearch && matchesCategory && matchesZone;
+    });
+  }, [contacts, searchTerm, categoryFilter, zoneFilter]);
 
   const getIconForCategory = (category: string) => {
     if (category.includes('Policía')) return ShieldAlert;
@@ -258,23 +270,69 @@ export function EmergencyNumbersView() {
 
         {/* Lado Derecho: Listado y Búsqueda */}
         <div className={`${showAddForm ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-6`}>
-          {/* Barra de Filtro Rápido */}
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-red-500/10 to-primary/10 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-            <div className="relative bg-[#1a1b2e] border border-white/5 rounded-2xl p-2 flex items-center gap-4">
-              <div className="pl-4">
-                <Search className="h-5 w-5 text-muted-foreground" />
+          {/* Panel de Filtros Avanzados */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            <div className="md:col-span-6 relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-red-500/10 to-primary/10 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+              <div className="relative bg-[#1a1b2e] border border-white/5 rounded-2xl p-2 flex items-center gap-4">
+                <div className="pl-4">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <input 
+                  placeholder="BUSQUEDA POR NOMBRE O NÚMERO..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-transparent border-none flex-1 h-11 text-[11px] font-black uppercase tracking-wider text-white outline-none placeholder:text-muted-foreground/50"
+                />
               </div>
-              <input 
-                placeholder="BUSQUEDA RÁPIDA POR NOMBRE, ZONA O ESTAMENTO..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-transparent border-none flex-1 h-12 text-sm font-black uppercase tracking-wider text-white outline-none placeholder:text-muted-foreground/50"
-              />
-              <Badge className="bg-white/5 text-muted-foreground border-white/10 text-[9px] font-black uppercase tracking-widest px-4 h-8 mr-2">
-                {filteredContacts.length} REGISTROS
-              </Badge>
             </div>
+
+            <div className="md:col-span-2">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="bg-[#1a1b2e] border-white/5 h-[59px] rounded-2xl text-[9px] font-black uppercase tracking-widest text-primary focus:ring-1 focus:ring-primary/30">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-3 w-3" />
+                    <SelectValue placeholder="ESTAMENTO" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1b2e] border-white/10">
+                  <SelectItem value="all" className="text-[9px] font-black uppercase">TODOS LOS ESTAMENTOS</SelectItem>
+                  {ESTAMENTOS.map(e => <SelectItem key={e} value={e} className="text-[9px] font-black uppercase">{e}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2">
+              <Select value={zoneFilter} onValueChange={setZoneFilter}>
+                <SelectTrigger className="bg-[#1a1b2e] border-white/5 h-[59px] rounded-2xl text-[9px] font-black uppercase tracking-widest text-sky-500 focus:ring-1 focus:ring-sky-500/30">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-3 w-3" />
+                    <SelectValue placeholder="ZONA" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1b2e] border-white/10">
+                  <SelectItem value="all" className="text-[9px] font-black uppercase">TODAS LAS ZONAS</SelectItem>
+                  {ZONAS.map(z => <SelectItem key={z} value={z} className="text-[9px] font-black uppercase">{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2">
+              <Button 
+                variant="outline"
+                onClick={resetFilters}
+                className="w-full h-[59px] bg-secondary/20 border-white/5 text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-white rounded-2xl transition-all"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                LIMPIAR
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-2">
+            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
+              Mostrando {filteredContacts.length} de {contacts.length} contactos operativos
+            </span>
           </div>
 
           {/* Listado de Contactos */}
@@ -339,8 +397,11 @@ export function EmergencyNumbersView() {
             ) : (
               <div className="col-span-full py-32 bg-[#1a1b2e] border-2 border-dashed border-white/5 rounded-3xl text-center">
                 <p className="text-[11px] font-black uppercase tracking-[0.3em] text-muted-foreground/20 italic">
-                  Sin registros detectados en la zona o estamento seleccionado
+                  Sin registros detectados con los filtros seleccionados
                 </p>
+                <Button variant="link" onClick={resetFilters} className="text-primary text-[10px] font-black uppercase mt-4">
+                  RESTAURAR FILTROS
+                </Button>
               </div>
             )}
           </div>
