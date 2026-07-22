@@ -197,7 +197,10 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   };
 
   const handleDeleteAll = async () => {
-    const password = prompt("INGRESE CLAVE DE AUTORIZACIÓN PARA ELIMINAR TODO:");
+    const password = prompt("TERMINAL DE SEGURIDAD - INGRESE CLAVE (GP) PARA ELIMINAR TODO EL REGISTRO:");
+    
+    if (password === null) return; // Usuario canceló
+
     if (password !== 'GP') {
       toast({
         variant: "destructive",
@@ -207,7 +210,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       return;
     }
 
-    if (!confirm("ADVERTENCIA: ¿Está seguro de que desea eliminar todos los registros permanentemente?")) {
+    if (!confirm("ADVERTENCIA CRÍTICA: ¿Está seguro de que desea eliminar permanentemente TODOS los registros? Esta acción no se puede deshacer.")) {
       return;
     }
 
@@ -215,6 +218,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     try {
       const q = query(collection(db, 'shift-registrations'));
       const snapshot = await getDocs(q);
+      
       const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
       
@@ -225,8 +229,8 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "ERROR",
-        description: "No se pudo completar la eliminación masiva."
+        title: "ERROR OPERATIVO",
+        description: "No se pudo completar la eliminación masiva. Verifique su conexión."
       });
     } finally {
       setLoading(false);
