@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState } from 'react';
@@ -32,14 +31,13 @@ import {
   Lock,
   ShieldCheck,
   AlertCircle,
-  PhoneCall,
-  Globe
+  PhoneCall
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 type AdminTab = 'dashboard' | 'registro' | 'estado' | 'dobles' | 'estadistica' | 'mapa' | 'historial' | 'planilla';
-type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config' | 'gestion';
+type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config';
 
 export function AdminView() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -180,21 +178,6 @@ export function AdminView() {
                 <Settings className="h-3.5 w-3.5" />
                 Configuración
               </button>
-              <button
-                onClick={() => {
-                  setActiveRegistroSubTab('gestion');
-                  setIsConfigUnlocked(false);
-                }}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap",
-                  activeRegistroSubTab === 'gestion' 
-                    ? "bg-amber-600 text-white shadow-lg" 
-                    : "text-muted-foreground hover:text-white"
-                )}
-              >
-                <Globe className="h-3.5 w-3.5" />
-                Gestión Empresarial
-              </button>
             </div>
 
             {activeRegistroSubTab === 'guardia' && (
@@ -262,17 +245,6 @@ export function AdminView() {
                   </div>
                 </div>
               )
-            )}
-
-            {activeRegistroSubTab === 'gestion' && (
-              <div className="w-full h-[800px] bg-card/20 rounded-3xl overflow-hidden border border-white/5 shadow-2xl animate-in zoom-in-95 duration-500">
-                <iframe 
-                  src="https://gestion-empresarial-pacsa-ekilcu455-pacsa-control-console.vercel.app/operaciones"
-                  className="w-full h-full border-none"
-                  title="Gestión Empresarial PACSA"
-                  allow="fullscreen"
-                />
-              </div>
             )}
           </div>
         )}
