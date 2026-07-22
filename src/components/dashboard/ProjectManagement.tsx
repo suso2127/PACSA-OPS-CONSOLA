@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,12 @@ import {
   MapPin, 
   Calendar,
   Loader2,
-  FileText
+  FileText,
+  Edit2,
+  Power,
+  PowerOff,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import {
   Table,
@@ -27,6 +32,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface Project {
   id: string;
@@ -35,6 +49,7 @@ interface Project {
   client: string;
   location: string;
   type: string;
+  isActive?: boolean;
   requirements: {
     lun: number;
     mar: number;
@@ -49,6 +64,7 @@ interface Project {
 export function ProjectManagement() {
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -90,6 +106,19 @@ export function ProjectManagement() {
     }));
   };
 
+  const handleEditRequirementChange = (day: keyof Project['requirements'], value: string) => {
+    const numValue = parseInt(value) || 0;
+    if (editingProject) {
+      setEditingProject({
+        ...editingProject,
+        requirements: {
+          ...editingProject.requirements,
+          [day]: numValue
+        }
+      });
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'projects', id));
@@ -101,6 +130,25 @@ export function ProjectManagement() {
       toast({
         title: "Error",
         description: "No se pudo eliminar el proyecto.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleToggleStatus = async (id: string, currentStatus: boolean | undefined) => {
+    try {
+      const newStatus = currentStatus === undefined ? false : !currentStatus;
+      await updateDoc(doc(db, 'projects', id), {
+        isActive: newStatus
+      });
+      toast({
+        title: "ESTADO ACTUALIZADO",
+        description: `El proyecto ahora está ${newStatus ? 'ACTIVO' : 'INACTIVO'}.`
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado del proyecto.",
         variant: "destructive"
       });
     }
@@ -121,6 +169,7 @@ export function ProjectManagement() {
     try {
       await addDoc(collection(db, 'projects'), {
         ...formData,
+        isActive: true,
         code: formData.code.trim().toUpperCase(),
         createdAt: serverTimestamp()
       });
@@ -141,6 +190,36 @@ export function ProjectManagement() {
       toast({
         title: "Error",
         description: "No se pudo guardar el proyecto.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateProject = async () => {
+    if (!editingProject) return;
+
+    setLoading(true);
+    try {
+      const projectRef = doc(db, 'projects', editingProject.id);
+      await updateDoc(projectRef, {
+        code: editingProject.code.trim().toUpperCase(),
+        name: editingProject.name,
+        location: editingProject.location,
+        type: editingProject.type,
+        requirements: editingProject.requirements
+      });
+
+      toast({
+        title: "PROYECTO ACTUALIZADO",
+        description: `Los cambios en ${editingProject.code} han sido sincronizados.`
+      });
+      setEditingProject(null);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el proyecto.",
         variant: "destructive"
       });
     } finally {
@@ -274,35 +353,66 @@ export function ProjectManagement() {
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="text-muted-foreground text-[11px] font-bold h-12">Código</TableHead>
                 <TableHead className="text-muted-foreground text-[11px] font-bold h-12">Cliente / Proyecto</TableHead>
-                <TableHead className="text-muted-foreground text-[11px] font-bold h-12">Tipo</TableHead>
                 <TableHead className="text-muted-foreground text-[11px] font-bold h-12 text-center">Req. Hoy</TableHead>
+                <TableHead className="text-muted-foreground text-[11px] font-bold h-12 text-center">Estado</TableHead>
                 <TableHead className="text-right text-muted-foreground text-[11px] font-bold h-12 pr-6">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {projects.length > 0 ? (
                 projects.map((project) => (
-                  <TableRow key={project.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                  <TableRow key={project.id} className={cn("border-b border-white/5 hover:bg-white/[0.02] transition-colors", project.isActive === false && "opacity-40")}>
                     <TableCell className="font-mono text-[#6366f1] font-bold text-xs">{project.code}</TableCell>
                     <TableCell>
                       <div className="font-bold text-sm text-white">{project.name}</div>
                       <div className="text-[9px] text-muted-foreground uppercase font-medium">{project.location || 'UBICACIÓN PENDIENTE'}</div>
                     </TableCell>
-                    <TableCell className="text-xs text-white/70">{project.type}</TableCell>
                     <TableCell className="text-center">
                       <div className="bg-[#6366f1]/10 text-[#6366f1] px-3 py-0.5 rounded-full text-xs font-black inline-block">
                         {getTodayRequirement(project)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleDelete(project.id)}
-                        className="text-muted-foreground hover:text-destructive h-8 w-8"
+                    <TableCell className="text-center">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-2", 
+                          project.isActive !== false ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"
+                        )}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        {project.isActive !== false ? "ACTIVO" : "INACTIVO"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleToggleStatus(project.id, project.isActive)}
+                          className={cn("h-8 w-8", project.isActive !== false ? "text-emerald-500 hover:text-red-500" : "text-red-500 hover:text-emerald-500")}
+                          title={project.isActive !== false ? "Desactivar Puesto" : "Activar Puesto"}
+                        >
+                          {project.isActive !== false ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => setEditingProject(project)}
+                          className="text-muted-foreground hover:text-primary h-8 w-8"
+                          title="Editar Proyecto"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDelete(project.id)}
+                          className="text-muted-foreground hover:text-destructive h-8 w-8"
+                          title="Eliminar Proyecto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -317,6 +427,102 @@ export function ProjectManagement() {
           </Table>
         </div>
       </div>
+
+      {/* Dialogo de Edición */}
+      <Dialog open={!!editingProject} onOpenChange={(open) => !open && setEditingProject(null)}>
+        <DialogContent className="bg-[#1c1c28] border border-white/10 text-white max-w-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
+              <Edit2 className="h-5 w-5 text-primary" />
+              Editar Proyecto: {editingProject?.code}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {editingProject && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-white/70">Nombre del Cliente</Label>
+                  <Input 
+                    value={editingProject.name}
+                    onChange={(e) => setEditingProject({...editingProject, name: e.target.value})}
+                    className="bg-[#252535] border-none h-11 text-sm text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-white/70">Ubicación</Label>
+                  <Input 
+                    value={editingProject.location}
+                    onChange={(e) => setEditingProject({...editingProject, location: e.target.value})}
+                    className="bg-[#252535] border-none h-11 text-sm text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-white/70">Tipo de Servicio</Label>
+                  <Select value={editingProject.type} onValueChange={(v) => setEditingProject({...editingProject, type: v})}>
+                    <SelectTrigger className="bg-[#252535] border-none h-11 text-sm text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1c1c28] border-white/10 text-white">
+                      <SelectItem value="Comercial">Comercial</SelectItem>
+                      <SelectItem value="Industrial">Industrial</SelectItem>
+                      <SelectItem value="Residencial">Residencial</SelectItem>
+                      <SelectItem value="Bancario">Bancario</SelectItem>
+                      <SelectItem value="Construcción">Construcción</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Actualizar Requerimientos
+                </Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['lun', 'mar', 'mie', 'jue'] as const).map((day) => (
+                    <div key={day} className="space-y-1 text-center">
+                      <Label className="text-[8px] font-black uppercase text-muted-foreground">{day === 'mie' ? 'MIÉ' : day.toUpperCase()}</Label>
+                      <Input 
+                        type="number"
+                        value={editingProject.requirements[day]}
+                        onChange={(e) => handleEditRequirementChange(day, e.target.value)}
+                        className="bg-[#252535] border-none h-9 text-center p-0 font-bold text-xs text-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2 px-4">
+                  {(['vie', 'sab', 'dom'] as const).map((day) => (
+                    <div key={day} className="space-y-1 text-center">
+                      <Label className="text-[8px] font-black uppercase text-muted-foreground">{day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
+                      <Input 
+                        type="number"
+                        value={editingProject.requirements[day]}
+                        onChange={(e) => handleEditRequirementChange(day, e.target.value)}
+                        className="bg-[#252535] border-none h-9 text-center p-0 font-bold text-xs text-white"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-3 mt-4">
+            <Button variant="ghost" onClick={() => setEditingProject(null)} className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUpdateProject} 
+              disabled={loading}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest px-8 rounded-xl"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
