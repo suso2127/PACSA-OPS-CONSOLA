@@ -272,6 +272,8 @@ export function ProjectManagement() {
     return project.shiftHours?.[today] || '12h';
   };
 
+  const daysList = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-500 pb-20">
       {/* Columna Izquierda: Formulario */}
@@ -338,40 +340,36 @@ export function ProjectManagement() {
                 Requerimientos Semanales
               </div>
               
-              <div className="space-y-3">
-                {([['lun', 'mar', 'mie', 'jue'], ['vie', 'sab', 'dom']] as const).map((group, groupIdx) => (
-                  <div key={groupIdx} className="grid grid-cols-1 gap-3">
-                    {group.map((day) => (
-                      <div key={day} className="flex items-center gap-4 bg-[#252535]/50 p-3 rounded-xl border border-white/5">
-                        <div className="w-10">
-                          <Label className="text-[10px] font-black uppercase text-primary">{day === 'mie' ? 'MIÉ' : day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
-                        </div>
-                        
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Guardias</Label>
-                          <Input 
-                            type="number"
-                            value={formData.requirements[day]}
-                            onChange={(e) => handleRequirementChange(day, e.target.value)}
-                            className="bg-[#1a1a2e] border-none h-8 text-center font-bold text-xs"
-                          />
-                        </div>
+              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                {daysList.map((day) => (
+                  <div key={day} className="flex items-center gap-4 bg-[#252535]/50 p-3 rounded-xl border border-white/5">
+                    <div className="w-10">
+                      <Label className="text-[10px] font-black uppercase text-primary">{day === 'mie' ? 'MIÉ' : day === 'sab' ? 'SÁB' : day.toUpperCase()}</Label>
+                    </div>
+                    
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[8px] font-bold uppercase text-muted-foreground">Guardias</Label>
+                      <Input 
+                        type="number"
+                        value={formData.requirements[day]}
+                        onChange={(e) => handleRequirementChange(day, e.target.value)}
+                        className="bg-[#1a1a2e] border-none h-8 text-center font-bold text-xs"
+                      />
+                    </div>
 
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-[8px] font-bold uppercase text-muted-foreground">Horas</Label>
-                          <Select value={formData.shiftHours[day]} onValueChange={(v) => handleShiftHoursChange(day, v)}>
-                            <SelectTrigger className="bg-[#1a1a2e] border-none h-8 text-xs font-bold p-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#1c1c28] border-white/10">
-                              {hourOptions.map((h) => (
-                                <SelectItem key={h} value={h} className="text-[10px] font-bold">{h}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[8px] font-bold uppercase text-muted-foreground">Horas</Label>
+                      <Select value={formData.shiftHours[day]} onValueChange={(v) => handleShiftHoursChange(day, v)}>
+                        <SelectTrigger className="bg-[#1a1a2e] border-none h-8 text-xs font-bold p-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#1c1c28] border-white/10">
+                          {hourOptions.map((h) => (
+                            <SelectItem key={h} value={h} className="text-[10px] font-bold">{h}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 ))}
               </div>
