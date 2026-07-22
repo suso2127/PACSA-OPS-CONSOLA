@@ -41,6 +41,7 @@ export function OperationalDashboard() {
   });
 
   useEffect(() => {
+    // Evitar problemas de hidratación calculando la fecha en el cliente
     const d = new Date();
     const fullDate = d.toLocaleDateString('es-MX', { 
       weekday: 'long', 
@@ -50,11 +51,14 @@ export function OperationalDashboard() {
     }).toUpperCase();
     setCurrentDay(fullDate);
 
-    const unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
-      const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
-      const dayKey = dayNames[d.getDay()];
+    const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+    const dayKey = dayNames[d.getDay()];
+
+    // Escucha en tiempo real de proyectos para obtener requerimientos
+    const unsubProjects = onSnapshot(collection(db, 'projects'), (projectSnap) => {
+      const projects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       
+      // Escucha en tiempo real de registros activos y dobles (Comando Operaciones)
       const qShifts = query(
         collection(db, 'shift-registrations'),
         where('status', 'in', ['Activo', 'Doble'])
@@ -71,17 +75,22 @@ export function OperationalDashboard() {
         projects.forEach(p => {
           const req = p.requirements?.[dayKey] || 0;
           totalReq += req;
-          const onSite = shifts.filter((s: any) => s.projectCode === p.code).length;
-          const actives = shifts.filter((s: any) => s.projectCode === p.code && s.status === 'Activo').length;
-          const doubles = shifts.filter((s: any) => s.projectCode === p.code && s.status === 'Doble').length;
+          
+          // Filtrar registros específicos de este proyecto
+          const projectShifts = shifts.filter((s: any) => s.projectCode === p.code);
+          const onSite = projectShifts.length;
+          const actives = projectShifts.filter((s: any) => s.status === 'Activo').length;
+          const doubles = projectShifts.filter((s: any) => s.status === 'Doble').length;
           
           activeCount += actives;
           doubleCount += doubles;
 
+          // Detectar déficit de cobertura
           if (onSite < req) {
             newDeficits.push({ name: p.name, required: req, onSite });
           }
 
+          // Data para el gráfico de barras de cobertura
           if (req > 0) {
             coverageData.push({
               name: p.code,
@@ -95,6 +104,7 @@ export function OperationalDashboard() {
         const missing = Math.max(0, totalReq - totalInSite);
         const coverage = totalReq > 0 ? Math.round((totalInSite / totalReq) * 100) : 0;
 
+        // Sincronización global de métricas
         setStats({
           required: totalReq,
           active: activeCount,
@@ -113,10 +123,18 @@ export function OperationalDashboard() {
   }, []);
 
   const forceData = [
-    { name: 'Activos', value: stats.active, color: '#3b82f6' },
-    { name: 'Dobles', value: stats.double, color: '#ef4444' },
-    { name: 'Faltantes', value: stats.missing, color: '#f97316' },
+    { name: 'Activos', value: stats.active, fill: 'hsl(var(--primary))' },
+    { name: 'Dobles', value: stats.double, fill: 'hsl(var(--destructive))' },
+    { name: 'Faltantes', value: stats.missing, fill: 'hsl(24 95% 53%)' }, // Orange-500 HSL approx
   ];
+
+  const chartConfig = {
+    active: { label: "Activos", color: "hsl(var(--primary))" },
+    double: { label: "Dobles", color: "hsl(var(--destructive))" },
+    missing: { label: "Faltantes", color: "hsl(24 95% 53%)" },
+    required: { label: "Requerido", color: "hsl(var(--muted-foreground))" },
+    onSite: { label: "En Puesto", color: "hsl(var(--primary))" }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
@@ -151,14 +169,14 @@ export function OperationalDashboard() {
         </div>
       </div>
 
-      {/* Grid de Métricas */}
+      {/* Grid de Métricas con Sincronización Directa */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="bg-[#1a1b2e] border-white/5 shadow-2xl overflow-hidden relative group">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Requeridos</p>
-                <h4 className="text-4xl font-black text-white">{stats.required}</h4>
+                <h4 className="text-4xl font-black text-white tabular-nums tracking-tighter">{stats.required}</h4>
               </div>
               <Users className="h-5 w-5 text-blue-500" />
             </div>
@@ -171,7 +189,7 @@ export function OperationalDashboard() {
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">En Puesto</p>
-                <h4 className="text-4xl font-black text-white">{stats.active}</h4>
+                <h4 className="text-4xl font-black text-white tabular-nums tracking-tighter">{stats.active}</h4>
               </div>
               <User className="h-5 w-5 text-sky-400" />
             </div>
@@ -184,7 +202,7 @@ export function OperationalDashboard() {
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">En Doble</p>
-                <h4 className="text-4xl font-black text-red-500">{stats.double}</h4>
+                <h4 className="text-4xl font-black text-red-500 tabular-nums tracking-tighter">{stats.double}</h4>
               </div>
               <Copy className="h-5 w-5 text-red-500" />
             </div>
@@ -197,7 +215,7 @@ export function OperationalDashboard() {
             <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Faltantes</p>
-                <h4 className="text-4xl font-black text-orange-500">{stats.missing}</h4>
+                <h4 className="text-4xl font-black text-orange-500 tabular-nums tracking-tighter">{stats.missing}</h4>
               </div>
               <UserMinus className="h-5 w-5 text-orange-500" />
             </div>
@@ -210,7 +228,7 @@ export function OperationalDashboard() {
             <div className="space-y-1 w-full">
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Cobertura</p>
               <div className="flex items-center justify-between">
-                <h4 className="text-4xl font-black text-green-500">{stats.coverage}%</h4>
+                <h4 className="text-4xl font-black text-green-500 tabular-nums tracking-tighter">{stats.coverage}%</h4>
                 <TrendingUp className="h-5 w-5 text-green-500" />
               </div>
               <Progress value={stats.coverage} className="h-2 mt-4 bg-green-500/10" />
@@ -219,8 +237,8 @@ export function OperationalDashboard() {
         </Card>
       </div>
 
-      {/* Protocolo de Alerta de Cobertura */}
-      <Card className={`bg-[#1a1b2e] border-white/5 border-l-[6px] ${stats.missing > 0 ? 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)]' : 'border-l-green-500 shadow-[0_0_30px_rgba(34,197,94,0.1)]'} shadow-2xl transition-all`}>
+      {/* Protocolo de Alerta de Cobertura Sincronizado */}
+      <Card className={`bg-[#1a1b2e] border-white/5 border-l-[6px] ${stats.missing > 0 ? 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)]' : 'border-l-green-500 shadow-[0_0_30px_rgba(34,197,94,0.1)]'} shadow-2xl transition-all duration-500`}>
         <CardContent className="p-8">
           <div className="flex flex-col gap-8">
             <div className="flex items-center gap-6">
@@ -262,7 +280,7 @@ export function OperationalDashboard() {
         </CardContent>
       </Card>
 
-      {/* Paneles Centrales */}
+      {/* Paneles Centrales de Análisis en Tiempo Real */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <Card className="lg:col-span-4 bg-[#1a1b2e] border-white/5 h-[400px] shadow-2xl">
           <CardContent className="p-8">
@@ -271,12 +289,7 @@ export function OperationalDashboard() {
               <h3 className="text-base font-black text-white uppercase tracking-tight">Estado de Fuerza</h3>
             </div>
             <div className="flex flex-col items-center justify-center h-[280px] text-center bg-white/[0.02] rounded-2xl p-4">
-              <ChartContainer config={{
-                value: { label: "Elementos" },
-                Activos: { label: "Activos", color: "#3b82f6" },
-                Dobles: { label: "Dobles", color: "#ef4444" },
-                Faltantes: { label: "Faltantes", color: "#f97316" }
-              }}>
+              <ChartContainer config={chartConfig}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -289,7 +302,7 @@ export function OperationalDashboard() {
                       dataKey="value"
                     >
                       {forceData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Pie>
                     <ChartTooltip content={<ChartTooltipContent hideLabel />} />
@@ -300,7 +313,7 @@ export function OperationalDashboard() {
                 {forceData.map((item) => (
                   <div key={item.name} className="flex flex-col items-center gap-1">
                     <div className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.fill }} />
                       <span className="text-[8px] font-black uppercase text-muted-foreground">{item.name}</span>
                     </div>
                     <span className="text-sm font-black text-white">{item.value}</span>
@@ -320,10 +333,7 @@ export function OperationalDashboard() {
             
             <div className="h-[280px] w-full mt-4">
               {projectCoverageData.length > 0 ? (
-                <ChartContainer config={{
-                  required: { label: "Requerido", color: "#3b4252" },
-                  onSite: { label: "En Puesto", color: "#3b82f6" }
-                }}>
+                <ChartContainer config={chartConfig}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={projectCoverageData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#ffffff05" />
@@ -339,8 +349,8 @@ export function OperationalDashboard() {
                         tick={{ fill: '#94a3b8', fontSize: 10 }}
                       />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="required" fill="#3b4252" radius={[4, 4, 0, 0]} barSize={30} />
-                      <Bar dataKey="onSite" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
+                      <Bar dataKey="required" fill="var(--color-required)" radius={[4, 4, 0, 0]} barSize={30} />
+                      <Bar dataKey="onSite" fill="var(--color-onSite)" radius={[4, 4, 0, 0]} barSize={30} />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>
