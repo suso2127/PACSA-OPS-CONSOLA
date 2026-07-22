@@ -90,7 +90,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   const [dateFilter, setDateFilter] = useState<string>('');
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   
-  // Estados para el Formulario de Seguridad de Eliminación
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   
@@ -132,6 +131,32 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
     return () => unsubscribe();
   }, []);
+
+  // Motor de Cierre Automático por Cumplimiento de Horas
+  useEffect(() => {
+    if (loading || shifts.length === 0) return;
+
+    const checkShifts = () => {
+      const now = new Date();
+      shifts.forEach(shift => {
+        if (shift.status === 'Activo' || shift.status === 'Doble') {
+          const entryDate = shift.entryTime?.toDate ? shift.entryTime.toDate() : (shift.entryTime ? new Date(shift.entryTime) : null);
+          if (!entryDate) return;
+
+          const durationHrs = parseInt(shift.duration) || 0;
+          const diffMs = now.getTime() - entryDate.getTime();
+          const diffHrs = diffMs / (1000 * 60 * 60);
+
+          if (diffHrs >= durationHrs) {
+            handleUpdateStatus(shift.id, shift.guardName, 'Completo');
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(checkShifts, 30000); // Verificar cada 30 segundos
+    return () => clearInterval(interval);
+  }, [shifts, loading]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (!tableContainerRef.current || !scrollTrackerRef.current) return;
@@ -377,7 +402,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   return (
     <div className="space-y-1">
-      {/* Indicador de Desplazamiento */}
       <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
         <div className="flex items-center gap-3 w-full max-w-[600px]">
           <ChevronLeft className="h-3 w-3 text-primary/30" />
@@ -393,7 +417,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       </div>
 
       <div className="bg-[#12121c] border border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-500">
-        {/* Barra de Herramientas Táctica */}
         <div className="px-5 py-3 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-primary/10 rounded-lg border border-primary/20">
@@ -653,7 +676,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
         </div>
       </div>
 
-      {/* Formulario de Seguridad de Eliminación (Dialog) */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="bg-[#1a1b2e] border border-red-500/20 text-white max-w-sm rounded-3xl p-8 shadow-2xl">
           <DialogHeader className="space-y-3">
