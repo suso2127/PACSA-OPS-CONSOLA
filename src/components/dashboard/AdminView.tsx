@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState } from 'react';
@@ -72,13 +73,12 @@ export function AdminView() {
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
     { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
-    { id: 'proyectos', label: 'Proyecto', icon: Building2 },
     { id: 'config', label: 'Configuración', icon: Settings },
   ] as const;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Barra de Comandos Táctica - Agrupada y con fuente de 14px */}
+      {/* Barra de Comandos Táctica - Agrupada y con fuente de 12px */}
       <div className="bg-card/40 backdrop-blur-md border border-border p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
@@ -89,7 +89,7 @@ export function AdminView() {
             }}
             style={{ fontFamily: 'Arial, sans-serif' }}
             className={cn(
-              "flex items-center justify-center gap-2 px-6 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[14px] flex-1 min-w-fit",
+              "flex items-center justify-center gap-2 px-6 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[12px] flex-1 min-w-fit",
               activeTab === item.id 
                 ? "bg-primary text-primary-foreground shadow-[0_0_25px_rgba(59,130,246,0.4)] scale-[1.02]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
@@ -267,8 +267,6 @@ export function AdminView() {
         )}
 
         {activeTab === 'planilla' && <PayrollView />}
-
-        {activeTab === 'proyectos' && <ProjectManagement />}
 
         {activeTab === 'historial' && (
           <HistoryView />
