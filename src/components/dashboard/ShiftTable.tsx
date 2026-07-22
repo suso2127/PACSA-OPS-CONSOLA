@@ -197,17 +197,17 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   };
 
   const handleDeleteAll = async () => {
-    const password = prompt("INGRESE CLAVE DE AUTORIZACIÓN (GP):");
+    const password = prompt("INGRESE CLAVE DE AUTORIZACIÓN PARA ELIMINAR TODO:");
     if (password !== 'GP') {
       toast({
         variant: "destructive",
         title: "ACCESO DENEGADO",
-        description: "Clave de seguridad incorrecta."
+        description: "La clave de seguridad es incorrecta."
       });
       return;
     }
 
-    if (!confirm("¿ESTÁ SEGURO? Esta acción eliminará permanentemente TODOS los registros de la base de datos.")) {
+    if (!confirm("ADVERTENCIA: ¿Está seguro de que desea eliminar todos los registros permanentemente?")) {
       return;
     }
 
@@ -219,14 +219,14 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       await Promise.all(deletePromises);
       
       toast({
-        title: "SISTEMA DEPURADO",
+        title: "BASE DE DATOS DEPURADA",
         description: "Se han eliminado todos los registros exitosamente."
       });
     } catch (error) {
       toast({
         variant: "destructive",
         title: "ERROR",
-        description: "No se pudo completar la purga de datos."
+        description: "No se pudo completar la eliminación masiva."
       });
     } finally {
       setLoading(false);
@@ -292,7 +292,10 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     let base = shifts.filter(s => !hiddenIds.has(s.id));
     
     if (statusFilter !== 'all') {
-      base = base.filter(shift => (shift.status || 'Activo') === statusFilter);
+      base = base.filter(shift => {
+        const currentStatus = shift.status || 'Activo';
+        return currentStatus === statusFilter;
+      });
     }
 
     if (dateFilter) {
@@ -358,16 +361,6 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     'URGENCIA', 'ABANDONO', 'ENFERMEDAD', 'CAMBIO DE TURNO'
   ];
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 w-full bg-[#1a1b2e] animate-pulse rounded-xl border border-white/5" />
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-1">
       <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
@@ -419,7 +412,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
             <Button 
               onClick={handleClearMonitor}
-              className="h-7 bg-destructive/5 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
+              className="h-7 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
             >
               <Trash2 className="h-3 w-3 mr-1.5" />
               LIMPIAR MESA
