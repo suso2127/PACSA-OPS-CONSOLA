@@ -1,7 +1,6 @@
-
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart3,
   ChevronLeft, 
@@ -11,7 +10,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Zap
+  Zap,
+  CalendarDays,
+  Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,18 +21,32 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, Legend } from "recharts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const chartData = [
-  { name: 'Lun', total: 12, completados: 10, dobles: 2 },
-  { name: 'Mar', total: 15, completados: 14, dobles: 1 },
-  { name: 'Mie', total: 10, completados: 8, dobles: 3 },
-  { name: 'Jue', total: 18, completados: 17, dobles: 2 },
-  { name: 'Vie', total: 14, completados: 14, dobles: 4 },
-  { name: 'Sab', total: 20, completados: 19, dobles: 5 },
-  { name: 'Dom', total: 15, completados: 12, dobles: 2 },
+  { name: 'Sem 1', total: 60, completados: 55, dobles: 5 },
+  { name: 'Sem 2', total: 75, completados: 70, dobles: 8 },
+  { name: 'Sem 3', total: 50, completados: 45, dobles: 12 },
+  { name: 'Sem 4', total: 90, completados: 85, dobles: 10 },
 ];
 
+const MONTHS = [
+  'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 
+  'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+];
+
+const YEARS = ['2024', '2025', '2026'];
+
 export function StatisticsView() {
+  const [selectedMonth, setSelectedMonth] = useState('ABRIL');
+  const [selectedYear, setSelectedYear] = useState('2026');
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       {/* Cabecera Principal */}
@@ -67,8 +82,8 @@ export function StatisticsView() {
             <Clock className="h-6 w-6 text-orange-500" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Horas Totales Sem.</p>
-            <h4 className="text-2xl font-black text-white">1,240h</h4>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Horas Totales Mes</p>
+            <h4 className="text-2xl font-black text-white">5,120h</h4>
           </div>
         </div>
 
@@ -78,33 +93,68 @@ export function StatisticsView() {
           </div>
           <div>
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Alertas de Ausencia</p>
-            <h4 className="text-2xl font-black text-white">3</h4>
+            <h4 className="text-2xl font-black text-white">12</h4>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8">
-        {/* Bloque de Análisis Semanal */}
+        {/* Bloque de Análisis Mensual */}
         <section className="space-y-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <TrendingUp className="h-5 w-5 text-primary" />
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <TrendingUp className="h-5 w-5 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight uppercase">Análisis Comparativo Mensual</h2>
             </div>
-            <h2 className="text-xl font-bold tracking-tight uppercase">Cumplimiento Semanal</h2>
+            
+            {/* Filtros de Mes y Año */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-[#1a1b2e] px-3 py-0 rounded-xl h-11 border border-white/5">
+                <CalendarDays className="h-4 w-4 text-primary" />
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 h-full p-0 w-[100px]">
+                    <SelectValue placeholder="MES" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                    {MONTHS.map(month => (
+                      <SelectItem key={month} value={month} className="text-[10px] font-black uppercase">{month}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-[#1a1b2e] px-3 py-0 rounded-xl h-11 border border-white/5">
+                <Filter className="h-4 w-4 text-primary" />
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white focus:ring-0 h-full p-0 w-[70px]">
+                    <SelectValue placeholder="AÑO" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                    {YEARS.map(year => (
+                      <SelectItem key={year} value={year} className="text-[10px] font-black uppercase">{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
           
           <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 shadow-2xl">
             <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
               <div className="space-y-1">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Planilla vs Realidad</p>
-                <h3 className="text-2xl font-black">Registros de Turnos</h3>
+                <h3 className="text-2xl font-black uppercase">Registros de Turnos — {selectedMonth} {selectedYear}</h3>
               </div>
               
               <div className="flex items-center bg-[#25273c] rounded-xl border border-white/5 p-1.5">
                 <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="px-6 text-xs font-black font-mono text-primary">20 ABRIL — 26 ABRIL 2026</span>
+                <span className="px-6 text-[11px] font-black font-mono text-primary uppercase tracking-widest">
+                  PANEL OPERATIVO {selectedMONTH}
+                </span>
                 <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-white/5">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
