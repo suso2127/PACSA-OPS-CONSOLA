@@ -16,6 +16,7 @@ import { EmergencyNumbersView } from './EmergencyNumbersView';
 import { EquipmentRegistrationForm } from './EquipmentRegistrationForm';
 import { EquipmentTable } from './EquipmentTable';
 import { NovedadesView } from './NovedadesView';
+import { ERPPlanningView } from './ERPPlanningView';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -34,12 +35,13 @@ import {
   ShieldCheck,
   AlertCircle,
   PhoneCall,
-  FileText
+  FileText,
+  Database
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-type AdminTab = 'dashboard' | 'registro' | 'estado' | 'novedades' | 'dobles' | 'estadistica' | 'mapa' | 'historial' | 'planilla';
+type AdminTab = 'dashboard' | 'registro' | 'estado' | 'planificacion' | 'novedades' | 'dobles' | 'estadistica' | 'mapa' | 'historial' | 'planilla';
 type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config';
 
 export function AdminView() {
@@ -70,6 +72,7 @@ export function AdminView() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Operaciones', icon: ListTodo },
+    { id: 'planificacion', label: 'Planificación', icon: Database },
     { id: 'novedades', label: 'Novedades', icon: FileText },
     { id: 'dobles', label: 'Dobles', icon: Copy },
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
@@ -97,7 +100,7 @@ export function AdminView() {
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
             )}
           >
-            <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : "text-primary")} />
+            <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : (item.id === 'planificacion' ? "text-indigo-400" : "text-primary"))} />
             <span className="uppercase tracking-widest">{item.label}</span>
           </button>
         ))}
@@ -257,6 +260,10 @@ export function AdminView() {
           <div className="w-full">
             <ShiftTable showObservations={true} />
           </div>
+        )}
+
+        {activeTab === 'planificacion' && (
+          <ERPPlanningView />
         )}
 
         {activeTab === 'novedades' && (
