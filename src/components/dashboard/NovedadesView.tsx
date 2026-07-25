@@ -14,7 +14,9 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
-  ShieldAlert
+  ShieldAlert,
+  BarChart3,
+  List
 } from 'lucide-react';
 import { collection, onSnapshot, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -24,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { NuevaNovedadForm } from './NuevaNovedadForm';
 import { NovedadDetalle } from './NovedadDetalle';
+import { NovedadHeatmap } from './NovedadHeatmap';
 import {
   Table,
   TableBody,
@@ -32,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from '@/lib/utils';
 
 export interface Novedad {
   id: string;
@@ -66,6 +70,7 @@ export function NovedadesView() {
   const [showForm, setShowForm] = useState(false);
   const [selectedNovedad, setSelectedNovedad] = useState<Novedad | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'lista' | 'analisis'>('lista');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -140,112 +145,144 @@ export function NovedadesView() {
             Módulo de Registro de Incidentes y Reportes Operativos
           </p>
         </div>
-        <Button 
-          onClick={() => setShowForm(true)}
-          className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest text-xs rounded-xl shadow-lg"
-        >
-          <Plus className="h-4 w-4 mr-2" /> NUEVA NOVEDAD
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Tabs Tácticas */}
+          <div className="bg-[#1a1b2e] p-1 rounded-xl border border-white/5 flex items-center mr-2">
+            <button
+              onClick={() => setActiveTab('lista')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                activeTab === 'lista' ? "bg-primary text-primary-foreground shadow-lg" : "text-muted-foreground hover:text-white"
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              Listado
+            </button>
+            <button
+              onClick={() => setActiveTab('analisis')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                activeTab === 'analisis' ? "bg-accent text-accent-foreground shadow-lg" : "text-muted-foreground hover:text-white"
+              )}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Análisis
+            </button>
+          </div>
+
+          <Button 
+            onClick={() => setShowForm(true)}
+            className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest text-xs rounded-xl shadow-lg"
+          >
+            <Plus className="h-4 w-4 mr-2" /> NUEVA NOVEDAD
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-        <div className="md:col-span-8 relative">
-          <Input 
-            placeholder="BUSCAR POR PROYECTO, N° O REFERENCIA..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="h-14 bg-[#1a1b2e] border-white/5 pl-12 rounded-2xl text-[11px] font-black uppercase tracking-wider text-white"
-          />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-        </div>
-        <div className="md:col-span-4 flex items-center gap-2">
-          <Button variant="outline" className="h-14 flex-1 bg-[#1a1b2e] border-white/5 text-[9px] font-black uppercase tracking-widest rounded-2xl">
-            <Filter className="h-4 w-4 mr-2" /> Filtros Avanzados
-          </Button>
-          <Button variant="outline" size="icon" className="h-14 w-14 bg-[#1a1b2e] border-white/5 rounded-2xl">
-            <RefreshCw className="h-4 w-4 text-primary" />
-          </Button>
-        </div>
-      </div>
+      {activeTab === 'lista' ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <div className="md:col-span-8 relative">
+              <Input 
+                placeholder="BUSCAR POR PROYECTO, N° O REFERENCIA..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-14 bg-[#1a1b2e] border-white/5 pl-12 rounded-2xl text-[11px] font-black uppercase tracking-wider text-white"
+              />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="md:col-span-4 flex items-center gap-2">
+              <Button variant="outline" className="h-14 flex-1 bg-[#1a1b2e] border-white/5 text-[9px] font-black uppercase tracking-widest rounded-2xl">
+                <Filter className="h-4 w-4 mr-2" /> Filtros Avanzados
+              </Button>
+              <Button variant="outline" size="icon" className="h-14 w-14 bg-[#1a1b2e] border-white/5 rounded-2xl">
+                <RefreshCw className="h-4 w-4 text-primary" />
+              </Button>
+            </div>
+          </div>
 
-      <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
-        <Table>
-          <TableHeader className="bg-white/[0.01]">
-            <TableRow className="border-b border-white/5 hover:bg-transparent">
-              <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 pl-6">N° Novedad</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest h-14">Proyecto</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest h-14">Referencia</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 text-center">Severidad</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 text-center">Estado</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 text-right pr-6">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-20 opacity-50">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                  Sincronizando Base de Datos...
-                </TableCell>
-              </TableRow>
-            ) : filtered.length > 0 ? (
-              filtered.map((n) => (
-                <TableRow key={n.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                  <TableCell className="pl-6 font-mono text-xs font-black text-primary">{n.numeroNovedad}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-black text-white uppercase">{n.proyectoNombre}</span>
-                      <span className="text-[8px] text-muted-foreground uppercase font-black tracking-widest">{n.lugar}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold text-white uppercase">{n.referencia}</span>
-                      <span className="text-[8px] text-muted-foreground uppercase">{n.tipoIncidente}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge className={cn("text-[9px] font-black uppercase tracking-widest px-2", getSeverityStyle(n.severidad))}>
-                      {n.severidad}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline" className={cn("text-[9px] font-black uppercase tracking-widest px-2", getStatusStyle(n.estado))}>
-                      {n.estado}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right pr-6">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => setSelectedNovedad(n)}
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleDelete(n.id)}
-                        className="h-8 w-8 text-muted-foreground hover:text-red-500"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
+            <Table>
+              <TableHeader className="bg-white/[0.01]">
+                <TableRow className="border-b border-white/5 hover:bg-transparent">
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 pl-6">N° Novedad</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest h-14">Proyecto</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest h-14">Referencia</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 text-center">Severidad</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 text-center">Estado</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest h-14 text-right pr-6">Acciones</TableHead>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-32 text-muted-foreground italic font-black uppercase tracking-[0.3em] opacity-20">
-                  Sin reportes de novedad en este periodo
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-20 opacity-50">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                      Sincronizando Base de Datos...
+                    </TableCell>
+                  </TableRow>
+                ) : filtered.length > 0 ? (
+                  filtered.map((n) => (
+                    <TableRow key={n.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                      <TableCell className="pl-6 font-mono text-xs font-black text-primary">{n.numeroNovedad}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black text-white uppercase">{n.proyectoNombre}</span>
+                          <span className="text-[8px] text-muted-foreground uppercase font-black tracking-widest">{n.lugar}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-white uppercase">{n.referencia}</span>
+                          <span className="text-[8px] text-muted-foreground uppercase">{n.tipoIncidente}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={cn("text-[9px] font-black uppercase tracking-widest px-2", getSeverityStyle(n.severidad))}>
+                          {n.severidad}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className={cn("text-[9px] font-black uppercase tracking-widest px-2", getStatusStyle(n.estado))}>
+                          {n.estado}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right pr-6">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => setSelectedNovedad(n)}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          >
+                            <ChevronRight className="h-5 w-5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDelete(n.id)}
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-32 text-muted-foreground italic font-black uppercase tracking-[0.3em] opacity-20">
+                      Sin reportes de novedad en este periodo
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      ) : (
+        <NovedadHeatmap novedades={novedades} />
+      )}
     </div>
   );
 }
