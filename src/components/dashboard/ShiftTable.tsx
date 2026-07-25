@@ -140,6 +140,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       const now = new Date();
       shifts.forEach(shift => {
         if (shift.status === 'Activo' || shift.status === 'Doble') {
+          // Si ya tiene exitTime, no procesar cierre automático
+          if (shift.exitTime) return;
+
           const entryDate = shift.entryTime?.toDate ? shift.entryTime.toDate() : (shift.entryTime ? new Date(shift.entryTime) : null);
           if (!entryDate) return;
 
@@ -283,9 +286,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   };
 
   const calculateWorkedHours = (shift: Shift) => {
-    if (!shift.entryTime) return '--:--';
+    if (!shift.entryTime) return '0.00';
     const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
+    // Priorizamos shift.exitTime para el cálculo final, de lo contrario usamos la hora actual
     const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
+    
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return '0.00';
     const diffMs = end.getTime() - start.getTime();
     if (diffMs < 0) return '0.00';
@@ -295,7 +300,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   const handleClearMonitor = () => {
     const idsToHide = shifts
-      .filter(s => s.status === 'Finalizado' || s.status === 'Completo')
+      .filter(s => s.status === 'Finalizado' || s.status === 'Completo' || s.exitTime)
       .map(s => s.id);
     
     if (idsToHide.length === 0) {
@@ -353,16 +358,12 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     return base;
   }, [shifts, statusFilter, hiddenIds, dateFilter]);
 
-  const calculateExitTime = (entryTime: any, duration: string) => {
-    if (!entryTime) return '--:--';
-    const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
-    if (isNaN(date.getTime())) return '--:--';
-    const hoursToAdd = parseInt(duration) || 8;
-    const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
-    return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  };
+  const getStatusBadgeStyles = (status: string, hasExitTime: boolean) => {
+    // Si tiene exitTime, visualmente siempre es un estado completado/finalizado
+    if (hasExitTime) {
+      return status === 'Doble' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+    }
 
-  const getStatusBadgeStyles = (status: string) => {
     switch (status) {
       case 'Activo':
         return 'bg-green-500/10 text-green-500 border-green-500/20';
@@ -503,7 +504,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                 <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Proyecto / Ubicación</TableHead>
                 <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
                 {!hideExitTime && (
-                  <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Término</TableHead>
+                  <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Salida Real</TableHead>
                 )}
                 <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Jornada</TableHead>
                 {showObservations && (
@@ -522,7 +523,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     key={shift.id} 
                     className={`border-b border-white/5 transition-all duration-300 ${
                       index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.02] border-l-2 border-l-primary' : ''
-                    } ${shift.status === 'Finalizado' || shift.status === 'Completo' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
+                    } ${shift.status === 'Finalizado' || shift.status === 'Completo' || shift.exitTime ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
                   >
                     <TableCell className="pl-5 py-2.5">
                       <div className="font-mono text-[10px] font-bold text-muted-foreground select-none">
@@ -532,8 +533,8 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     <TableCell className="py-2.5">
                       <div className="flex items-center gap-2.5">
                         <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
-                        <Badge className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
-                          {shift.status || 'Activo'}
+                        <Badge className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo', !!shift.exitTime)}`}>
+                          {shift.exitTime ? 'COMPLETADO' : (shift.status || 'Activo')}
                         </Badge>
                       </div>
                     </TableCell>
@@ -561,9 +562,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     </TableCell>
                     {!hideExitTime && (
                       <TableCell className="text-center py-2.5">
-                        <div className="flex items-center justify-center gap-1 text-accent font-mono text-[10px] font-black">
+                        <div className={`flex items-center justify-center gap-1 font-mono text-[10px] font-black ${shift.exitTime ? 'text-emerald-500' : 'text-accent opacity-40'}`}>
                           <LogOut className="h-2.5 w-2.5" />
-                          {calculateExitTime(shift.entryTime, shift.duration)}
+                          {shift.exitTime ? formatDisplayTime(shift.exitTime) : '--:--'}
                         </div>
                       </TableCell>
                     )}
@@ -625,7 +626,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                     {showObservations && (
                       <>
                         <TableCell className="text-center py-2.5">
-                          <div className="flex items-center justify-center gap-1 font-mono text-[10px] font-black text-primary">
+                          <div className={`flex items-center justify-center gap-1 font-mono text-[10px] font-black ${shift.exitTime ? 'text-emerald-500' : 'text-primary'}`}>
                             <Timer className="h-2.5 w-2.5" />
                             {calculateWorkedHours(shift)}H
                           </div>
