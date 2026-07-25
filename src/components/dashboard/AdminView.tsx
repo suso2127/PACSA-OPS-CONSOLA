@@ -83,8 +83,8 @@ export function AdminView() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Barra de Comandos Táctica - Fuente 12px */}
-      <div className="bg-card/40 backdrop-blur-md border border-border p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full shadow-2xl">
+      {/* Barra de Comandos Táctica - Fuente 12px - Ancho Optimizado */}
+      <div className="bg-card/40 backdrop-blur-md border border-border p-1 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar w-full shadow-2xl">
         {COMMAND_ITEMS.map((item) => (
           <button
             key={item.id}
@@ -94,14 +94,14 @@ export function AdminView() {
             }}
             style={{ fontFamily: 'Arial, sans-serif' }}
             className={cn(
-              "flex items-center justify-center gap-2 px-6 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[12px] flex-1 min-w-fit",
+              "flex items-center justify-center gap-2 px-3 py-4 rounded-xl transition-all duration-300 whitespace-nowrap font-black text-[11px] lg:text-[12px] flex-1 min-w-fit",
               activeTab === item.id 
                 ? "bg-primary text-primary-foreground shadow-[0_0_25px_rgba(59,130,246,0.4)] scale-[1.02]" 
                 : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
             )}
           >
             <item.icon className={cn("h-4 w-4", activeTab === item.id ? "text-primary-foreground" : (item.id === 'planificacion' ? "text-indigo-400" : "text-primary"))} />
-            <span className="uppercase tracking-widest">{item.label}</span>
+            <span className="uppercase tracking-tighter lg:tracking-widest">{item.label}</span>
           </button>
         ))}
       </div>
