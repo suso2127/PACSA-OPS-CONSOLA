@@ -1,0 +1,729 @@
+
+"use client"
+
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp, deleteDoc, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from '@/components/ui/badge';
+import { 
+  Clock, 
+  LogOut, 
+  RefreshCw,
+  Zap,
+  Filter,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Copy,
+  Timer,
+  RotateCcw,
+  Building2,
+  ChevronDown,
+  MapPin,
+  Calendar,
+  AlertTriangle,
+  Lock,
+  ShieldAlert
+} from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+
+interface Shift {
+  id: string;
+  guardName: string;
+  clientName: string;
+  projectName: string;
+  projectCode: string;
+  projectLocation?: string;
+  entryTime: any;
+  exitTime?: any;
+  shiftType: string;
+  duration: string;
+  observation?: string;
+  status: string;
+}
+
+interface ShiftTableProps {
+  showObservations?: boolean;
+  hideExitTime?: boolean;
+}
+
+export function ShiftTable({ showObservations = false, hideExitTime = false }: ShiftTableProps) {
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('');
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  
+  const { toast } = useToast();
+  
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTrackerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'shift-registrations'),
+      orderBy('entryTime', 'desc'),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedShifts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Shift[];
+      
+      const sortedShifts = [...fetchedShifts].sort((a, b) => {
+        const timeA = a.entryTime?.toDate ? a.entryTime.toDate().getTime() : (a.entryTime ? new Date(a.entryTime).getTime() : Infinity);
+        const timeB = b.entryTime?.toDate ? b.entryTime.toDate().getTime() : (b.entryTime ? new Date(b.entryTime).getTime() : Infinity);
+        
+        if (timeB === Infinity && timeA === Infinity) return 0;
+        if (timeB === Infinity) return 1;
+        if (timeA === Infinity) return -1;
+        
+        return timeB - timeA;
+      });
+
+      setShifts(sortedShifts);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error en tiempo real de turnos:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Motor de Cierre Automático por Cumplimiento de Horas
+  useEffect(() => {
+    if (loading || shifts.length === 0) return;
+
+    const checkShifts = () => {
+      const now = new Date();
+      shifts.forEach(shift => {
+        if (shift.status === 'Activo' || shift.status === 'Doble') {
+          const entryDate = shift.entryTime?.toDate ? shift.entryTime.toDate() : (shift.entryTime ? new Date(shift.entryTime) : null);
+          if (!entryDate) return;
+
+          const durationHrs = parseInt(shift.duration) || 0;
+          const diffMs = now.getTime() - entryDate.getTime();
+          const diffHrs = diffMs / (1000 * 60 * 60);
+
+          if (diffHrs >= durationHrs) {
+            handleUpdateStatus(shift.id, shift.guardName, 'Completo');
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(checkShifts, 30000); // Verificar cada 30 segundos
+    return () => clearInterval(interval);
+  }, [shifts, loading]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!tableContainerRef.current || !scrollTrackerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
+    const scrollPercentage = (scrollLeft / (scrollWidth - clientWidth)) * 100;
+    
+    if (scrollTrackerRef.current) {
+      scrollTrackerRef.current.style.transform = `translateX(${scrollPercentage}%)`;
+    }
+  };
+
+  const handleUpdateStatus = (id: string, name: string, status: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    const updateData: any = { status };
+    
+    if (status === 'Finalizado' || status === 'Completo') {
+      updateData.exitTime = serverTimestamp();
+    } else {
+      updateData.exitTime = null;
+    }
+
+    updateDoc(shiftRef, updateData).catch((err) => {
+      toast({
+        variant: "destructive",
+        title: "ERROR DE SINCRONIZACIÓN",
+        description: `No se pudo actualizar el estado de ${name}.`
+      });
+    });
+
+    toast({
+      title: "OPERACIÓN REGISTRADA",
+      description: `El elemento ${name} ha sido actualizado a: ${status.toUpperCase()}.`
+    });
+  };
+
+  const handleUpdateDuration = (id: string, name: string, duration: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    const updateData: any = { duration };
+    
+    if (duration === '24h') {
+      updateData.status = 'Doble';
+    } else {
+      const currentShift = shifts.find(s => s.id === id);
+      if (currentShift?.status === 'Doble') {
+        updateData.status = 'Activo';
+      }
+    }
+
+    updateDoc(shiftRef, updateData).catch((err) => {
+      toast({
+        variant: "destructive",
+        title: "ERROR DE SINCRONIZACIÓN",
+        description: `No se pudo actualizar la jornada de ${name}.`
+      });
+    });
+
+    toast({
+      title: "JORNADA ACTUALIZADA",
+      description: `El elemento ${name} ahora tiene una jornada de ${duration}.`
+    });
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    deleteDoc(shiftRef)
+      .then(() => {
+        toast({
+          title: "REGISTRO ELIMINADO",
+          description: `El registro de ${name} ha sido removido del sistema.`
+        });
+      })
+      .catch((err) => {
+        toast({
+          variant: "destructive",
+          title: "ERROR AL ELIMINAR",
+          description: `No se pudo eliminar el registro de ${name}.`
+        });
+      });
+  };
+
+  const handleConfirmDeleteAll = async () => {
+    if (deletePassword !== 'GP') {
+      toast({
+        variant: "destructive",
+        title: "CLAVE INCORRECTA",
+        description: "El acceso a la purga de registros ha sido denegado."
+      });
+      return;
+    }
+
+    setLoading(true);
+    setIsDeleteDialogOpen(false);
+    setDeletePassword('');
+    
+    try {
+      const q = query(collection(db, 'shift-registrations'));
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+      
+      toast({
+        title: "BASE DE DATOS DEPURADA",
+        description: "Se han eliminado todos los registros operativos exitosamente."
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ERROR OPERATIVO",
+        description: "No se pudo completar la purga de datos."
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateObservation = (id: string, observation: string) => {
+    const shiftRef = doc(db, 'shift-registrations', id);
+    updateDoc(shiftRef, { observation });
+    
+    toast({
+      title: "OBSERVACIÓN ACTUALIZADA",
+      description: `Se registró: ${observation}`
+    });
+  };
+
+  const calculateWorkedHours = (shift: Shift) => {
+    if (!shift.entryTime) return '--:--';
+    const start = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
+    const end = shift.exitTime?.toDate ? shift.exitTime.toDate() : (shift.exitTime ? new Date(shift.exitTime) : new Date());
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '0.00';
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs < 0) return '0.00';
+    const diffHrs = diffMs / (1000 * 60 * 60);
+    return diffHrs.toFixed(2);
+  };
+
+  const handleClearMonitor = () => {
+    const idsToHide = shifts
+      .filter(s => s.status === 'Finalizado' || s.status === 'Completo')
+      .map(s => s.id);
+    
+    if (idsToHide.length === 0) {
+      toast({
+        title: "SIN REGISTROS PARA LIMPIAR",
+        description: "No hay elementos finalizados o completos visibles en el monitor."
+      });
+      return;
+    }
+
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      idsToHide.forEach(id => next.add(id));
+      return next;
+    });
+
+    toast({
+      title: "MONITOR DEPURADO",
+      description: `Se han ocultado ${idsToHide.length} registros del monitor operativo.`
+    });
+  };
+
+  const handleRestoreView = () => {
+    setHiddenIds(new Set());
+    setDateFilter('');
+    toast({
+      title: "VISTA RESTAURADA",
+      description: "Todos los registros son visibles nuevamente."
+    });
+  };
+
+  const filteredShifts = useMemo(() => {
+    let base = shifts.filter(s => !hiddenIds.has(s.id));
+    
+    if (statusFilter !== 'all') {
+      base = base.filter(shift => {
+        const currentStatus = shift.status || 'Activo';
+        return currentStatus === statusFilter;
+      });
+    }
+
+    if (dateFilter) {
+      base = base.filter(shift => {
+        if (!shift.entryTime) return false;
+        const date = shift.entryTime.toDate ? shift.entryTime.toDate() : new Date(shift.entryTime);
+        if (isNaN(date.getTime())) return false;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
+        return localDateStr === dateFilter;
+      });
+    }
+
+    return base;
+  }, [shifts, statusFilter, hiddenIds, dateFilter]);
+
+  const calculateExitTime = (entryTime: any, duration: string) => {
+    if (!entryTime) return '--:--';
+    const date = entryTime.toDate ? entryTime.toDate() : new Date(entryTime);
+    if (isNaN(date.getTime())) return '--:--';
+    const hoursToAdd = parseInt(duration) || 8;
+    const exitDate = new Date(date.getTime() + hoursToAdd * 60 * 60 * 1000);
+    return exitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const getStatusBadgeStyles = (status: string) => {
+    switch (status) {
+      case 'Activo':
+        return 'bg-green-500/10 text-green-500 border-green-500/20';
+      case 'Doble':
+        return 'bg-red-500/10 text-red-500 border-red-500/20';
+      case 'Completo':
+        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'Finalizado':
+        return 'bg-muted text-muted-foreground opacity-60 border-muted-foreground/20';
+      default:
+        return 'bg-primary/10 text-primary border-primary/20';
+    }
+  };
+
+  const formatDisplayTime = (ts: any) => {
+    if (!ts) return '--:--';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    if (isNaN(date.getTime())) return '--:--';
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const formatDisplayDate = (ts: any) => {
+    if (!ts) return '--/--/--';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    if (isNaN(date.getTime())) return '--/--/--';
+    return date.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const OBSERVATION_OPTIONS = [
+    'SE RETIRO', 'FINALIZADO', 'DOBLE', 'COMPLETADO', 'EMERGENCIA', 
+    'URGENCIA', 'ABANDONO', 'ENFERMEDAD', 'CAMBIO DE TURNO'
+  ];
+
+  return (
+    <div className="space-y-1">
+      <div className="w-full flex flex-col items-center px-4 space-y-0.5 mb-1">
+        <div className="flex items-center gap-3 w-full max-w-[600px]">
+          <ChevronLeft className="h-3 w-3 text-primary/30" />
+          <div className="h-1 w-full bg-[#25273c]/50 rounded-full overflow-hidden border border-white/5 relative">
+            <div 
+              ref={scrollTrackerRef}
+              className="absolute top-0 left-0 h-full w-[15%] bg-primary rounded-full shadow-[0_0_10px_rgba(59,130,246,0.4)] transition-transform duration-75 ease-out"
+              style={{ transform: 'translateX(0%)' }}
+            />
+          </div>
+          <ChevronRight className="h-3 w-3 text-primary/30" />
+        </div>
+      </div>
+
+      <div className="bg-[#12121c] border border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in duration-500">
+        <div className="px-5 py-3 bg-[#1a1b2e]/60 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-primary/10 rounded-lg border border-primary/20">
+              <Clock className="h-4 w-4 text-primary" />
+            </div>
+            <h3 className="text-sm font-black text-white uppercase tracking-tight leading-none">
+              ESTADO DE TURNOS EN TIEMPO REAL
+            </h3>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            {hiddenIds.size > 0 && (
+              <Button 
+                variant="outline" 
+                onClick={handleRestoreView}
+                className="h-7 bg-secondary/20 border-white/10 text-[8px] font-black uppercase tracking-widest text-muted-foreground hover:text-white px-2"
+              >
+                <RefreshCw className="h-2.5 w-2.5 mr-1.5" />
+                Restaurar ({hiddenIds.size})
+              </Button>
+            )}
+
+            <div className="flex items-center gap-1.5 bg-[#0f101d] px-2 py-0 rounded-lg border border-white/5 h-7">
+              <Calendar className="h-3 w-3 text-primary" />
+              <input 
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0 outline-none w-[110px] h-full"
+              />
+            </div>
+
+            <Button 
+              onClick={handleClearMonitor}
+              className="h-7 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
+            >
+              <Trash2 className="h-3 w-3 mr-1.5" />
+              LIMPIAR MESA
+            </Button>
+
+            <Button 
+              onClick={() => setIsDeleteDialogOpen(true)}
+              className="h-7 bg-red-600 hover:bg-red-700 text-white border border-red-500/20 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all px-3"
+            >
+              <AlertTriangle className="h-3 w-3 mr-1.5" />
+              ELIMINAR TODO EL REGISTRO
+            </Button>
+
+            <div className="h-5 w-[1px] bg-white/10 mx-0.5" />
+
+            <div className="flex items-center gap-1.5 bg-[#0f101d] px-2 py-0 rounded-lg border border-white/5 h-7">
+              <Filter className="h-3 w-3 text-primary" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[120px] h-full bg-transparent border-none text-[9px] font-black uppercase tracking-widest text-white focus:ring-0 p-0">
+                  <SelectValue placeholder="FILTRO" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                  <SelectItem value="all" className="text-[9px] font-black uppercase tracking-widest">TODOS</SelectItem>
+                  <SelectItem value="Activo" className="text-[9px] font-black uppercase tracking-widest text-green-500">ACTIVOS</SelectItem>
+                  <SelectItem value="Doble" className="text-[9px] font-black uppercase tracking-widest text-red-500">DOBLES</SelectItem>
+                  <SelectItem value="Completo" className="text-[9px] font-black uppercase tracking-widest text-blue-500">COMPLETADOS</SelectItem>
+                  <SelectItem value="Finalizado" className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">FINALIZADOS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[8px] font-black tracking-widest px-2 py-1 rounded-lg">
+              <Zap className="h-2.5 w-2.5 mr-1 fill-primary" />
+              OPS: {filteredShifts.length}
+            </Badge>
+          </div>
+        </div>
+        
+        <div 
+          ref={tableContainerRef}
+          onScroll={handleScroll}
+          className="overflow-x-auto no-scrollbar"
+        >
+          <Table className="min-w-[1050px]">
+            <TableHeader className="bg-white/[0.01]">
+              <TableRow className="border-b border-white/5 hover:bg-transparent">
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 pl-5">Fecha</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10">Nombre Completo</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10">Cliente / Proyecto / Ubicación</TableHead>
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Entrada</TableHead>
+                {!hideExitTime && (
+                  <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Término</TableHead>
+                )}
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Jornada</TableHead>
+                {showObservations && (
+                  <>
+                    <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Horas</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-center">Observaciones</TableHead>
+                  </>
+                )}
+                <TableHead className="text-[11px] font-black uppercase tracking-tight text-muted-foreground h-10 text-right pr-5">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredShifts.length > 0 ? (
+                filteredShifts.map((shift, index) => (
+                  <TableRow 
+                    key={shift.id} 
+                    className={`border-b border-white/5 transition-all duration-300 ${
+                      index === 0 && statusFilter === 'all' && !hiddenIds.has(shift.id) ? 'bg-primary/[0.02] border-l-2 border-l-primary' : ''
+                    } ${shift.status === 'Finalizado' || shift.status === 'Completo' ? 'opacity-40' : 'hover:bg-white/[0.03]'}`}
+                  >
+                    <TableCell className="pl-5 py-2.5">
+                      <div className="font-mono text-[10px] font-bold text-muted-foreground select-none">
+                        {formatDisplayDate(shift.entryTime)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm font-black text-white uppercase tracking-tight">{shift.guardName}</span>
+                        <Badge className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0 rounded-full border ${getStatusBadgeStyles(shift.status || 'Activo')}`}>
+                          {shift.status || 'Activo'}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="h-2.5 w-2.5 text-primary/70" />
+                          <span className="text-[10px] font-black text-primary uppercase font-mono tracking-widest leading-none">{shift.projectCode}</span>
+                        </div>
+                        <span className="text-[10px] text-white font-bold uppercase tracking-tight mt-1 leading-none">
+                          {shift.projectName}
+                        </span>
+                        <div className="flex items-center gap-1 mt-1">
+                          <MapPin className="h-2.5 w-2.5 text-red-500/70" />
+                          <span className="text-[8px] text-muted-foreground uppercase font-black tracking-tighter leading-none">
+                            {shift.projectLocation || 'UBICACIÓN REGISTRADA'}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center py-2.5">
+                      <div className="font-mono text-[10px] font-black text-white bg-[#1a1b2e] px-1.5 py-0.5 rounded border border-white/5 select-none">
+                        {formatDisplayTime(shift.entryTime)}
+                      </div>
+                    </TableCell>
+                    {!hideExitTime && (
+                      <TableCell className="text-center py-2.5">
+                        <div className="flex items-center justify-center gap-1 text-accent font-mono text-[10px] font-black">
+                          <LogOut className="h-2.5 w-2.5" />
+                          {calculateExitTime(shift.entryTime, shift.duration)}
+                        </div>
+                      </TableCell>
+                    )}
+                    <TableCell className="text-center py-2.5">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="outline-none group">
+                            <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[8px] tracking-widest py-0 px-1.5 hover:bg-primary hover:text-primary-foreground cursor-pointer transition-colors flex items-center gap-1">
+                              {shift.duration || '12h'}
+                              <ChevronDown className="h-2 w-2 opacity-50 group-hover:opacity-100" />
+                            </Badge>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="bg-[#1a1b2e] border-white/10 text-white min-w-[160px]">
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="text-[9px] font-black uppercase tracking-widest text-white py-1.5 focus:bg-primary/20">
+                              <Timer className="h-3 w-3 mr-2" />
+                              Ajustar Horas (1h-24h)
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent className="bg-[#1a1b2e] border-white/10 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {Array.from({ length: 24 }, (_, i) => i + 1).map((h) => (
+                                  <DropdownMenuItem 
+                                    key={h}
+                                    onClick={() => handleUpdateDuration(shift.id, shift.guardName, `${h}h`)}
+                                    className="text-[9px] font-black uppercase tracking-widest text-white focus:bg-primary focus:text-primary-foreground py-1.5 cursor-pointer"
+                                  >
+                                    {h} Horas {h === 24 ? '(DOBLE)' : ''}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                          
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Completo')}
+                            className="text-[9px] font-black uppercase tracking-widest text-green-500 focus:text-green-400 focus:bg-white/5 py-1.5 cursor-pointer"
+                          >
+                            <CheckCircle2 className="h-3 w-3 mr-2" />
+                            Finalizar Turno (Completo)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Activo')}
+                            className="text-[9px] font-black uppercase tracking-widest text-primary focus:text-primary focus:bg-white/5 py-1.5 cursor-pointer"
+                          >
+                            <RotateCcw className="h-3 w-3 mr-2" />
+                            Restablecer Status
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Doble')}
+                            className="text-[9px] font-black uppercase tracking-widest text-red-500 focus:text-red-400 focus:bg-white/5 py-1.5 cursor-pointer"
+                          >
+                            <Copy className="h-3 w-3 mr-2" />
+                            Colocar Doble
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                    {showObservations && (
+                      <>
+                        <TableCell className="text-center py-2.5">
+                          <div className="flex items-center justify-center gap-1 font-mono text-[10px] font-black text-primary">
+                            <Timer className="h-2.5 w-2.5" />
+                            {calculateWorkedHours(shift)}H
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center py-2.5">
+                          <Select 
+                            value={shift.observation || ''} 
+                            onValueChange={(val) => handleUpdateObservation(shift.id, val)}
+                          >
+                            <SelectTrigger className="h-7 bg-[#1a1b2e] border-white/10 text-[9px] font-black uppercase w-full max-w-[130px] mx-auto focus:ring-0">
+                              <SelectValue placeholder="SIN OBS" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                              {OBSERVATION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt} value={opt} className="text-[9px] font-black uppercase tracking-tight">
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </>
+                    )}
+                    <TableCell className="text-right pr-5 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDelete(shift.id, shift.guardName)}
+                          className="h-8 w-8 text-muted-foreground hover:text-red-500 transition-colors"
+                          title="Eliminar Registro"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={showObservations ? 9 : 7} className="text-center py-16 text-muted-foreground italic font-medium">
+                    No se han detectado registros para los filtros seleccionados.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="bg-[#1a1b2e] border border-red-500/20 text-white max-w-sm rounded-3xl p-8 shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 border border-red-500/20">
+              <ShieldAlert className="h-8 w-8 text-red-500" />
+            </div>
+            <DialogTitle className="text-center text-xl font-black uppercase tracking-tighter">Acceso Restringido</DialogTitle>
+            <DialogDescription className="text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground leading-relaxed">
+              Está a punto de depurar permanentemente todos los registros del sistema operativo. Ingrese la clave de mando para proceder.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Clave de Seguridad</label>
+              <Input 
+                type="password"
+                placeholder="••••"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleConfirmDeleteAll()}
+                className="h-14 bg-black/40 border-white/5 rounded-xl text-center tracking-[0.5em] text-white text-lg focus:ring-1 focus:ring-red-500/50"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-col gap-2">
+            <Button 
+              onClick={handleConfirmDeleteAll}
+              className="w-full h-14 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-[0.3em] rounded-xl shadow-lg transition-all"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              DEPURAR REGISTROS
+            </Button>
+            <Button 
+              variant="ghost"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setDeletePassword('');
+              }}
+              className="w-full h-10 text-muted-foreground font-bold uppercase text-[9px] tracking-widest"
+            >
+              CANCELAR OPERACIÓN
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

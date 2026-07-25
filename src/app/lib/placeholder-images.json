@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "security-bg",
+      "description": "Professional security center background",
+      "imageUrl": "https://picsum.photos/seed/pacsa1/1920/1080",
+      "imageHint": "security operations"
+    },
+    {
+      "id": "logo-placeholder",
+      "description": "Security logo",
+      "imageUrl": "https://picsum.photos/seed/pacsa2/200/200",
+      "imageHint": "security badge"
+    },
+    {
+      "id": "grupsa-logo",
+      "description": "Logo Corporativo Grupsa Control",
+      "imageUrl": "https://picsum.photos/seed/grupsa/400/400",
+      "imageHint": "corporate logo"
+    }
+  ]
+}

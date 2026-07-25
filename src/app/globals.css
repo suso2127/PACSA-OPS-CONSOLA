@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 207 22% 15%;
+    --foreground: 0 0% 98%;
+    --card: 207 22% 18%;
+    --card-foreground: 0 0% 98%;
+    --popover: 207 22% 18%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 212 72% 65%;
+    --primary-foreground: 207 22% 10%;
+    --secondary: 207 22% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 207 22% 22%;
+    --muted-foreground: 207 10% 70%;
+    --accent: 188 83% 53%;
+    --accent-foreground: 207 22% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 207 22% 25%;
+    --input: 207 22% 25%;
+    --ring: 212 72% 65%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+.pin-button {
+  @apply h-16 w-16 text-xl font-bold flex items-center justify-center rounded-full border-2 border-primary/20 bg-secondary/50 hover:bg-primary/20 hover:border-primary transition-all duration-200;
+}
+
+.dashboard-card {
+  @apply bg-card border border-border rounded-xl shadow-lg p-6;
+}
