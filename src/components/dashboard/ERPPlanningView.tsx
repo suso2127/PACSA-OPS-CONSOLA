@@ -40,14 +40,14 @@ export function ERPPlanningView() {
 
   useEffect(() => {
     // Sincronización en tiempo real con Colección Planificación del ERP
-    // Se confirma que el nombre de la colección en el proyecto studio-672610643-a82f1 es 'planificacion'
+    // El nombre de la colección en el proyecto studio-672610643-a82f1 es 'planificacion'
     const qPlan = query(collection(erpDb, 'planificacion'), limit(50));
     const unsubPlan = onSnapshot(qPlan, (snap) => {
       setPlanning(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => console.error("Error ERP Plan:", err));
 
     // Sincronización en tiempo real con Colección Operaciones del ERP
-    // Se confirma que el nombre de la colección en el proyecto studio-672610643-a82f1 es 'operaciones'
+    // El nombre de la colección en el proyecto studio-672610643-a82f1 es 'operaciones'
     const qOps = query(collection(erpDb, 'operaciones'), limit(50));
     const unsubOps = onSnapshot(qOps, (snap) => {
       setOperations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
