@@ -8,15 +8,13 @@ import {
   ArrowLeft, 
   Printer, 
   FileText, 
-  Clock, 
+  Calendar, 
   MapPin, 
   User, 
-  Activity,
-  ShieldCheck,
-  AlertCircle
+  Clock,
+  Activity
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { Badge } from '@/components/ui/badge';
 
 interface NovedadDetalleProps {
@@ -26,180 +24,274 @@ interface NovedadDetalleProps {
 
 export function NovedadDetalle({ novedad, onBack }: NovedadDetalleProps) {
 
+  const formatDateLong = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr + 'T12:00:00');
+      const months = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+      ];
+      return `${d.getDate()} de ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   const handleExportPDF = () => {
     const doc = new jsPDF();
-    const dateStr = novedad.fecha;
+    const margin = 25;
+    let y = 25;
+
+    // 1. Logotipo y Encabezado Corporativo
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GRUPO PACSA S.A.', margin, y);
+    y += 8;
     
-    // Encabezado Corporativo
-    doc.setFillColor(26, 27, 46);
-    doc.rect(0, 0, 210, 40, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.text('GRUPO PACSA S.A.', 105, 20, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text('INFORME TÁCTICO DE NOVEDAD / INCIDENTE', 105, 30, { align: 'center' });
-
-    // Datos Operativos
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text('DIVISIÓN DE SEGURIDAD INTEGRAL Y OPERACIONES TÁCTICAS', margin, y);
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
+    y += 15;
+
+    // 2. Título del Reporte
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text(`N° NOVEDAD: ${novedad.numeroNovedad}`, 20, 50);
-    doc.text(`PROYECTO: ${novedad.proyectoNombre}`, 20, 56);
-    doc.text(`ENCARGADO: ${novedad.contactoProyecto}`, 20, 62);
-    doc.text(`FECHA: ${dateStr}`, 20, 68);
-    doc.text(`LUGAR: ${novedad.lugar}`, 130, 50);
-    doc.text(`UNIDAD: ${novedad.unidadTurnoNombre}`, 130, 56);
-    doc.text(`TURNO: ${novedad.horarioServicio}`, 130, 62);
-    doc.text(`REF: ${novedad.referencia}`, 20, 78);
+    const mainTitle = `REPORTE DE INCIDENTE – ${novedad.referencia}`;
+    const titleWidth = doc.getTextWidth(mainTitle);
+    doc.text(mainTitle, (210 - titleWidth) / 2, y);
+    y += 20;
 
-    doc.line(20, 82, 190, 82);
+    // 3. Bloque de Datos (Formato Oficio)
+    doc.setFontSize(11);
+    
+    const printLine = (label: string, value: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(label, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(value, margin + 45, y);
+      y += 8;
+    };
 
-    // Antecedentes
-    doc.setFontSize(12);
-    doc.text('ANTECEDENTES', 20, 92);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const splitAntecedentes = doc.splitTextToSize(novedad.antecedentes || 'Sin antecedentes registrados.', 170);
-    doc.text(splitAntecedentes, 20, 98);
+    printLine('Proyecto:', `${novedad.proyectoNombre} ${novedad.contactoProyecto ? '(' + novedad.contactoProyecto + ')' : ''}`);
+    printLine('Fecha:', formatDateLong(novedad.fecha));
+    printLine('Lugar:', novedad.lugar);
+    printLine('Unidad de Turno:', novedad.unidadTurnoNombre);
+    printLine('Horario de servicio:', novedad.horarioServicio);
+    printLine('Ref.:', novedad.referencia);
+    
+    y += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, 185, y);
+    y += 15;
 
-    // Descripción
-    const descY = 100 + (splitAntecedentes.length * 5);
+    // 4. Secciones Narrativas
+    const renderSection = (title: string, content: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(content || 'No se registraron datos.', 160);
+      doc.text(lines, margin, y, { align: 'justify' });
+      y += (lines.length * 6) + 12;
+      
+      // Control de salto de página simple
+      if (y > 250) {
+        doc.addPage();
+        y = 25;
+      }
+    };
+
+    renderSection('ANTECEDENTES', novedad.antecedentes);
+    renderSection('DESCRIPCIÓN DE LOS HECHOS', novedad.descripcionHechos);
+
+    // 5. Listas (Acciones y Recomendaciones)
+    const renderList = (title: string, items: string[]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      
+      if (items && items.length > 0 && items[0] !== '') {
+        items.forEach((item, idx) => {
+          const bullet = `${idx + 1}. `;
+          const lines = doc.splitTextToSize(item, 150);
+          doc.text(bullet, margin, y);
+          doc.text(lines, margin + 10, y);
+          y += (lines.length * 6) + 2;
+          
+          if (y > 260) {
+            doc.addPage();
+            y = 25;
+          }
+        });
+      } else {
+        doc.text('No se aplicaron acciones específicas.', margin, y);
+        y += 10;
+      }
+      y += 5;
+    };
+
+    renderList('ACCIONES TOMADAS', novedad.accionesTomadas);
+    renderList('RECOMENDACIONES', novedad.recomendaciones);
+
+    // 6. Anexos
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('DESCRIPCIÓN DE LOS HECHOS', 20, descY);
+    doc.text('ANEXOS', margin, y);
+    y += 8;
     doc.setFont('helvetica', 'normal');
+    doc.text('No aplica.', margin, y);
+    y += 35;
+
+    // 7. Firmas (Pie de página formal)
+    const footerY = y > 240 ? 25 : y;
+    if (y > 240) doc.addPage();
+    
+    const sigLineY = 260;
+    doc.setDrawColor(0);
+    doc.line(margin, sigLineY, margin + 65, sigLineY);
     doc.setFontSize(9);
-    const splitHechos = doc.splitTextToSize(novedad.descripcionHechos || 'Sin descripción detallada.', 170);
-    doc.text(splitHechos, 20, descY + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FIRMA RESPONSABLE', margin, sigLineY + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(novedad.unidadTurnoNombre, margin, sigLineY + 10);
 
-    // Acciones y Recomendaciones en Tablas
-    autoTable(doc, {
-      startY: descY + 12 + (splitHechos.length * 5),
-      head: [['#', 'ACCIONES TOMADAS']],
-      body: novedad.accionesTomadas.map((a, i) => [i + 1, a]),
-      theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246] },
-      styles: { fontSize: 8 }
-    });
-
-    autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 10,
-      head: [['#', 'RECOMENDACIONES OPERATIVAS']],
-      body: novedad.recomendaciones.map((r, i) => [i + 1, r]),
-      theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129] },
-      styles: { fontSize: 8 }
-    });
-
-    // Pie de firmas
-    const finalY = (doc as any).lastAutoTable.finalY + 30;
-    doc.line(20, finalY, 80, finalY);
-    doc.text('FIRMA RESPONSABLE', 35, finalY + 5);
-    doc.line(130, finalY, 190, finalY);
-    doc.text('FIRMA RECIBIDO CLIENTE', 145, finalY + 5);
+    doc.line(120, sigLineY, 185, sigLineY);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RECIBE CONFORME (CLIENTE)', 120, sigLineY + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Nombre y Cédula:', 120, sigLineY + 10);
 
     doc.save(`PACSA_NOVEDAD_${novedad.numeroNovedad}.pdf`);
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between border-b border-white/5 pb-6">
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20 print:p-0 print:bg-white print:text-black">
+      {/* Botonera - Oculta en impresión */}
+      <div className="flex items-center justify-between border-b border-white/5 pb-6 print:hidden">
         <Button variant="ghost" onClick={onBack} className="text-muted-foreground hover:text-white font-black uppercase text-[10px] tracking-widest">
           <ArrowLeft className="h-4 w-4 mr-2" /> Volver al Listado
         </Button>
-        <Button 
-          onClick={handleExportPDF}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl shadow-lg"
-        >
-          <Printer className="h-4 w-4 mr-2" /> Exportar PDF
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline"
+            onClick={() => window.print()}
+            className="border-white/10 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl"
+          >
+            <Printer className="h-4 w-4 mr-2" /> Imprimir
+          </Button>
+          <Button 
+            onClick={handleExportPDF}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl shadow-lg"
+          >
+            <FileText className="h-4 w-4 mr-2" /> Exportar PDF
+          </Button>
+        </div>
       </div>
 
-      <div className="bg-[#1a1b2e] border border-white/5 rounded-[40px] overflow-hidden shadow-2xl">
-        <div className="p-10 bg-[#25273c]/50 border-b border-white/5 text-center">
-          <h2 className="text-sm font-black text-primary uppercase tracking-[0.4em] mb-2">Informe de Novedad Operativa</h2>
-          <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{novedad.proyectoNombre}</h3>
-          <div className="flex items-center justify-center gap-4 mt-4">
-            <Badge className="bg-white/5 text-white/50 border-white/5 text-[9px] font-black uppercase tracking-widest px-3 py-1">
+      {/* Documento Visual - Estilo Oficio */}
+      <div className="bg-white text-black p-12 md:p-16 shadow-2xl rounded-sm print:shadow-none print:p-0 font-serif">
+        <div className="flex justify-between items-start mb-12">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tighter mb-1">GRUPO PACSA S.A.</h2>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Seguridad Integral y Operaciones Tácticas</p>
+          </div>
+          <div className="text-right">
+            <Badge variant="outline" className="border-black text-black font-bold px-3">
               N° {novedad.numeroNovedad}
-            </Badge>
-            <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">
-              {novedad.tipoIncidente}
             </Badge>
           </div>
         </div>
 
-        <div className="p-10 space-y-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Fecha:</span>
-                <span className="text-sm font-bold text-white">{novedad.fecha}</span>
-              </div>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Lugar:</span>
-                <span className="text-sm font-bold text-white">{novedad.lugar}</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <User className="h-4 w-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Unidad:</span>
-                <span className="text-sm font-bold text-white">{novedad.unidadTurnoNombre}</span>
-              </div>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Turno:</span>
-                <span className="text-sm font-bold text-white">{novedad.horarioServicio}</span>
-              </div>
+        <h1 className="text-center text-xl font-bold uppercase mb-12 underline underline-offset-8">
+          REPORTE DE INCIDENTE – {novedad.referencia}
+        </h1>
+
+        <div className="space-y-4 mb-12 text-sm">
+          <div className="flex gap-4">
+            <span className="font-bold min-w-[140px]">Proyecto:</span>
+            <span>{novedad.proyectoNombre} {novedad.contactoProyecto && `(${novedad.contactoProyecto})`}</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="font-bold min-w-[140px]">Fecha:</span>
+            <span>{formatDateLong(novedad.fecha)}</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="font-bold min-w-[140px]">Lugar:</span>
+            <span>{novedad.lugar}</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="font-bold min-w-[140px]">Unidad de Turno:</span>
+            <span>{novedad.unidadTurnoNombre}</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="font-bold min-w-[140px]">Horario de servicio:</span>
+            <span>{novedad.horarioServicio}</span>
+          </div>
+          <div className="flex gap-4">
+            <span className="font-bold min-w-[140px]">Ref.:</span>
+            <span>{novedad.referencia}</span>
+          </div>
+        </div>
+
+        <hr className="border-gray-200 mb-10" />
+
+        <div className="space-y-10 text-sm leading-relaxed">
+          <section>
+            <h3 className="font-bold uppercase mb-4">ANTECEDENTES</h3>
+            <p className="text-justify">{novedad.antecedentes || 'Sin información.'}</p>
+          </section>
+
+          <section>
+            <h3 className="font-bold uppercase mb-4">DESCRIPCIÓN DE LOS HECHOS</h3>
+            <p className="text-justify whitespace-pre-wrap">{novedad.descripcionHechos || 'Sin información.'}</p>
+          </section>
+
+          <section>
+            <h3 className="font-bold uppercase mb-4">ACCIONES TOMADAS</h3>
+            <ol className="list-decimal list-inside space-y-2">
+              {novedad.accionesTomadas.filter(a => a !== '').length > 0 ? (
+                novedad.accionesTomadas.filter(a => a !== '').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))
+              ) : (
+                <li className="list-none text-gray-400 italic">No se registraron acciones.</li>
+              )}
+            </ol>
+          </section>
+
+          <section>
+            <h3 className="font-bold uppercase mb-4">RECOMENDACIONES</h3>
+            <ol className="list-decimal list-inside space-y-2">
+              {novedad.recomendaciones.filter(r => r !== '').length > 0 ? (
+                novedad.recomendaciones.filter(r => r !== '').map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))
+              ) : (
+                <li className="list-none text-gray-400 italic">No aplica.</li>
+              )}
+            </ol>
+          </section>
+
+          <section>
+            <h3 className="font-bold uppercase mb-4">ANEXOS</h3>
+            <p className="text-gray-400 italic">No aplica.</p>
+          </section>
+        </div>
+
+        <div className="mt-32 flex justify-between gap-12 text-xs">
+          <div className="text-center flex-1">
+            <div className="border-t border-black pt-4">
+              <p className="font-bold">FIRMA RESPONSABLE</p>
+              <p>{novedad.unidadTurnoNombre}</p>
             </div>
           </div>
-
-          <div className="space-y-4">
-            <h4 className="text-[11px] font-black text-primary uppercase tracking-[0.3em] flex items-center gap-2">
-              <Activity className="h-4 w-4" /> Ref.: {novedad.referencia}
-            </h4>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-[#0f101d] p-8 rounded-3xl border border-white/5">
-              <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4">Antecedentes</h5>
-              <p className="text-sm text-white/80 leading-relaxed font-medium">{novedad.antecedentes}</p>
-            </div>
-
-            <div className="bg-[#0f101d] p-8 rounded-3xl border border-white/5">
-              <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4">Descripción de los Hechos</h5>
-              <p className="text-sm text-white/80 leading-relaxed font-medium whitespace-pre-wrap">{novedad.descripcionHechos}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500 flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Acciones Tomadas
-              </h5>
-              <ul className="space-y-2">
-                {novedad.accionesTomadas.map((a, i) => (
-                  <li key={i} className="flex gap-3 text-sm font-medium text-white/70">
-                    <span className="font-black text-blue-500/50">{i + 1}.</span> {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="space-y-4">
-              <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" /> Recomendaciones
-              </h5>
-              <ul className="space-y-2">
-                {novedad.recomendaciones.map((r, i) => (
-                  <li key={i} className="flex gap-3 text-sm font-medium text-white/70">
-                    <span className="font-black text-emerald-500/50">{i + 1}.</span> {r}
-                  </li>
-                ))}
-              </ul>
+          <div className="text-center flex-1">
+            <div className="border-t border-black pt-4">
+              <p className="font-bold">RECIBE CONFORME</p>
+              <p>CLIENTE / ENCARGADO</p>
             </div>
           </div>
         </div>
@@ -207,3 +299,4 @@ export function NovedadDetalle({ novedad, onBack }: NovedadDetalleProps) {
     </div>
   );
 }
+
