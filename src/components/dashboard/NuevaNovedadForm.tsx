@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +7,8 @@ import {
   serverTimestamp, 
   query, 
   onSnapshot,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -115,16 +115,16 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
     setLoading(true);
     try {
       const year = new Date().getFullYear();
-      const countSnap = await query(collection(db, 'novedades')); // En producción usaríamos un contador atómico
-      const count = (await snap(countSnap)).length + 1;
-      const numeroNovedad = `NOV-${year}-${String(count).padStart(5, '0')}`;
+      // Nota: Para un contador exacto se debería usar una función atómica, aquí usamos una aproximación para el MVP
+      const snap = await onSnapshot(collection(db, 'novedades'), () => {});
+      const numeroNovedad = `NOV-${year}-${Math.floor(Math.random() * 90000) + 10000}`;
 
       await addDoc(collection(db, 'novedades'), {
         ...formData,
         numeroNovedad,
         fechaCreacion: serverTimestamp(),
         ultimaActualizacion: serverTimestamp(),
-        creadoPor: 'ADMIN-01', // Mock del usuario actual
+        creadoPor: 'ADMIN-01',
         anexos: []
       });
 
@@ -135,11 +135,6 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const snap = async (q: any) => {
-    const s = await onSnapshot(q, () => {});
-    return []; // Placeholder para el contador simple
   };
 
   return (
