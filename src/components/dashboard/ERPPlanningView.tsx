@@ -13,7 +13,8 @@ import {
   User,
   Building2,
   Briefcase,
-  FileText
+  FileText,
+  UserCheck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -56,6 +57,7 @@ export function ERPPlanningView() {
   const [schedules, setSchedules] = useState<ERPRecord[]>([]);
   const [groups, setGroups] = useState<Record<string, ERPRecord>>({});
   const [customers, setCustomers] = useState<Record<string, ERPRecord>>({});
+  const [employees, setEmployees] = useState<Record<string, ERPRecord>>({});
 
   useEffect(() => {
     // 1. Grupos Operativos (Puestos) - Carga para lookup
@@ -72,9 +74,17 @@ export function ERPPlanningView() {
       setCustomers(data);
     });
 
+    // 3. Empleados - Carga para lookup de Estado SI
+    const unsubEmployees = onSnapshot(collection(erpDb, 'employees'), (snap) => {
+      const data: Record<string, ERPRecord> = {};
+      snap.docs.forEach(doc => { data[doc.id] = doc.data(); });
+      setEmployees(data);
+    });
+
     return () => {
       unsubGroups();
       unsubCustomers();
+      unsubEmployees();
     };
   }, []);
 
@@ -105,16 +115,18 @@ export function ERPPlanningView() {
     return schedules.map(sched => {
       const group = groups[sched.puestoId];
       const customer = group ? customers[group.clientId] : null;
+      const employee = employees[sched.employeeId];
       const todayShift = sched.days?.[currentDay] || 'N/A';
 
       return {
         ...sched,
         puestoName: group?.name || 'Puesto Desconocido',
         customerName: customer?.name || 'Cliente Desconocido',
+        employeeStatus: employee?.status || 'N/D',
         todayShift
       };
     });
-  }, [schedules, groups, customers]);
+  }, [schedules, groups, customers, employees]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-20">
@@ -139,7 +151,6 @@ export function ERPPlanningView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4 bg-[#1a1b2e] p-2 rounded-[20px] border border-white/5 shadow-2xl">
-          {/* Selectores de Periodo */}
           <div className="flex items-center gap-2 px-3">
             <Calendar className="h-4 w-4 text-indigo-500" />
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -189,6 +200,7 @@ export function ERPPlanningView() {
                   <TableRow className="border-b border-white/5 hover:bg-transparent">
                     <TableHead className="text-[10px] font-black uppercase text-muted-foreground pl-8 h-14">Cliente / Puesto</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-muted-foreground h-14">Colaborador Asignado</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-muted-foreground text-center h-14">Estado SI</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-muted-foreground text-center h-14">Turno Hoy ({new Date().getDate()})</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-muted-foreground text-right pr-8 h-14">Estado</TableHead>
                   </TableRow>
@@ -219,6 +231,17 @@ export function ERPPlanningView() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className={cn(
+                          "px-2 py-0.5 text-[9px] font-black border-none",
+                          item.employeeStatus === 'Activo' ? "bg-emerald-500/10 text-emerald-500" : 
+                          item.employeeStatus === 'Inactivo' ? "bg-red-500/10 text-red-500" :
+                          "bg-white/5 text-muted-foreground"
+                        )}>
+                          <UserCheck className="h-2.5 w-2.5 mr-1" />
+                          {item.employeeStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className={cn(
                           "px-3 py-1 text-[11px] font-black font-mono border-none",
                           item.todayShift === 'LIBRE' ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500"
                         )}>
@@ -238,7 +261,7 @@ export function ERPPlanningView() {
 
                   {joinedSchedules.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-32 text-center">
+                      <TableCell colSpan={5} className="py-32 text-center">
                         <div className="flex flex-col items-center gap-4 opacity-20">
                           <FileText className="h-12 w-12 text-muted-foreground" />
                           <p className="text-[11px] font-black uppercase tracking-[0.4em] text-white">No se detectaron registros maestros en este periodo</p>
