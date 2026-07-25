@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState } from 'react';
@@ -14,6 +15,7 @@ import { ConfigView } from './ConfigView';
 import { EmergencyNumbersView } from './EmergencyNumbersView';
 import { EquipmentRegistrationForm } from './EquipmentRegistrationForm';
 import { EquipmentTable } from './EquipmentTable';
+import { NovedadesView } from './NovedadesView';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -31,12 +33,13 @@ import {
   Lock,
   ShieldCheck,
   AlertCircle,
-  PhoneCall
+  PhoneCall,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-type AdminTab = 'dashboard' | 'registro' | 'estado' | 'dobles' | 'estadistica' | 'mapa' | 'historial' | 'planilla';
+type AdminTab = 'dashboard' | 'registro' | 'estado' | 'novedades' | 'dobles' | 'estadistica' | 'mapa' | 'historial' | 'planilla';
 type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config';
 
 export function AdminView() {
@@ -67,6 +70,7 @@ export function AdminView() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Operaciones', icon: ListTodo },
+    { id: 'novedades', label: 'Novedades', icon: FileText },
     { id: 'dobles', label: 'Dobles', icon: Copy },
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
@@ -253,6 +257,10 @@ export function AdminView() {
           <div className="w-full">
             <ShiftTable showObservations={true} />
           </div>
+        )}
+
+        {activeTab === 'novedades' && (
+          <NovedadesView />
         )}
 
         {activeTab === 'dobles' && (

@@ -1,0 +1,45 @@
+
+{
+  "entities": {
+    "Novedad": {
+      "title": "Novedad",
+      "description": "Reporte de incidente o novedad operativa en un proyecto.",
+      "type": "object",
+      "properties": {
+        "numeroNovedad": { "type": "string", "description": "NOV-YYYY-#####" },
+        "proyectoId": { "type": "string" },
+        "proyectoNombre": { "type": "string" },
+        "contactoProyecto": { "type": "string" },
+        "fecha": { "type": "string", "format": "date" },
+        "lugar": { "type": "string" },
+        "unidadTurnoId": { "type": "string" },
+        "unidadTurnoNombre": { "type": "string" },
+        "horarioServicio": { "type": "string" },
+        "referencia": { "type": "string" },
+        "tipoIncidente": { "type": "string", "enum": ["Control de acceso", "Emergencia médica", "Robo/hurto", "Daño a propiedad", "Alteración del orden", "Falla de equipo", "Persona sospechosa", "Vehículo sospechoso", "Otro"] },
+        "severidad": { "type": "string", "enum": ["Baja", "Media", "Alta", "Crítica"] },
+        "antecedentes": { "type": "string" },
+        "descripcionHechos": { "type": "string" },
+        "accionesTomadas": { "type": "array", "items": { "type": "string" } },
+        "recomendaciones": { "type": "array", "items": { "type": "string" } },
+        "autoridadesNotificadas": { "type": "array", "items": { "type": "string" } },
+        "anexos": { "type": "array", "items": { "type": "string" } },
+        "estado": { "type": "string", "enum": ["Abierto", "En seguimiento", "Cerrado"] },
+        "notificadoInterno": { "type": "string" },
+        "creadoPor": { "type": "string" },
+        "fechaCreacion": { "type": "string", "format": "date-time" },
+        "ultimaActualizacion": { "type": "string", "format": "date-time" }
+      },
+      "required": ["numeroNovedad", "proyectoId", "referencia", "descripcionHechos"]
+    }
+  },
+  "auth": {
+    "providers": ["pin"]
+  },
+  "firestore": {
+    "/novedades/{novedadId}": {
+      "schema": "Novedad",
+      "description": "Colección de reportes de incidentes operativos."
+    }
+  }
+}
