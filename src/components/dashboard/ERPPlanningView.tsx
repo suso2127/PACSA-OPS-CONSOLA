@@ -63,21 +63,21 @@ export function ERPPlanningView() {
     // 1. Grupos Operativos (Puestos) - Carga para lookup
     const unsubGroups = onSnapshot(collection(erpDb, 'operational_groups'), (snap) => {
       const data: Record<string, ERPRecord> = {};
-      snap.docs.forEach(doc => { data[doc.id] = doc.data(); });
+      snap.docs.forEach(doc => { data[doc.id] = { id: doc.id, ...doc.data() }; });
       setGroups(data);
     });
 
     // 2. Clientes - Carga para lookup
     const unsubCustomers = onSnapshot(collection(erpDb, 'customers'), (snap) => {
       const data: Record<string, ERPRecord> = {};
-      snap.docs.forEach(doc => { data[doc.id] = doc.data(); });
+      snap.docs.forEach(doc => { data[doc.id] = { id: doc.id, ...doc.data() }; });
       setCustomers(data);
     });
 
     // 3. Empleados - Carga para lookup de Estado SI
     const unsubEmployees = onSnapshot(collection(erpDb, 'employees'), (snap) => {
       const data: Record<string, ERPRecord> = {};
-      snap.docs.forEach(doc => { data[doc.id] = doc.data(); });
+      snap.docs.forEach(doc => { data[doc.id] = { id: doc.id, ...doc.data() }; });
       setEmployees(data);
     });
 
@@ -122,8 +122,10 @@ export function ERPPlanningView() {
         ...sched,
         puestoName: group?.name || 'Puesto Desconocido',
         customerName: customer?.name || 'Cliente Desconocido',
+        employeeName: employee?.name || sched.employeeName || 'Colaborador',
         employeeStatus: employee?.status || 'N/D',
-        todayShift
+        todayShift,
+        updatedAt: sched.updatedAt
       };
     });
   }, [schedules, groups, customers, employees]);

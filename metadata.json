@@ -1,0 +1,6 @@
+{
+  "name": "PACSA OPS CONSOLA",
+  "description": "Security operations platform for PACSA with realtime GPS and live operational monitoring",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
