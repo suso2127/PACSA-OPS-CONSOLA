@@ -108,6 +108,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [shiftToPurge, setShiftToPurge] = useState<Shift | null>(null);
 
   // Modal para registrar turno directamente en Operaciones
   const [isNewShiftOpen, setIsNewShiftOpen] = useState(false);
@@ -272,28 +273,55 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     });
   };
 
-  const handleDelete = (id: string, name: string) => {
-    deleteDoc(doc(db, 'shift-registrations', id))
-      .then(() => {
-        toast({ title: "REGISTRO ELIMINADO", description: `El registro de ${name} ha sido removido.` });
-      });
+  const handleOpenPurgeForShift = (shift: Shift) => {
+    setShiftToPurge(shift);
+    setDeletePassword('');
+    setIsDeleteDialogOpen(true);
   };
 
-  const handleConfirmDeleteAll = async () => {
+  const handleOpenPurgeAll = () => {
+    setShiftToPurge(null);
+    setDeletePassword('');
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmPurge = async () => {
     if (deletePassword !== 'GP') {
-      toast({ variant: "destructive", title: "CLAVE INCORRECTA", description: "Acceso denegado." });
+      toast({ 
+        variant: "destructive", 
+        title: "CLAVE INCORRECTA", 
+        description: "Acceso denegado. Clave de mando inválida." 
+      });
       return;
     }
     setLoading(true);
+    const targetShift = shiftToPurge;
     setIsDeleteDialogOpen(false);
     setDeletePassword('');
+    setShiftToPurge(null);
+
     try {
-      const q = query(collection(db, 'shift-registrations'));
-      const snapshot = await getDocs(q);
-      await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)));
-      toast({ title: "BASE DE DATOS DEPURADA", description: "Registros eliminados." });
+      if (targetShift) {
+        await deleteDoc(doc(db, 'shift-registrations', targetShift.id));
+        toast({ 
+          title: "TURNO PURGADO CON ÉXITO", 
+          description: `El registro de ${targetShift.guardName} ha sido eliminado permanentemente.` 
+        });
+      } else {
+        const q = query(collection(db, 'shift-registrations'));
+        const snapshot = await getDocs(q);
+        await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)));
+        toast({ 
+          title: "PURGA GENERAL DE REGISTROS", 
+          description: "La base de datos de turnos ha sido depurada por completo." 
+        });
+      }
     } catch (error) {
-      toast({ variant: "destructive", title: "ERROR OPERATIVO", description: "Fallo en la purga." });
+      toast({ 
+        variant: "destructive", 
+        title: "ERROR OPERATIVO", 
+        description: "Fallo en la purga del registro." 
+      });
     } finally {
       setLoading(false);
     }
@@ -553,7 +581,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
             <Button onClick={handleClearMonitor} className="h-7 bg-white/5 hover:bg-white/10 text-white/50 text-[8px] font-black uppercase rounded-lg px-3">
               <Trash2 className="h-3 w-3 mr-1.5" />LIMPIAR MESA
             </Button>
-            <Button onClick={() => setIsDeleteDialogOpen(true)} className="h-7 bg-red-600 hover:bg-red-700 text-white text-[8px] font-black uppercase rounded-lg px-3">
+            <Button onClick={handleOpenPurgeAll} className="h-7 bg-red-600 hover:bg-red-700 text-white text-[8px] font-black uppercase rounded-lg px-3">
               <AlertTriangle className="h-3 w-3 mr-1.5" />PURGAR REGISTRO
             </Button>
             <div className="flex items-center gap-1.5 bg-[#0f101d] px-2 rounded-lg border border-white/5 h-7">
@@ -694,9 +722,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => handleDelete(shift.id, shift.guardName)} 
+                            onClick={() => handleOpenPurgeForShift(shift)} 
                             className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                            title="Eliminar turno"
+                            title="Purgar registro (Eliminar turno)"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -963,15 +991,99 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="bg-[#1a1b2e] border border-red-500/20 text-white max-w-sm rounded-3xl p-8">
+      <Dialog 
+        open={isDeleteDialogOpen} 
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setDeletePassword('');
+            setShiftToPurge(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-[#1a1b2e] border border-red-500/30 text-white max-w-md rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(239,68,68,0.2)]">
           <DialogHeader className="space-y-3">
-            <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto border border-red-500/20"><ShieldAlert className="h-8 w-8 text-red-500" /></div>
-            <DialogTitle className="text-center text-xl font-black uppercase">Acceso Restringido</DialogTitle>
-            <DialogDescription className="text-center text-[10px] font-black uppercase text-muted-foreground">Confirme clave de mando para depurar la base de datos.</DialogDescription>
+            <div className="bg-red-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+              <ShieldAlert className="h-8 w-8 text-red-500 animate-pulse" />
+            </div>
+            <DialogTitle className="text-center text-xl font-black uppercase tracking-tight text-white">
+              Purga de Registro
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs font-bold uppercase text-muted-foreground tracking-wide">
+              {shiftToPurge ? (
+                <>Protocolo de eliminación permanente para el turno seleccionado. Ingrese clave de mando para purgar.</>
+              ) : (
+                <>Protocolo de depuración general de base de datos. Ingrese clave de mando para purgar todos los registros.</>
+              )}
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4"><Input type="password" placeholder="••••" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && handleConfirmDeleteAll()} className="h-14 bg-black/40 text-center tracking-[0.5em] text-white text-lg rounded-xl" autoFocus /></div>
-          <DialogFooter className="flex-col gap-2"><Button onClick={handleConfirmDeleteAll} className="w-full h-14 bg-red-600 hover:bg-red-700 text-white font-black uppercase">DEPURAR REGISTROS</Button><Button variant="ghost" onClick={() => { setIsDeleteDialogOpen(false); setDeletePassword(''); }} className="w-full h-10 text-muted-foreground font-bold uppercase text-[9px]">CANCELAR</Button></DialogFooter>
+
+          {shiftToPurge && (
+            <div className="my-2 p-3.5 rounded-xl bg-red-950/30 border border-red-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase text-red-400 tracking-wider">Turno a Purgar</span>
+                <Badge variant="outline" className="bg-red-500/20 text-red-300 border-red-500/40 text-[9px] font-mono font-bold">
+                  {shiftToPurge.duration || '12h'} · {shiftToPurge.status || 'Activo'}
+                </Badge>
+              </div>
+              <div className="text-sm font-black uppercase text-white tracking-wide">
+                {shiftToPurge.guardName}
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="font-mono font-bold text-primary">[{shiftToPurge.projectCode || 'S/C'}]</span>
+                <span className="truncate">{shiftToPurge.projectName || 'Sin Proyecto'}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="py-3 space-y-2">
+            <Label className="text-[10px] font-black uppercase text-center block text-muted-foreground tracking-widest">
+              Ingrese Clave de Mando Autorizada
+            </Label>
+            <Input 
+              type="password" 
+              placeholder="••••" 
+              value={deletePassword} 
+              onChange={(e) => setDeletePassword(e.target.value.toUpperCase())} 
+              onKeyDown={(e) => e.key === 'Enter' && handleConfirmPurge()} 
+              className="h-12 bg-black/50 text-center tracking-[0.5em] text-white text-lg rounded-xl border-red-500/30 focus:border-red-500" 
+              autoFocus 
+            />
+            <p className="text-[9px] text-center text-muted-foreground font-mono">
+              Clave de seguridad requerida para ejecutar la purga
+            </p>
+          </div>
+
+          <DialogFooter className="flex-col gap-2 pt-1">
+            <Button 
+              onClick={handleConfirmPurge} 
+              className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] flex items-center justify-center gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              {shiftToPurge ? 'CONFIRMAR PURGA DE TURNO' : 'DEPURAR TODOS LOS REGISTROS'}
+            </Button>
+
+            {shiftToPurge && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShiftToPurge(null)}
+                className="w-full h-7 text-[9px] text-red-400/80 hover:text-red-300 hover:bg-red-500/10 uppercase font-black"
+              >
+                Cambiar a purga masiva de toda la base de datos
+              </Button>
+            )}
+
+            <Button 
+              type="button"
+              variant="ghost" 
+              onClick={() => { setIsDeleteDialogOpen(false); setDeletePassword(''); setShiftToPurge(null); }} 
+              className="w-full h-9 text-muted-foreground font-bold uppercase text-[9px]"
+            >
+              CANCELAR
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -70,9 +70,9 @@ export function AdminView() {
 
   const COMMAND_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'planificacion', label: 'Planificación', icon: Database },
     { id: 'registro', label: 'Registro', icon: UserPlus },
     { id: 'estado', label: 'Operaciones', icon: ListTodo },
-    { id: 'planificacion', label: 'Planificación', icon: Database },
     { id: 'novedades', label: 'Novedades', icon: FileText },
     { id: 'dobles', label: 'Dobles', icon: Copy },
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
