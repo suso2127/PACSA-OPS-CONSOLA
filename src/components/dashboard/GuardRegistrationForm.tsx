@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,14 +21,23 @@ import {
   CheckCircle2,
   LogOut,
   Clock as ClockIcon,
-  Zap
+  Zap,
+  MapPin,
+  Navigation
 } from 'lucide-react';
 
 export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [projectLoading, setProjectLoading] = useState(false);
-  const [detectedProject, setDetectedProject] = useState<{name: string, location: string} | null>(null);
+  const [capturingGps, setCapturingGps] = useState(false);
+  const [detectedProject, setDetectedProject] = useState<{
+    id?: string;
+    name: string;
+    location: string;
+    latitude?: number;
+    longitude?: number;
+  } | null>(null);
   
   const [formData, setFormData] = useState({
     guardName: '',
@@ -56,8 +65,11 @@ export function GuardRegistrationForm() {
           if (!snapshot.empty) {
             const data = snapshot.docs[0].data();
             setDetectedProject({ 
+              id: snapshot.docs[0].id,
               name: data.name, 
-              location: data.location || 'UBICACIÓN REGISTRADA' 
+              location: data.location || 'UBICACIÓN REGISTRADA',
+              latitude: data.latitude ?? data.lat,
+              longitude: data.longitude ?? data.lng
             });
           } else {
             setDetectedProject(null);
@@ -75,6 +87,100 @@ export function GuardRegistrationForm() {
     const debounce = setTimeout(searchProject, 500);
     return () => clearTimeout(debounce);
   }, [formData.projectCode]);
+
+  const handleCaptureLocation = async () => {
+    const code = formData.projectCode.trim().toUpperCase();
+    if (!code) {
+      toast({
+        title: "CÓDIGO DE PUESTO REQUERIDO",
+        description: "Ingrese el código de proyecto para capturar su ubicación GPS.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      toast({
+        title: "SIN GEOLOCALIZACIÓN",
+        description: "Su dispositivo no soporta geolocalización.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCapturingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const latitude = pos.coords.latitude;
+        const longitude = pos.coords.longitude;
+        try {
+          const q = query(collection(db, 'projects'), where('code', '==', code));
+          const snapshot = await getDocs(q);
+
+          if (!snapshot.empty) {
+            const docRef = doc(db, 'projects', snapshot.docs[0].id);
+            await updateDoc(docRef, {
+              latitude,
+              longitude,
+              lat: latitude,
+              lng: longitude,
+              locationCapturedAt: serverTimestamp(),
+              lastCapturedBy: formData.guardName || 'Guardia'
+            });
+          } else {
+            const docRef = doc(db, 'projects', code);
+            await setDoc(docRef, {
+              code,
+              name: detectedProject?.name || `PUESTO ${code}`,
+              location: detectedProject?.location || 'Sitio Operativo',
+              latitude,
+              longitude,
+              lat: latitude,
+              lng: longitude,
+              locationCapturedAt: serverTimestamp(),
+              lastCapturedBy: formData.guardName || 'Guardia',
+              createdAt: serverTimestamp()
+            }, { merge: true });
+          }
+
+          setDetectedProject(prev => prev ? {
+            ...prev,
+            latitude,
+            longitude
+          } : {
+            name: `PUESTO ${code}`,
+            location: 'Ubicación GPS registrada',
+            latitude,
+            longitude
+          });
+
+          toast({
+            title: "UBICACIÓN DE PUESTO ACTUALIZADA",
+            description: `Coordenadas guardadas en Firestore colección 'projects' (${latitude.toFixed(5)}, ${longitude.toFixed(5)}). El mapa de PACSA Console ahora muestra el puesto en su ubicación real.`,
+            className: "bg-emerald-950 border-emerald-500 text-white"
+          });
+        } catch (err) {
+          console.error("Error al guardar GPS:", err);
+          toast({
+            title: "ERROR AL GUARDAR",
+            description: "No se pudieron guardar las coordenadas en Firestore.",
+            variant: "destructive"
+          });
+        } finally {
+          setCapturingGps(false);
+        }
+      },
+      (err) => {
+        setCapturingGps(false);
+        toast({
+          title: "ERROR GPS",
+          description: "No se pudo obtener la posición satelital del puesto.",
+          variant: "destructive"
+        });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,7 +346,7 @@ export function GuardRegistrationForm() {
               <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-muted-foreground'}`}>
                 {detectedProject ? <CheckCircle2 className="h-6 w-6" /> : <Building2 className="h-6 w-6" />}
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col flex-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Validación de Destino</span>
                 <p className={`text-sm font-black uppercase italic tracking-tighter mt-1 ${detectedProject ? 'text-white' : 'text-muted-foreground/30'}`}>
                   {detectedProject ? detectedProject.name : 'Esperando ID operativo...'}
@@ -250,8 +356,40 @@ export function GuardRegistrationForm() {
                     {detectedProject.location}
                   </span>
                 )}
+                {detectedProject?.latitude && detectedProject?.longitude && (
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1 mt-1">
+                    <MapPin className="h-3 w-3" />
+                    GPS: {detectedProject.latitude.toFixed(5)}, {detectedProject.longitude.toFixed(5)}
+                  </span>
+                )}
               </div>
             </div>
+
+            {formData.projectCode.trim().length >= 2 && (
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <Button
+                  type="button"
+                  onClick={handleCaptureLocation}
+                  disabled={capturingGps}
+                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/30 cursor-pointer"
+                >
+                  {capturingGps ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Capturando GPS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="h-4 w-4 text-white" />
+                      <span>Capturar ubicación del puesto</span>
+                    </>
+                  )}
+                </Button>
+                <p className="text-[9px] text-muted-foreground/80 mt-1.5 text-center">
+                  Guarda las coordenadas GPS en Firestore colección &apos;projects&apos; para el puesto {formData.projectCode}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

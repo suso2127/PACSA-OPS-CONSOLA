@@ -37,6 +37,8 @@ interface Project {
   type: string;
   lat?: number;
   lng?: number;
+  latitude?: number;
+  longitude?: number;
   requirements?: {
     lun: number;
     mar: number;
@@ -116,8 +118,12 @@ export function MapView() {
 
   // Helper to compute realistic coordinates in Panama from project data
   const getProjectCoords = (project: Project): [number, number] => {
-    if (typeof project.lat === 'number' && typeof project.lng === 'number' && !isNaN(project.lat) && !isNaN(project.lng)) {
-      return [project.lat, project.lng];
+    // Check latitude/longitude or lat/lng
+    const pLat = typeof project.latitude === 'number' && !isNaN(project.latitude) ? project.latitude : project.lat;
+    const pLng = typeof project.longitude === 'number' && !isNaN(project.longitude) ? project.longitude : project.lng;
+
+    if (typeof pLat === 'number' && typeof pLng === 'number' && !isNaN(pLat) && !isNaN(pLng)) {
+      return [pLat, pLng];
     }
 
     const text = (project.name + ' ' + project.location + ' ' + project.code).toLowerCase();
@@ -951,6 +957,12 @@ export function MapView() {
                       <MapPin className="h-3.5 w-3.5 text-red-500" />
                       {selectedProject.location || 'CIUDAD DE PANAMÁ'}
                     </p>
+                    {(typeof selectedProject.latitude === 'number' || typeof selectedProject.lat === 'number') && (
+                      <p className="text-xs text-emerald-400 font-mono flex items-center gap-1.5 mt-1">
+                        <Navigation className="h-3 w-3" />
+                        GPS Real: {(selectedProject.latitude ?? selectedProject.lat)?.toFixed(5)}, {(selectedProject.longitude ?? selectedProject.lng)?.toFixed(5)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 

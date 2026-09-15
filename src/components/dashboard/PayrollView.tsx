@@ -845,11 +845,19 @@ export function PayrollView() {
                 </div>
               </div>
 
-              {/* Botón Acción Principal: Registrar Tardanza / Doble */}
+              {/* Botón Acción Principal: Registrar Tardanza / Doble y Descargar PDF Quincenal */}
               <div className="flex flex-wrap items-center gap-2">
                 <Button
+                  onClick={exportPDF}
+                  variant="outline"
+                  className="h-10 bg-red-600 hover:bg-red-700 text-white border-none font-black text-xs uppercase px-4 rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Printer className="h-4 w-4" />
+                  Descargar PDF Quincenal
+                </Button>
+                <Button
                   onClick={handleOpenCreateModal}
-                  className="h-10 bg-amber-500 hover:bg-amber-600 text-black font-black text-xs uppercase px-4 rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                  className="h-10 bg-amber-500 hover:bg-amber-600 text-black font-black text-xs uppercase px-4 rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   Registrar Tardanza / Doble
