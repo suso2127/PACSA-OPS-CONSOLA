@@ -43,6 +43,44 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+export interface DiaPlanilla {
+  elementos: number;
+  horas: string;
+  elms: number;
+  hrs: string;
+}
+
+export type PlanillaSemanal = {
+  lun: DiaPlanilla;
+  mar: DiaPlanilla;
+  mie: DiaPlanilla;
+  jue: DiaPlanilla;
+  vie: DiaPlanilla;
+  sab: DiaPlanilla;
+  dom: DiaPlanilla;
+};
+
+export const buildPlanillaSemanal = (
+  requirements?: Partial<Project['requirements']>,
+  shiftHours?: Partial<Project['shiftHours']>
+): PlanillaSemanal => {
+  const days = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const;
+  const result: any = {};
+  
+  days.forEach((d) => {
+    const elms = Number(requirements?.[d] || 0);
+    const hrs = shiftHours?.[d] || '12h';
+    result[d] = {
+      elementos: elms,
+      horas: hrs,
+      elms: elms,
+      hrs: hrs
+    };
+  });
+  
+  return result as PlanillaSemanal;
+};
+
 interface Project {
   id: string;
   code: string;
@@ -69,6 +107,7 @@ interface Project {
     sab: string;
     dom: string;
   };
+  planilla_semanal?: PlanillaSemanal;
 }
 
 export function ProjectManagement() {
@@ -95,10 +134,38 @@ export function ProjectManagement() {
   useEffect(() => {
     const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedProjects = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Project[];
+      const fetchedProjects = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        const pSem = data.planilla_semanal;
+        
+        const requirements = data.requirements || (pSem ? {
+          lun: Number(pSem.lun?.elementos ?? pSem.lun?.elms ?? 0),
+          mar: Number(pSem.mar?.elementos ?? pSem.mar?.elms ?? 0),
+          mie: Number(pSem.mie?.elementos ?? pSem.mie?.elms ?? 0),
+          jue: Number(pSem.jue?.elementos ?? pSem.jue?.elms ?? 0),
+          vie: Number(pSem.vie?.elementos ?? pSem.vie?.elms ?? 0),
+          sab: Number(pSem.sab?.elementos ?? pSem.sab?.elms ?? 0),
+          dom: Number(pSem.dom?.elementos ?? pSem.dom?.elms ?? 0),
+        } : { lun: 0, mar: 0, mie: 0, jue: 0, vie: 0, sab: 0, dom: 0 });
+
+        const shiftHours = data.shiftHours || (pSem ? {
+          lun: pSem.lun?.horas || pSem.lun?.hrs || '12h',
+          mar: pSem.mar?.horas || pSem.mar?.hrs || '12h',
+          mie: pSem.mie?.horas || pSem.mie?.hrs || '12h',
+          jue: pSem.jue?.horas || pSem.jue?.hrs || '12h',
+          vie: pSem.vie?.horas || pSem.vie?.hrs || '12h',
+          sab: pSem.sab?.horas || pSem.sab?.hrs || '12h',
+          dom: pSem.dom?.horas || pSem.dom?.hrs || '12h',
+        } : { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' });
+
+        return {
+          id: docSnap.id,
+          ...data,
+          requirements,
+          shiftHours,
+          planilla_semanal: pSem
+        };
+      }) as Project[];
       setProjects(fetchedProjects);
     });
     return () => unsubscribe();
@@ -198,16 +265,20 @@ export function ProjectManagement() {
 
     setLoading(true);
     try {
+      const planilla_semanal = buildPlanillaSemanal(formData.requirements, formData.shiftHours);
+
       await addDoc(collection(db, 'projects'), {
         ...formData,
+        planilla_semanal,
         isActive: true,
         code: formData.code.trim().toUpperCase(),
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
       
       toast({
-        title: "PROYECTO GUARDADO",
-        description: `El proyecto ${formData.code} ha sido registrado exitosamente.`
+        title: "PROYECTO Y PLANILLA GUARDADOS",
+        description: `El proyecto ${formData.code.trim().toUpperCase()} y su planilla semanal han sido registrados exitosamente en Firestore.`
       });
       
       setFormData({
@@ -222,6 +293,36 @@ export function ProjectManagement() {
       toast({
         title: "Error",
         description: "No se pudo guardar el proyecto.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePlanillaOnly = async (projectToSave: Project | null) => {
+    if (!projectToSave || !projectToSave.id) return;
+    setLoading(true);
+    try {
+      const hours = projectToSave.shiftHours || { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' };
+      const planilla_semanal = buildPlanillaSemanal(projectToSave.requirements, hours);
+      const projectRef = doc(db, 'projects', projectToSave.id);
+
+      await updateDoc(projectRef, {
+        requirements: projectToSave.requirements,
+        shiftHours: hours,
+        planilla_semanal: planilla_semanal,
+        updatedAt: serverTimestamp()
+      });
+
+      toast({
+        title: "PLANILLA SEMANAL GUARDADA",
+        description: `Planilla semanal de ${projectToSave.code || projectToSave.name} guardada exitosamente en Firestore (campo 'planilla_semanal').`
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la planilla semanal en Firestore.",
         variant: "destructive"
       });
     } finally {
@@ -244,18 +345,23 @@ export function ProjectManagement() {
     setLoading(true);
     try {
       const projectRef = doc(db, 'projects', editingProject.id);
+      const hours = editingProject.shiftHours || { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' };
+      const planilla_semanal = buildPlanillaSemanal(editingProject.requirements, hours);
+
       await updateDoc(projectRef, {
         code: editingProject.code.trim().toUpperCase(),
         name: editingProject.name,
         location: editingProject.location,
         type: editingProject.type,
         requirements: editingProject.requirements,
-        shiftHours: editingProject.shiftHours || { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' }
+        shiftHours: hours,
+        planilla_semanal: planilla_semanal,
+        updatedAt: serverTimestamp()
       });
 
       toast({
-        title: "PROYECTO ACTUALIZADO",
-        description: `Los cambios en ${editingProject.code.trim().toUpperCase()} han sido sincronizados.`
+        title: "PROYECTO Y PLANILLA ACTUALIZADOS",
+        description: `Los datos y la planilla semanal de ${editingProject.code.trim().toUpperCase()} han sido guardados en Firestore.`
       });
       setEditingProject(null);
     } catch (err) {
@@ -272,13 +378,25 @@ export function ProjectManagement() {
   const getTodayRequirement = (project: Project) => {
     const days = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
     const today = days[new Date().getDay()] as keyof typeof project.requirements;
-    return project.requirements[today] || 0;
+    if (project.requirements && project.requirements[today] !== undefined) {
+      return project.requirements[today];
+    }
+    if (project.planilla_semanal && project.planilla_semanal[today]) {
+      return project.planilla_semanal[today].elementos ?? project.planilla_semanal[today].elms ?? 0;
+    }
+    return 0;
   };
 
   const getTodayHours = (project: Project) => {
     const days = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
     const today = days[new Date().getDay()] as keyof typeof project.shiftHours;
-    return project.shiftHours?.[today] || '12h';
+    if (project.shiftHours && project.shiftHours[today]) {
+      return project.shiftHours[today];
+    }
+    if (project.planilla_semanal && project.planilla_semanal[today]) {
+      return project.planilla_semanal[today].horas ?? project.planilla_semanal[today].hrs ?? '12h';
+    }
+    return '12h';
   };
 
   const daysList = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const;
@@ -345,8 +463,8 @@ export function ProjectManagement() {
 
             <div className="pt-4">
               <div className="flex items-center gap-2 mb-3 text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-                <Calendar className="h-3 w-3" />
-                Requerimientos Semanales
+                <Calendar className="h-3 w-3 text-primary" />
+                Planilla Semanal (Elms y Hrs por día)
               </div>
               
               <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
@@ -357,7 +475,7 @@ export function ProjectManagement() {
                     </div>
                     
                     <div className="flex-1 space-y-1">
-                      <Label className="text-[8px] font-bold uppercase text-muted-foreground">Guardias</Label>
+                      <Label className="text-[8px] font-bold uppercase text-muted-foreground">Elms</Label>
                       <Input 
                         type="number"
                         value={formData.requirements[day]}
@@ -367,7 +485,7 @@ export function ProjectManagement() {
                     </div>
 
                     <div className="flex-1 space-y-1">
-                      <Label className="text-[8px] font-bold uppercase text-muted-foreground">Horas</Label>
+                      <Label className="text-[8px] font-bold uppercase text-muted-foreground">Hrs</Label>
                       <Select value={formData.shiftHours[day]} onValueChange={(v) => handleShiftHoursChange(day, v)}>
                         <SelectTrigger className="bg-[#1a1a2e] border-none h-8 text-xs font-bold p-1">
                           <SelectValue />
@@ -529,10 +647,24 @@ export function ProjectManagement() {
               </div>
 
               <div className="space-y-4">
-                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5" />
-                  Planilla Semanal
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
+                    Planilla Semanal (Elms y Hrs por día)
+                  </Label>
+                  <Button 
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSavePlanillaOnly(editingProject)}
+                    disabled={loading}
+                    className="h-7 px-3 text-[9px] font-black uppercase tracking-wider bg-[#252535] hover:bg-primary hover:text-white border-white/10"
+                    title="Guardar Planilla Semanal en Firestore en el campo 'planilla_semanal'"
+                  >
+                    {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                    Guardar Planilla
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'] as const).map((day) => (
                     <div key={day} className="flex items-center gap-3 bg-[#252535] p-3 rounded-xl border border-white/5">

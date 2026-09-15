@@ -73,7 +73,7 @@ export function OperationalDashboard() {
         let doubleCount = 0;
 
         projects.forEach(p => {
-          const req = Number(p.requirements?.[dayKey] || 0);
+          const req = Number(p.requirements?.[dayKey] ?? p.planilla_semanal?.[dayKey]?.elementos ?? p.planilla_semanal?.[dayKey]?.elms ?? 0);
           totalReq += req;
           
           // Filtrar registros específicos de este proyecto con normalización estricta

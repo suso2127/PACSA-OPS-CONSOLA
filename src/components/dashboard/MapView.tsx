@@ -270,7 +270,7 @@ export function MapView() {
     const today = days[new Date().getDay()] as keyof NonNullable<Project['requirements']>;
     
     return projects.reduce((acc, project) => {
-      const required = project.requirements?.[today] || 0;
+      const required = Number(project.requirements?.[today] ?? (project as any).planilla_semanal?.[today]?.elementos ?? (project as any).planilla_semanal?.[today]?.elms ?? 0);
       const onSite = registrations.filter(r => r.projectCode?.trim().toUpperCase() === project.code?.trim().toUpperCase()).length;
       
       let status: 'red' | 'yellow' | 'green' = 'red';

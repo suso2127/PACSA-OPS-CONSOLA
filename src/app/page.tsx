@@ -60,7 +60,7 @@ export default function Home() {
         const newDeficits: {name: string, count: number}[] = [];
         
         projects.forEach((p: any) => {
-          const required = Number(p.requirements?.[dayKey] || 0);
+          const required = Number(p.requirements?.[dayKey] ?? p.planilla_semanal?.[dayKey]?.elementos ?? p.planilla_semanal?.[dayKey]?.elms ?? 0);
           const onSite = activeRegs.filter((r: any) => 
             r.projectCode?.trim().toUpperCase() === p.code?.trim().toUpperCase()
           ).length;
