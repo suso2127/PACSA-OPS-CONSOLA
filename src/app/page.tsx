@@ -20,7 +20,7 @@ type Role = 'Admin' | 'Supervisor' | 'Guard';
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
   const [currentTime, setCurrentTime] = useState<string | null>(null);
-  const [deficits, setDeficits] = useState<{name: string, count: number}[]>([]);
+  const [deficits, setDeficits] = useState<{name: string, count: number, required: number, onSite: number, status: 'uncovered' | 'partial'}[]>([]);
   const prevDeficitCount = useRef(0);
 
   useEffect(() => {
@@ -47,28 +47,56 @@ export default function Home() {
     const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
     const dayKey = dayNames[d.getDay()];
 
+    const normalize = (str?: string) => (str || '').trim().toUpperCase().replace(/[\s\-_.]+/g, '');
+    const isShiftActive = (s: any) => {
+      if (s.exitTime) return false;
+      if (s.status === 'Finalizado' || s.status === 'Completo') return false;
+      return true;
+    };
+    const matchesProject = (s: any, p: any) => {
+      const sCode = (s.projectCode || '').trim().toUpperCase();
+      const sName = (s.projectName || '').trim().toUpperCase();
+      const pCode = (p.code || '').trim().toUpperCase();
+      const pName = (p.name || '').trim().toUpperCase();
+
+      if (s.projectId && p.id && s.projectId === p.id) return true;
+      if (sCode && pCode && sCode === pCode) return true;
+      if (sName && pName && sName === pName) return true;
+      if (sCode && pName && sCode === pName) return true;
+      if (sName && pCode && sName === pCode) return true;
+
+      const normSCode = normalize(sCode);
+      const normSName = normalize(sName);
+      const normPCode = normalize(pCode);
+      const normPName = normalize(pName);
+
+      if (normSCode && normPCode && normSCode === normPCode) return true;
+      if (normSName && normPName && normSName === normPName) return true;
+      if (normSCode && normPName && normSCode === normPName) return true;
+      if (normSName && normPCode && normSName === normPCode) return true;
+
+      return false;
+    };
+
     const unsubProjects = onSnapshot(collection(db, 'projects'), (projectSnap) => {
       const projects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      const qShifts = query(
-        collection(db, 'shift-registrations'),
-        where('status', 'in', ['Activo', 'Doble'])
-      );
-
-      const unsubShifts = onSnapshot(qShifts, (shiftSnap) => {
-        const activeRegs = shiftSnap.docs.map(doc => doc.data() as any);
-        const newDeficits: {name: string, count: number}[] = [];
+      const unsubShifts = onSnapshot(collection(db, 'shift-registrations'), (shiftSnap) => {
+        const rawShifts = shiftSnap.docs.map(doc => doc.data() as any);
+        const activeRegs = rawShifts.filter(isShiftActive);
+        const newDeficits: {name: string, count: number, required: number, onSite: number, status: 'uncovered' | 'partial'}[] = [];
         
         projects.forEach((p: any) => {
           const required = Number(p.requirements?.[dayKey] ?? p.planilla_semanal?.[dayKey]?.elementos ?? p.planilla_semanal?.[dayKey]?.elms ?? 0);
-          const onSite = activeRegs.filter((r: any) => 
-            r.projectCode?.trim().toUpperCase() === p.code?.trim().toUpperCase()
-          ).length;
+          const onSite = activeRegs.filter((r: any) => matchesProject(r, p)).length;
           
           if (onSite < required) {
             newDeficits.push({
-              name: p.name,
-              count: required - onSite
+              name: p.name || p.code,
+              count: required - onSite,
+              required,
+              onSite,
+              status: onSite === 0 ? 'uncovered' : 'partial'
             });
           }
         });
@@ -175,13 +203,32 @@ export default function Home() {
                 {deficits.length > 0 ? (
                   <div className="space-y-1.5">
                     {deficits.map((d, i) => (
-                      <div key={i} className="flex justify-between items-center bg-[#1a1b2e] p-3 rounded-xl border border-white/5 group hover:border-red-500/30 transition-all">
+                      <div 
+                        key={i} 
+                        className={`flex justify-between items-center p-3 rounded-xl border transition-all ${
+                          d.status === 'uncovered'
+                            ? 'bg-red-950/30 border-red-500/30 hover:border-red-500/60'
+                            : 'bg-amber-950/30 border-amber-500/30 hover:border-amber-500/60'
+                        }`}
+                      >
                         <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Puesto</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full ${d.status === 'uncovered' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
+                              {d.status === 'uncovered' ? 'Sin Cubrir' : 'Por Cubrirse'}
+                            </span>
+                          </div>
                           <span className="text-[10px] font-bold text-white uppercase leading-none mt-1">{d.name}</span>
                         </div>
-                        <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] font-black px-2 py-0.5">
-                          -{d.count} GUARDIA(S)
+                        <Badge 
+                          variant={d.status === 'uncovered' ? 'destructive' : 'outline'} 
+                          className={`text-[9px] font-black px-2 py-0.5 ${
+                            d.status === 'uncovered' 
+                              ? 'bg-red-500/20 text-red-400 border-red-500/30' 
+                              : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          }`}
+                        >
+                          -{d.count} ({d.onSite}/{d.required})
                         </Badge>
                       </div>
                     ))}

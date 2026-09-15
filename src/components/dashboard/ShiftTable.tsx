@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp, deleteDoc, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, serverTimestamp, deleteDoc, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   Table,
@@ -32,7 +32,12 @@ import {
   Calendar,
   AlertTriangle,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  UserPlus,
+  Pencil,
+  Plus,
+  Search,
+  Loader2
 } from 'lucide-react';
 import {
   Select,
@@ -61,6 +66,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 interface Shift {
@@ -69,6 +75,7 @@ interface Shift {
   clientName: string;
   projectName: string;
   projectCode: string;
+  projectId?: string;
   projectLocation?: string;
   entryTime: any;
   exitTime?: any;
@@ -79,6 +86,13 @@ interface Shift {
   status: string;
 }
 
+interface ProjectItem {
+  id: string;
+  code: string;
+  name: string;
+  location?: string;
+}
+
 interface ShiftTableProps {
   showObservations?: boolean;
   hideExitTime?: boolean;
@@ -86,6 +100,7 @@ interface ShiftTableProps {
 
 export function ShiftTable({ showObservations = false, hideExitTime = false }: ShiftTableProps) {
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
@@ -93,6 +108,23 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+
+  // Modal para registrar turno directamente en Operaciones
+  const [isNewShiftOpen, setIsNewShiftOpen] = useState(false);
+  const [newGuardName, setNewGuardName] = useState('');
+  const [newProjectCode, setNewProjectCode] = useState('');
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectId, setNewProjectId] = useState('');
+  const [newShiftType, setNewShiftType] = useState('Diurno');
+  const [newDuration, setNewDuration] = useState('12h');
+  const [savingNewShift, setSavingNewShift] = useState(false);
+
+  // Modal para editar / registrar código de proyecto de un turno
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [editProjectCode, setEditProjectCode] = useState('');
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectId, setEditProjectId] = useState('');
+  const [savingEditProject, setSavingEditProject] = useState(false);
   
   const { toast } = useToast();
   
@@ -111,6 +143,23 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     }
     return null;
   };
+
+  // Cargar catálogo de proyectos en tiempo real
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'projects'), (snapshot) => {
+      const list = snapshot.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          code: data.code || '',
+          name: data.name || '',
+          location: data.location || ''
+        };
+      });
+      setProjects(list);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const q = query(
@@ -292,6 +341,133 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     toast({ title: "VISTA RESTAURADA", description: "Registros visibles." });
   };
 
+  // Manejadores para Registrar Turno directamente en Operaciones
+  const handleSelectProjectForNewShift = (projectId: string) => {
+    const proj = projects.find(p => p.id === projectId);
+    if (proj) {
+      setNewProjectId(proj.id);
+      setNewProjectCode(proj.code);
+      setNewProjectName(proj.name);
+    }
+  };
+
+  const handleSaveNewShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGuardName.trim() || !newProjectCode.trim()) {
+      toast({
+        variant: "destructive",
+        title: "DATOS INCOMPLETOS",
+        description: "Ingrese el nombre del elemento y el código de proyecto."
+      });
+      return;
+    }
+
+    setSavingNewShift(true);
+    try {
+      const code = newProjectCode.trim().toUpperCase();
+      const name = (newProjectName.trim() || code).toUpperCase();
+      const isDouble = newDuration === '24h';
+
+      await addDoc(collection(db, 'shift-registrations'), {
+        guardName: newGuardName.trim().toUpperCase(),
+        projectCode: code,
+        projectName: name,
+        clientName: name,
+        projectId: newProjectId || '',
+        shiftType: newShiftType,
+        duration: newDuration,
+        shiftDuration: newDuration,
+        status: isDouble ? 'Doble' : 'Activo',
+        entryTime: serverTimestamp(),
+        createdAt: serverTimestamp()
+      });
+
+      toast({
+        title: "TURNO REGISTRADO EN OPERACIONES",
+        description: `Elemento ${newGuardName.trim().toUpperCase()} vinculado a [${code}]. Sincronizado en tiempo real con el Dashboard.`
+      });
+
+      setIsNewShiftOpen(false);
+      setNewGuardName('');
+      setNewProjectCode('');
+      setNewProjectName('');
+      setNewProjectId('');
+      setNewDuration('12h');
+      setNewShiftType('Diurno');
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ERROR AL REGISTRAR",
+        description: "No se pudo guardar el turno en tiempo real."
+      });
+    } finally {
+      setSavingNewShift(false);
+    }
+  };
+
+  // Manejadores para Modificar o Asignar Código de Proyecto en Turno Existente
+  const handleOpenEditProject = (shift: Shift) => {
+    setEditingShift(shift);
+    setEditProjectCode(shift.projectCode || '');
+    setEditProjectName(shift.projectName || '');
+    const found = projects.find(p => 
+      p.code?.trim().toUpperCase() === shift.projectCode?.trim().toUpperCase() ||
+      p.name?.trim().toUpperCase() === shift.projectName?.trim().toUpperCase()
+    );
+    setEditProjectId(found?.id || shift.projectId || '');
+  };
+
+  const handleSelectProjectForEdit = (projectId: string) => {
+    const proj = projects.find(p => p.id === projectId);
+    if (proj) {
+      setEditProjectId(proj.id);
+      setEditProjectCode(proj.code);
+      setEditProjectName(proj.name);
+    }
+  };
+
+  const handleSaveEditProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingShift) return;
+    if (!editProjectCode.trim()) {
+      toast({
+        variant: "destructive",
+        title: "CÓDIGO REQUERIDO",
+        description: "Debe indicar el código del proyecto para este turno."
+      });
+      return;
+    }
+
+    setSavingEditProject(true);
+    try {
+      const code = editProjectCode.trim().toUpperCase();
+      const name = (editProjectName.trim() || code).toUpperCase();
+
+      await updateDoc(doc(db, 'shift-registrations', editingShift.id), {
+        projectCode: code,
+        projectName: name,
+        clientName: name,
+        projectId: editProjectId || '',
+        updatedAt: serverTimestamp()
+      });
+
+      toast({
+        title: "PROYECTO VINCULADO AL TURNO",
+        description: `Código [${code}] registrado para ${editingShift.guardName}. El Dashboard se actualizó en tiempo real.`
+      });
+
+      setEditingShift(null);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ERROR DE ACTUALIZACIÓN",
+        description: "No se pudo actualizar el código de proyecto."
+      });
+    } finally {
+      setSavingEditProject(false);
+    }
+  };
+
   const filteredShifts = useMemo(() => {
     let base = shifts.filter(s => !hiddenIds.has(s.id));
     if (statusFilter !== 'all') {
@@ -358,6 +534,13 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
             <h3 className="text-sm font-black text-white uppercase tracking-tight leading-none">ESTADO DE TURNOS EN TIEMPO REAL</h3>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              onClick={() => setIsNewShiftOpen(true)} 
+              className="h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-[8px] font-black uppercase rounded-lg px-2.5 shadow-[0_0_15px_rgba(59,130,246,0.3)] flex items-center gap-1.5"
+            >
+              <UserPlus className="h-3 w-3" />
+              REGISTRAR TURNO
+            </Button>
             {hiddenIds.size > 0 && (
               <Button variant="outline" onClick={handleRestoreView} className="h-7 bg-secondary/20 border-white/10 text-[8px] font-black uppercase px-2">
                 <RefreshCw className="h-2.5 w-2.5 mr-1.5" />Restaurar ({hiddenIds.size})
@@ -427,9 +610,25 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                         </div>
                       </TableCell>
                       <TableCell className="py-2.5">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1.5"><Building2 className="h-2.5 w-2.5 text-primary/70" /><span className="text-[10px] font-black text-primary uppercase font-mono">{shift.projectCode}</span></div>
-                          <span className="text-[10px] text-white font-bold uppercase truncate max-w-[200px] mt-1">{shift.projectName}</span>
+                        <div 
+                          onClick={() => handleOpenEditProject(shift)}
+                          className="flex flex-col cursor-pointer group/proj hover:bg-white/5 p-1.5 rounded-lg border border-transparent hover:border-primary/20 transition-all max-w-[220px]"
+                          title="Clic para registrar o modificar el código y nombre del proyecto"
+                        >
+                          <div className="flex items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Building2 className="h-2.5 w-2.5 text-primary" />
+                              <span className="text-[10px] font-black text-primary uppercase font-mono tracking-wider">
+                                {shift.projectCode || 'SIN CÓDIGO'}
+                              </span>
+                            </div>
+                            <div className="p-0.5 rounded bg-white/5 opacity-0 group-hover/proj:opacity-100 text-muted-foreground hover:text-white transition-opacity">
+                              <Pencil className="h-2.5 w-2.5" />
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-white font-bold uppercase truncate mt-0.5">
+                            {shift.projectName || 'Sin Nombre Asignado'}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center py-2.5"><div className="font-mono text-[10px] font-black text-white bg-[#1a1b2e] px-1.5 py-0.5 rounded border border-white/5">{formatDisplayTime(shift.entryTime)}</div></TableCell>
@@ -481,7 +680,28 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                           </TableCell>
                         </>
                       )}
-                      <TableCell className="text-right pr-5 py-2.5"><Button variant="ghost" size="icon" onClick={() => handleDelete(shift.id, shift.guardName)} className="h-8 w-8 text-muted-foreground hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
+                      <TableCell className="text-right pr-5 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleOpenEditProject(shift)} 
+                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            title="Editar código y nombre de proyecto"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDelete(shift.id, shift.guardName)} 
+                            className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                            title="Eliminar turno"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -492,6 +712,256 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
           </Table>
         </div>
       </div>
+
+      {/* Modal para Registrar Turno en Operaciones */}
+      <Dialog open={isNewShiftOpen} onOpenChange={setIsNewShiftOpen}>
+        <DialogContent className="bg-[#1a1b2e] border border-white/10 text-white max-w-md rounded-2xl p-6">
+          <DialogHeader className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
+                <UserPlus className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black uppercase text-white">
+                  Registrar Turno Operativo
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  El código y proyecto ingresados actualizarán el Dashboard en tiempo real.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveNewShift} className="space-y-4 py-3">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                1. Seleccionar Proyecto Registrado (Autocompletar)
+              </Label>
+              <Select onValueChange={handleSelectProjectForNewShift}>
+                <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                  <SelectValue placeholder="-- Escoger del listado de proyectos --" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1b2e] border-white/10 text-white max-h-[220px]">
+                  {projects.map((proj) => (
+                    <SelectItem key={proj.id} value={proj.id} className="text-xs">
+                      <span className="font-mono font-bold text-primary mr-2">[{proj.code}]</span>
+                      {proj.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Código de Proyecto *
+                </Label>
+                <Input 
+                  value={newProjectCode} 
+                  onChange={(e) => setNewProjectCode(e.target.value.toUpperCase())}
+                  placeholder="EJ. BCT-01"
+                  required
+                  className="bg-[#0f101d] border-white/10 font-mono font-bold text-primary text-xs h-9"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Nombre de Proyecto
+                </Label>
+                <Input 
+                  value={newProjectName} 
+                  onChange={(e) => setNewProjectName(e.target.value.toUpperCase())}
+                  placeholder="EJ. BANCO TOWER"
+                  className="bg-[#0f101d] border-white/10 font-bold text-xs h-9 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                Nombre Completo del Elemento / Guardia *
+              </Label>
+              <Input 
+                value={newGuardName} 
+                onChange={(e) => setNewGuardName(e.target.value.toUpperCase())}
+                placeholder="EJ. JUAN PÉREZ"
+                required
+                className="bg-[#0f101d] border-white/10 font-bold text-xs h-9 text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Jornada
+                </Label>
+                <Select value={newDuration} onValueChange={setNewDuration}>
+                  <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                    <SelectItem value="12h" className="text-xs font-bold">12 HORAS (Activo)</SelectItem>
+                    <SelectItem value="24h" className="text-xs font-bold text-red-400">24 HORAS (Doble)</SelectItem>
+                    <SelectItem value="8h" className="text-xs font-bold">8 HORAS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Turno
+                </Label>
+                <Select value={newShiftType} onValueChange={setNewShiftType}>
+                  <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                    <SelectItem value="Diurno" className="text-xs font-bold">DIURNO</SelectItem>
+                    <SelectItem value="Nocturno" className="text-xs font-bold">NOCTURNO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3 flex gap-2">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={() => setIsNewShiftOpen(false)}
+                className="h-9 text-muted-foreground font-bold uppercase text-[10px]"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={savingNewShift}
+                className="h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] px-4 flex items-center gap-1.5"
+              >
+                {savingNewShift ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-3 w-3" /> Registrar y Sincronizar
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Editar / Asignar Código de Proyecto a un Turno */}
+      <Dialog open={!!editingShift} onOpenChange={(open) => !open && setEditingShift(null)}>
+        <DialogContent className="bg-[#1a1b2e] border border-primary/20 text-white max-w-md rounded-2xl p-6">
+          <DialogHeader className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black uppercase text-white">
+                  Vincular Proyecto al Turno
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Asigne el código y nombre del proyecto para actualizar el Dashboard en tiempo real.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {editingShift && (
+            <form onSubmit={handleSaveEditProject} className="space-y-4 py-3">
+              <div className="p-2.5 rounded-lg bg-[#0f101d] border border-white/5 flex items-center justify-between">
+                <div>
+                  <div className="text-[9px] font-black uppercase text-muted-foreground">Elemento / Guardia</div>
+                  <div className="text-xs font-black uppercase text-white mt-0.5">{editingShift.guardName}</div>
+                </div>
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-mono">
+                  {editingShift.duration || '12h'}
+                </Badge>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Seleccionar Proyecto Existente
+                </Label>
+                <Select onValueChange={handleSelectProjectForEdit}>
+                  <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                    <SelectValue placeholder="-- Escoger del catálogo de proyectos --" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white max-h-[220px]">
+                    {projects.map((proj) => (
+                      <SelectItem key={proj.id} value={proj.id} className="text-xs">
+                        <span className="font-mono font-bold text-primary mr-2">[{proj.code}]</span>
+                        {proj.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Código de Proyecto *
+                </Label>
+                <Input 
+                  value={editProjectCode} 
+                  onChange={(e) => setEditProjectCode(e.target.value.toUpperCase())}
+                  placeholder="EJ. BCT-01"
+                  required
+                  className="bg-[#0f101d] border-white/10 font-mono font-bold text-primary text-xs h-9"
+                  autoFocus
+                />
+                <span className="text-[9px] text-muted-foreground">
+                  Este código es el que lee el Dashboard para vincular los elementos en sitio.
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                  Nombre del Proyecto
+                </Label>
+                <Input 
+                  value={editProjectName} 
+                  onChange={(e) => setEditProjectName(e.target.value.toUpperCase())}
+                  placeholder="EJ. BANCO TOWER"
+                  className="bg-[#0f101d] border-white/10 font-bold text-xs h-9 text-white"
+                />
+              </div>
+
+              <DialogFooter className="pt-3 flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setEditingShift(null)}
+                  className="h-9 text-muted-foreground font-bold uppercase text-[10px]"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={savingEditProject}
+                  className="h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] px-4 flex items-center gap-1.5"
+                >
+                  {savingEditProject ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="h-3 w-3" /> Guardar y Sincronizar
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="bg-[#1a1b2e] border border-red-500/20 text-white max-w-sm rounded-3xl p-8">

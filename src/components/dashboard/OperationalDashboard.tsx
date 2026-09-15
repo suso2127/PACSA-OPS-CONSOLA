@@ -14,9 +14,13 @@ import {
   ShieldCheck,
   Lock,
   LayoutGrid,
-  AlertTriangle
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Filter
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,9 +32,21 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, ResponsiveContainer, YAxis, Pie, PieChart, Cell } from "recharts";
 
+export interface PostCoverageItem {
+  id: string;
+  name: string;
+  code: string;
+  required: number;
+  onSite: number;
+  missing: number;
+  status: 'uncovered' | 'partial' | 'covered'; // 'uncovered' = ROJO, 'partial' = AMARILLO/NARANJA, 'covered' = VERDE
+}
+
 export function OperationalDashboard() {
   const [currentDay, setCurrentDay] = useState('');
   const [deficits, setDeficits] = useState<{name: string, required: number, onSite: number}[]>([]);
+  const [postCoverages, setPostCoverages] = useState<PostCoverageItem[]>([]);
+  const [coverageFilter, setCoverageFilter] = useState<'all' | 'uncovered' | 'partial' | 'covered'>('all');
   const [projectCoverageData, setProjectCoverageData] = useState<any[]>([]);
   const [stats, setStats] = useState({
     required: 0,
@@ -54,19 +70,49 @@ export function OperationalDashboard() {
     const dayNames = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
     const dayKey = dayNames[d.getDay()];
 
+    // Normalizador táctico para coincidencia flexible de proyectos por código o nombre
+    const normalize = (str?: string) => (str || '').trim().toUpperCase().replace(/[\s\-_.]+/g, '');
+    const isShiftActive = (s: any) => {
+      if (s.exitTime) return false;
+      if (s.status === 'Finalizado' || s.status === 'Completo') return false;
+      return true;
+    };
+    const matchesProject = (s: any, p: any) => {
+      const sCode = (s.projectCode || '').trim().toUpperCase();
+      const sName = (s.projectName || '').trim().toUpperCase();
+      const pCode = (p.code || '').trim().toUpperCase();
+      const pName = (p.name || '').trim().toUpperCase();
+
+      if (s.projectId && p.id && s.projectId === p.id) return true;
+      if (sCode && pCode && sCode === pCode) return true;
+      if (sName && pName && sName === pName) return true;
+      if (sCode && pName && sCode === pName) return true;
+      if (sName && pCode && sName === pCode) return true;
+
+      const normSCode = normalize(sCode);
+      const normSName = normalize(sName);
+      const normPCode = normalize(pCode);
+      const normPName = normalize(pName);
+
+      if (normSCode && normPCode && normSCode === normPCode) return true;
+      if (normSName && normPName && normSName === normPName) return true;
+      if (normSCode && normPName && normSCode === normPName) return true;
+      if (normSName && normPCode && normSName === normPCode) return true;
+
+      return false;
+    };
+
     // Escucha en tiempo real de proyectos para obtener requerimientos
     const unsubProjects = onSnapshot(collection(db, 'projects'), (projectSnap) => {
       const projects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       
-      // Escucha en tiempo real de registros activos y dobles (Comando Operaciones)
-      const qShifts = query(
-        collection(db, 'shift-registrations'),
-        where('status', 'in', ['Activo', 'Doble'])
-      );
+      // Escucha en tiempo real de registros de turno (Comando Operaciones)
+      const unsubShifts = onSnapshot(collection(db, 'shift-registrations'), (shiftSnap) => {
+        const rawShifts = shiftSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const activeShifts = rawShifts.filter(isShiftActive);
 
-      const unsubShifts = onSnapshot(qShifts, (shiftSnap) => {
-        const shifts = shiftSnap.docs.map(doc => doc.data());
         const newDeficits: {name: string, required: number, onSite: number}[] = [];
+        const allCoverages: PostCoverageItem[] = [];
         const coverageData: any[] = [];
         let totalReq = 0;
         let activeCount = 0;
@@ -76,37 +122,73 @@ export function OperationalDashboard() {
           const req = Number(p.requirements?.[dayKey] ?? p.planilla_semanal?.[dayKey]?.elementos ?? p.planilla_semanal?.[dayKey]?.elms ?? 0);
           totalReq += req;
           
-          // Filtrar registros específicos de este proyecto con normalización estricta
-          const projectShifts = shifts.filter((s: any) => 
-            s.projectCode?.trim().toUpperCase() === p.code?.trim().toUpperCase()
-          );
+          // Filtrar registros vinculados a este proyecto (por código o nombre)
+          const projectShifts = activeShifts.filter((s: any) => matchesProject(s, p));
           const onSite = projectShifts.length;
-          const actives = projectShifts.filter((s: any) => s.status === 'Activo').length;
-          const doubles = projectShifts.filter((s: any) => s.status === 'Doble').length;
+          const doubles = projectShifts.filter((s: any) => s.status === 'Doble' || s.duration === '24h' || s.shiftDuration === '24h').length;
+          const actives = onSite - doubles;
           
           activeCount += actives;
           doubleCount += doubles;
 
-          // Detectar déficit de cobertura
-          if (onSite < req) {
-            newDeficits.push({ name: p.name, required: req, onSite });
+          const missing = Math.max(0, req - onSite);
+
+          // Clasificación semántica estricta por colores:
+          // ROJO: Sin cubrir (0 elementos en sitio)
+          // AMARILLO O NARANJA: Por cubrirse (cobertura parcial: onSite > 0 y onSite < req)
+          // VERDE: Cobertura contemplada (servicio completo: onSite >= req)
+          let status: 'uncovered' | 'partial' | 'covered' = 'covered';
+          if (req > 0) {
+            if (onSite === 0) {
+              status = 'uncovered'; // ROJO
+            } else if (onSite < req) {
+              status = 'partial'; // AMARILLO O NARANJA
+            } else {
+              status = 'covered'; // VERDE
+            }
+          } else if (onSite > 0) {
+            status = 'covered'; // VERDE
           }
 
-          // Data para el gráfico de barras de cobertura
-          if (req > 0) {
+          if (req > 0 || onSite > 0) {
+            allCoverages.push({
+              id: p.id,
+              name: p.name || p.code || 'Sin Nombre',
+              code: p.code || '',
+              required: req,
+              onSite,
+              missing,
+              status
+            });
+
+            // Data para el gráfico de barras de cobertura
             coverageData.push({
-              name: p.code,
+              name: p.code || p.name,
               required: req,
               onSite: onSite,
             });
           }
+
+          // Detectar déficit de cobertura
+          if (onSite < req) {
+            newDeficits.push({ name: p.name || p.code, required: req, onSite });
+          }
+        });
+
+        // Orden de urgencia: Primero ROJO (Sin cubrir), luego AMARILLO/NARANJA (Por cubrirse), luego VERDE (Contemplado)
+        allCoverages.sort((a, b) => {
+          const priority = { uncovered: 0, partial: 1, covered: 2 };
+          if (priority[a.status] !== priority[b.status]) {
+            return priority[a.status] - priority[b.status];
+          }
+          return b.missing - a.missing;
         });
 
         const totalInSite = activeCount + doubleCount;
         const missing = Math.max(0, totalReq - totalInSite);
-        const coverage = totalReq > 0 ? Math.round((totalInSite / totalReq) * 100) : 0;
+        const coverage = totalReq > 0 ? Math.round((totalInSite / totalReq) * 100) : (totalInSite > 0 ? 100 : 0);
 
-        // Sincronización global de métricas
+        // Sincronización global de métricas en tiempo real
         setStats({
           required: totalReq,
           active: activeCount,
@@ -115,6 +197,7 @@ export function OperationalDashboard() {
           coverage
         });
         setDeficits(newDeficits);
+        setPostCoverages(allCoverages);
         setProjectCoverageData(coverageData);
       });
 
@@ -239,48 +322,268 @@ export function OperationalDashboard() {
         </Card>
       </div>
 
-      {/* Protocolo de Alerta de Cobertura Sincronizado */}
-      <Card className={`bg-[#1a1b2e] border-white/5 border-l-[6px] ${stats.missing > 0 ? 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.1)]' : 'border-l-green-500 shadow-[0_0_30px_rgba(34,197,94,0.1)]'} shadow-2xl transition-all duration-500`}>
-        <CardContent className="p-8">
-          <div className="flex flex-col gap-8">
-            <div className="flex items-center gap-6">
-              <div className={`p-5 rounded-2xl border ${stats.missing > 0 ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
-                <ShieldAlert className="h-10 w-10" />
-              </div>
-              <div>
-                <h3 className={`text-xl font-black ${stats.missing > 0 ? 'text-red-500' : 'text-green-500'} uppercase tracking-tighter mb-1`}>
-                  {stats.missing > 0 ? 'Protocolo de Alerta de Cobertura' : 'Sistema de Cobertura Optima'}
-                </h3>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest max-w-2xl">
-                  {stats.missing > 0 
-                    ? `Se han detectado ${stats.missing} puestos sin cubrir en la planilla del ${currentDay.toLowerCase()}. Se requiere atención inmediata en los siguientes puestos:`
-                    : `Todos los requerimientos operativos para el ${currentDay.toLowerCase()} han sido satisfechos según la planilla central.`
-                  }
-                </p>
-              </div>
-            </div>
+      {/* Protocolo de Alerta de Cobertura Sincronizado con Código Semántico de Colores */}
+      {(() => {
+        const uncoveredPosts = postCoverages.filter(p => p.status === 'uncovered');
+        const partialPosts = postCoverages.filter(p => p.status === 'partial');
+        const coveredPosts = postCoverages.filter(p => p.status === 'covered');
 
-            {stats.missing > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {deficits.map((d, i) => (
-                  <div key={i} className="bg-black/20 p-4 rounded-xl border border-red-500/10 flex items-center justify-between group hover:border-red-500/30 transition-all">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-red-500/50 uppercase tracking-widest leading-none">Puesto</span>
-                      <span className="text-xs font-black text-white uppercase mt-1.5">{d.name}</span>
+        const displayedPosts = postCoverages.filter(p => {
+          if (coverageFilter === 'all') return true;
+          return p.status === coverageFilter;
+        });
+
+        const hasUrgentDeficits = uncoveredPosts.length > 0 || partialPosts.length > 0;
+
+        return (
+          <Card className={`bg-[#1a1b2e] border-white/5 border-l-[6px] ${
+            uncoveredPosts.length > 0 
+              ? 'border-l-red-500 shadow-[0_0_35px_rgba(239,68,68,0.12)]' 
+              : partialPosts.length > 0 
+              ? 'border-l-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.12)]' 
+              : 'border-l-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.12)]'
+          } shadow-2xl transition-all duration-500`}>
+            <CardContent className="p-6 md:p-8">
+              <div className="flex flex-col gap-6">
+                {/* Encabezado del Protocolo */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 border-b border-white/5 pb-6">
+                  <div className="flex items-start gap-4 md:gap-5">
+                    <div className={`p-4 rounded-2xl border shrink-0 ${
+                      uncoveredPosts.length > 0 
+                        ? 'bg-red-500/10 border-red-500/20 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]' 
+                        : partialPosts.length > 0
+                        ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
+                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                    }`}>
+                      <ShieldAlert className="h-8 w-8 md:h-9 md:w-9" />
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-black text-muted-foreground uppercase block leading-none">Faltantes</span>
-                      <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] font-black mt-1.5 px-2">
-                        {d.required - d.onSite} DE {d.required}
-                      </Badge>
+                    <div>
+                      <div className="flex items-center gap-2.5 flex-wrap mb-1">
+                        <h3 className={`text-lg md:text-xl font-black uppercase tracking-tight ${
+                          uncoveredPosts.length > 0 ? 'text-red-500' : partialPosts.length > 0 ? 'text-amber-400' : 'text-emerald-400'
+                        }`}>
+                          {hasUrgentDeficits ? 'Protocolo de Alerta de Cobertura' : 'Sistema de Cobertura Contemplada'}
+                        </h3>
+                        {stats.missing > 0 && (
+                          <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] font-black px-2.5 py-0.5">
+                            {stats.missing} FALTANTES TOTALES
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide max-w-3xl leading-relaxed">
+                        {hasUrgentDeficits 
+                          ? `Se han detectado puestos con requerimientos pendientes en la planilla del ${currentDay.toLowerCase()}. Se requiere atención inmediata conforme a la semaforización operativa:`
+                          : `Todos los requerimientos operativos para el ${currentDay.toLowerCase()} han sido cubiertos según la planilla central.`
+                        }
+                      </p>
                     </div>
                   </div>
-                ))}
+
+                  {/* Leyenda Semántica de Colores */}
+                  <div className="flex flex-wrap items-center gap-2 self-start lg:self-center p-2.5 rounded-xl bg-black/40 border border-white/5">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20">
+                      <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-[9px] font-black uppercase text-red-400 tracking-wider">
+                        ROJO: Sin cubrir
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">
+                        AMARILLO/NARANJA: Por cubrirse
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                      <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">
+                        VERDE: Contemplado
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filtros Tácticos de Visualización */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                      Filtrar por Estado:
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCoverageFilter('all')}
+                      className={`h-7 px-3 text-[9px] font-black uppercase rounded-lg transition-all ${
+                        coverageFilter === 'all'
+                          ? 'bg-white/10 text-white border border-white/20'
+                          : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      Todos ({postCoverages.length})
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCoverageFilter('uncovered')}
+                      className={`h-7 px-3 text-[9px] font-black uppercase rounded-lg transition-all flex items-center gap-1.5 ${
+                        coverageFilter === 'uncovered'
+                          ? 'bg-red-500/25 text-red-300 border border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                          : 'text-red-400/80 hover:text-red-300 hover:bg-red-500/10'
+                      }`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                      Rojo · Sin Cubrir ({uncoveredPosts.length})
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCoverageFilter('partial')}
+                      className={`h-7 px-3 text-[9px] font-black uppercase rounded-lg transition-all flex items-center gap-1.5 ${
+                        coverageFilter === 'partial'
+                          ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                          : 'text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10'
+                      }`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      Amarillo · Por Cubrirse ({partialPosts.length})
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCoverageFilter('covered')}
+                      className={`h-7 px-3 text-[9px] font-black uppercase rounded-lg transition-all flex items-center gap-1.5 ${
+                        coverageFilter === 'covered'
+                          ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                          : 'text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/10'
+                      }`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      Verde · Contemplados ({coveredPosts.length})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Grid de Puestos con los Colores Semánticos */}
+                {displayedPosts.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {displayedPosts.map((d, i) => {
+                      const isUncovered = d.status === 'uncovered';
+                      const isPartial = d.status === 'partial';
+                      const isCovered = d.status === 'covered';
+
+                      // Clases semánticas por color:
+                      // ROJO: Sin cubrir (0 en sitio)
+                      // AMARILLO/NARANJA: Por cubrirse (cobertura parcial)
+                      // VERDE: Cobertura contemplada (100% cubierto)
+                      const cardStyle = isUncovered
+                        ? 'bg-[#251317] border-red-500/30 hover:border-red-500/60 border-l-4 border-l-red-500 shadow-[0_0_20px_rgba(239,68,68,0.08)]'
+                        : isPartial
+                        ? 'bg-[#271d10] border-amber-500/30 hover:border-amber-500/60 border-l-4 border-l-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.08)]'
+                        : 'bg-[#10251a] border-emerald-500/30 hover:border-emerald-500/60 border-l-4 border-l-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.08)]';
+
+                      return (
+                        <div 
+                          key={d.id || i} 
+                          className={`p-4 rounded-xl border transition-all duration-300 ${cardStyle} flex flex-col justify-between gap-3 group`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex flex-col min-w-0">
+                              <span className={`text-[9px] font-black uppercase tracking-widest leading-none ${
+                                isUncovered ? 'text-red-400/70' : isPartial ? 'text-amber-400/70' : 'text-emerald-400/70'
+                              }`}>
+                                Puesto
+                              </span>
+                              <span className="text-xs font-black text-white uppercase mt-1 leading-snug truncate" title={d.name}>
+                                {d.name}
+                              </span>
+                              {d.code && (
+                                <span className={`text-[9px] font-mono font-bold mt-0.5 ${
+                                  isUncovered ? 'text-red-400/90' : isPartial ? 'text-amber-400/90' : 'text-emerald-400/90'
+                                }`}>
+                                  [{d.code}]
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Badge de Estado por Color */}
+                            {isUncovered && (
+                              <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[8px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 py-0.5 px-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
+                                ROJO · SIN CUBRIR
+                              </Badge>
+                            )}
+                            {isPartial && (
+                              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[8px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 py-0.5 px-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                AMARILLO · POR CUBRIRSE
+                              </Badge>
+                            )}
+                            {isCovered && (
+                              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[8px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 py-0.5 px-2">
+                                <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+                                VERDE · CONTEMPLADO
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Pie de la tarjeta con dotación y faltantes */}
+                          <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
+                            <div>
+                              <span className="text-[8px] font-black text-muted-foreground uppercase block leading-none">
+                                {isCovered ? 'Personal en Puesto' : 'Estado de Guardia'}
+                              </span>
+                              <span className={`text-[10px] font-bold uppercase mt-1 block ${
+                                isUncovered ? 'text-red-300' : isPartial ? 'text-amber-300' : 'text-emerald-300'
+                              }`}>
+                                {isUncovered && `0 de ${d.required} en sitio`}
+                                {isPartial && `${d.onSite} de ${d.required} en sitio (Parcial)`}
+                                {isCovered && `${d.onSite} de ${d.required} en sitio (100%)`}
+                              </span>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[8px] font-black text-muted-foreground uppercase block leading-none mb-1">
+                                {isCovered ? 'Estado' : 'Faltantes'}
+                              </span>
+                              {isUncovered && (
+                                <Badge variant="destructive" className="bg-red-500/25 text-red-200 border-red-500/40 text-[10px] font-black px-2 py-0.5 shadow-[0_0_10px_rgba(239,68,68,0.2)]">
+                                  {d.missing} DE {d.required}
+                                </Badge>
+                              )}
+                              {isPartial && (
+                                <Badge className="bg-amber-500/25 text-amber-200 border-amber-500/40 text-[10px] font-black px-2 py-0.5 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                  {d.missing} DE {d.required}
+                                </Badge>
+                              )}
+                              {isCovered && (
+                                <Badge className="bg-emerald-500/25 text-emerald-200 border-emerald-500/40 text-[10px] font-black px-2 py-0.5 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                                  COMPLETO
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center rounded-xl bg-white/[0.02] border border-white/5">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                      No hay puestos en la categoría seleccionada.
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Paneles Centrales de Análisis en Tiempo Real */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
