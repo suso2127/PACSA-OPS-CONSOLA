@@ -232,6 +232,15 @@ export function ProjectManagement() {
   const handleUpdateProject = async () => {
     if (!editingProject) return;
 
+    if (!editingProject.code?.trim() || !editingProject.name?.trim()) {
+      toast({
+        title: "Campos Requeridos",
+        description: "El código y el nombre del proyecto son obligatorios.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const projectRef = doc(db, 'projects', editingProject.id);
@@ -246,7 +255,7 @@ export function ProjectManagement() {
 
       toast({
         title: "PROYECTO ACTUALIZADO",
-        description: `Los cambios en ${editingProject.code} han sido sincronizados.`
+        description: `Los cambios en ${editingProject.code.trim().toUpperCase()} han sido sincronizados.`
       });
       setEditingProject(null);
     } catch (err) {
@@ -491,7 +500,16 @@ export function ProjectManagement() {
           
           {editingProject && (
             <div className="grid grid-cols-1 gap-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-bold text-white/70">Código Alfanumérico (ID)</Label>
+                  <Input 
+                    value={editingProject.code}
+                    onChange={(e) => setEditingProject({...editingProject, code: e.target.value.toUpperCase()})}
+                    placeholder="EJ. ABC-01"
+                    className="bg-[#252535] border-none h-11 text-sm font-mono font-bold text-[#6366f1] focus-visible:ring-1 focus-visible:ring-[#6366f1]/50 uppercase"
+                  />
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-[11px] font-bold text-white/70">Nombre del Cliente</Label>
                   <Input 
