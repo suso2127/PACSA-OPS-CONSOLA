@@ -203,22 +203,55 @@ export function PayrollView() {
   };
 
   const exportExcel = () => {
-    const headers = ['Guardia', 'Proyecto', ...periodDays.map(d => `${d.name} ${d.date}`), 'Total Horas'];
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const periodText = periodDays.length > 0 
+      ? `Periodo: ${periodDays[0]?.date} al ${periodDays[periodDays.length - 1]?.date}`
+      : '';
+
+    const headers = [
+      'Guardia',
+      'Puesto',
+      ...periodDays.map(d => `${d.name} ${d.date.split('/')[0]}`),
+      'Total Horas'
+    ];
+
     const rows = filteredData.map(g => [
-      g.guardName,
-      g.projectCode,
-      ...periodDays.map(d => g.shiftsByDay[d.fullDate]?.displayHours || '00:00'),
+      g.guardName || '',
+      g.projectCode || '',
+      ...periodDays.map(d => g.shiftsByDay[d.fullDate]?.displayHours || '-'),
       formatToHHMM(g.totalHours)
     ]);
 
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const titleRow = escapeCSV('PLANILLA OPERATIVA PACSA - REPORTE QUINCENAL');
+    const periodRow = escapeCSV(periodText);
+    const emptyRow = '';
+    const headerRow = headers.map(escapeCSV).join(',');
+    const dataRows = rows.map(row => row.map(escapeCSV).join(','));
+
+    const csvContent = [
+      titleRow,
+      periodRow,
+      emptyRow,
+      headerRow,
+      ...dataRows
+    ].join('\r\n');
+
+    // UTF-8 BOM (\uFEFF) para garantizar que Excel reconozca tildes y caracteres especiales correctamente
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `Planilla_PACSA_Quincena_${periodDays[0]?.date.replace('/', '-')}.csv`);
+    const startDate = periodDays[0]?.date ? periodDays[0].date.replace('/', '-') : 'quincena';
+    link.setAttribute("download", `Planilla_PACSA_Quincena_${startDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
   };
 
   const todayDateString = new Date().toDateString();
