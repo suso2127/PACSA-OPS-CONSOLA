@@ -86,62 +86,10 @@ const TILE_SOURCES = {
   }
 };
 
-// Initial Panama Demo Units for immediate visibility if collection is empty
-const INITIAL_PANAMA_UNITS: TrackingUnit[] = [
-  {
-    id: 'unit-g1',
-    name: 'Guardia Juan Pérez',
-    code: 'G-101',
-    type: 'guard',
-    lat: 8.9735,
-    lng: -79.5532,
-    speed: 0,
-    battery: 88,
-    status: 'active',
-    assignedProject: 'Albrook Bomba'
-  },
-  {
-    id: 'unit-m1',
-    name: 'Moto Patrulla Rápida 01',
-    code: 'M-201',
-    type: 'motorcycle',
-    lat: 8.9850,
-    lng: -79.5250,
-    speed: 35,
-    battery: 95,
-    status: 'moving',
-    assignedProject: 'Vía España / Obarrio'
-  },
-  {
-    id: 'unit-p1',
-    name: 'Patrulla Móvil 04 (Supervisor)',
-    code: 'P-302',
-    type: 'patrol',
-    lat: 8.9912,
-    lng: -79.5115,
-    speed: 18,
-    battery: 74,
-    status: 'moving',
-    assignedProject: 'Plaza San Fernando'
-  },
-  {
-    id: 'unit-g2',
-    name: 'Guardia Carlos Mendoza',
-    code: 'G-102',
-    type: 'guard',
-    lat: 9.0081,
-    lng: -79.4728,
-    speed: 2,
-    battery: 92,
-    status: 'active',
-    assignedProject: 'Costa del Este'
-  }
-];
-
 export function MapView() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [trackingUnits, setTrackingUnits] = useState<TrackingUnit[]>(INITIAL_PANAMA_UNITS);
+  const [trackingUnits, setTrackingUnits] = useState<TrackingUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -219,15 +167,26 @@ export function MapView() {
     // 3. Escuchar Unidades en Tiempo Real (Guardias y Vehículos) desde Firestore
     const qUnits = collection(db, 'active_units');
     const unsubUnits = onSnapshot(qUnits, (snapshot) => {
-      if (!snapshot.empty) {
-        const fetchedUnits = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as TrackingUnit[];
-        setTrackingUnits(fetchedUnits);
-      }
+      const fetchedUnits = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TrackingUnit[];
+
+      // Filtrar solo unidades con coordenadas válidas y excluir posibles restos de datos demo
+      const realUnits = fetchedUnits.filter(
+        u => !['unit-g1', 'unit-m1', 'unit-p1', 'unit-g2'].includes(u.id) &&
+             !u.name?.includes('Juan Pérez') &&
+             !u.name?.includes('Carlos Mendoza') &&
+             !u.name?.includes('Moto Patrulla Rápida 01') &&
+             !u.name?.includes('Patrulla Móvil 04') &&
+             typeof u.lat === 'number' && typeof u.lng === 'number' &&
+             !isNaN(u.lat) && !isNaN(u.lng)
+      );
+
+      setTrackingUnits(realUnits);
     }, (error) => {
       console.warn('Error fetching active_units realtime:', error);
+      setTrackingUnits([]);
     });
 
     return () => {
@@ -237,30 +196,12 @@ export function MapView() {
     };
   }, []);
 
-  // Demo movement simulation for initial Panama tracking units if no live external GPS feed
+  // Limpiar selección de unidad si ya no existe en Firestore
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTrackingUnits((prevUnits) =>
-        prevUnits.map((unit) => {
-          if (unit.id === 'my-device') return unit; // Don't move real local device
-          if (unit.status === 'moving') {
-            const latDelta = (Math.random() - 0.5) * 0.0004;
-            const lngDelta = (Math.random() - 0.5) * 0.0004;
-            return {
-              ...unit,
-              lat: unit.lat + latDelta,
-              lng: unit.lng + lngDelta,
-              speed: Math.max(5, Math.min(80, (unit.speed || 20) + Math.floor((Math.random() - 0.5) * 6))),
-              updatedAt: new Date().toISOString()
-            };
-          }
-          return unit;
-        })
-      );
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
+    if (selectedUnit && !trackingUnits.some(u => u.id === selectedUnit.id)) {
+      setSelectedUnit(null);
+    }
+  }, [trackingUnits, selectedUnit]);
 
   // Toggle Transmitir GPS Local desde el navegador/celular del guardia
   const toggleGpsTransmission = () => {
@@ -899,39 +840,45 @@ export function MapView() {
               </div>
 
               <div className="space-y-2">
-                {filteredUnits.map((unit) => (
-                  <button
-                    key={unit.id}
-                    onClick={() => handleSelectUnit(unit)}
-                    className={`w-full text-left p-3 rounded-2xl transition-all duration-300 border ${
-                      selectedUnit?.id === unit.id 
-                        ? 'bg-blue-500/10 border-blue-500/40 shadow-lg' 
-                        : 'bg-[#25273c] border-transparent hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${
-                        unit.type === 'guard' ? 'bg-blue-500/20 text-blue-400' :
-                        unit.type === 'motorcycle' ? 'bg-amber-500/20 text-amber-400' :
-                        'bg-purple-500/20 text-purple-400'
-                      }`}>
-                        {unit.type === 'guard' ? <User className="h-4 w-4" /> :
-                         unit.type === 'motorcycle' ? <Bike className="h-4 w-4" /> :
-                         <Car className="h-4 w-4" />}
-                      </div>
-
-                      <div className="flex-1 overflow-hidden">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-white">{unit.code}</span>
-                          <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            GPS LIVE
-                          </span>
+                {filteredUnits.length > 0 ? (
+                  filteredUnits.map((unit) => (
+                    <button
+                      key={unit.id}
+                      onClick={() => handleSelectUnit(unit)}
+                      className={`w-full text-left p-3 rounded-2xl transition-all duration-300 border ${
+                        selectedUnit?.id === unit.id 
+                          ? 'bg-blue-500/10 border-blue-500/40 shadow-lg' 
+                          : 'bg-[#25273c] border-transparent hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          unit.type === 'guard' ? 'bg-blue-500/20 text-blue-400' :
+                          unit.type === 'motorcycle' ? 'bg-amber-500/20 text-amber-400' :
+                          'bg-purple-500/20 text-purple-400'
+                        }`}>
+                          {unit.type === 'guard' ? <User className="h-4 w-4" /> :
+                           unit.type === 'motorcycle' ? <Bike className="h-4 w-4" /> :
+                           <Car className="h-4 w-4" />}
                         </div>
-                        <p className="text-xs font-bold text-muted-foreground truncate">{unit.name}</p>
+
+                        <div className="flex-1 overflow-hidden">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-white">{unit.code}</span>
+                            <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              GPS LIVE
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-muted-foreground truncate">{unit.name}</p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-[10px] italic text-muted-foreground text-center py-3">
+                    No hay unidades GPS activas
+                  </p>
+                )}
               </div>
             </div>
           </div>
