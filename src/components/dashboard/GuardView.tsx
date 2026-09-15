@@ -1,29 +1,8 @@
+
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  setDoc, 
-  addDoc, 
-  serverTimestamp, 
-  onSnapshot,
-  orderBy 
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
 import { 
   ClipboardList, 
   LogIn, 
@@ -31,135 +10,100 @@ import {
   Camera, 
   MapPin, 
   Navigation, 
-  Building2, 
   Loader2, 
   CheckCircle2, 
-  AlertTriangle,
+  Building2, 
+  Radio, 
   Clock,
-  Shield,
-  Radio,
-  RefreshCw,
-  Search
+  ShieldCheck,
+  ChevronDown
 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  getDoc,
+  doc, 
+  updateDoc, 
+  onSnapshot, 
+  serverTimestamp,
+  addDoc
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProjectData {
   id: string;
   code: string;
   name: string;
   location?: string;
-  client?: string;
   latitude?: number;
   longitude?: number;
   lat?: number;
   lng?: number;
-  locationCapturedAt?: any;
+  mappedAt?: any;
 }
 
 export function GuardView() {
-  const { toast } = useToast();
-  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [projects, setProjects] = useState<ProjectData[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
-  
-  // Guard identity & active post
-  const [guardName, setGuardName] = useState('OFICIAL EN SERVICIO');
-  const [projectCode, setProjectCode] = useState('PRJ-NSE-001');
-  const [currentProject, setCurrentProject] = useState<ProjectData | null>(null);
-
-  // GPS Capture state
+  const [projectCode, setProjectCode] = useState<string>('PRJ-NSE-001');
   const [capturingGps, setCapturingGps] = useState(false);
-  const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [isShiftActive, setIsShiftActive] = useState<boolean>(false);
+  const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  // Shift & Incident management
-  const [activeShift, setActiveShift] = useState<any | null>(null);
-  const [shiftLoading, setShiftLoading] = useState(false);
-  const [incidentOpen, setIncidentOpen] = useState(false);
-  const [incidentText, setIncidentText] = useState('');
-  const [incidentType, setIncidentType] = useState('Novedad General');
-  const [savingIncident, setSavingIncident] = useState(false);
-
-  // Clock
+  // Reloj en tiempo real
   useEffect(() => {
-    setCurrentTime(new Date());
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    const updateTimer = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Retrieve saved post preference from localStorage
+  // Escuchar colección 'projects' desde Firestore
   useEffect(() => {
-    try {
-      const savedCode = localStorage.getItem('pacsa_guard_project_code');
-      if (savedCode) setProjectCode(savedCode);
-      const savedName = localStorage.getItem('pacsa_guard_name');
-      if (savedName) setGuardName(savedName);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Listen to Firestore 'projects'
-  useEffect(() => {
-    const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
+    const q = query(collection(db, 'projects'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetched = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
       })) as ProjectData[];
-      setProjects(list);
-      setLoadingProjects(false);
-    }, (err) => {
-      console.warn('Error fetching projects in GuardView:', err);
-      setLoadingProjects(false);
+
+      setProjects(fetched);
+
+      // Si el código actual no existe entre los proyectos y hay proyectos disponibles, seleccionar el primero
+      if (fetched.length > 0) {
+        setProjectCode(prev => {
+          const exists = fetched.some(p => p.code?.toUpperCase() === prev.toUpperCase());
+          return exists ? prev : (fetched[0].code || prev);
+        });
+      }
+    }, (error) => {
+      console.warn("Error al escuchar proyectos:", error);
     });
 
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
 
-  // Synchronize current project based on projectCode
-  useEffect(() => {
-    if (!projectCode) {
-      setCurrentProject(null);
-      return;
-    }
-    const cleanCode = projectCode.trim().toUpperCase();
-    const found = projects.find(p => p.code?.toUpperCase() === cleanCode || p.id === cleanCode);
-    if (found) {
-      setCurrentProject(found);
-      const lat = found.latitude ?? found.lat;
-      const lng = found.longitude ?? found.lng;
-      if (typeof lat === 'number' && typeof lng === 'number') {
-        setLastCoords({ lat, lng });
-      }
-    } else {
-      setCurrentProject(null);
-    }
-  }, [projectCode, projects]);
+  // Buscar el proyecto actual usando el projectCode actual
+  const currentProject = projects.find(
+    p => p.code?.toUpperCase() === projectCode.trim().toUpperCase() || p.id === projectCode.trim().toUpperCase()
+  );
 
-  // Listen to active shift for this guard / project
-  useEffect(() => {
-    const cleanCode = projectCode.trim().toUpperCase();
-    const qShifts = query(
-      collection(db, 'shift-registrations'),
-      where('projectCode', '==', cleanCode),
-      where('status', 'in', ['Activo', 'Doble'])
-    );
-    const unsub = onSnapshot(qShifts, (snap) => {
-      if (!snap.empty) {
-        setActiveShift({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      } else {
-        setActiveShift(null);
-      }
-    });
-    return () => unsub();
-  }, [projectCode]);
-
-  // Core Functionality: Capturar ubicación del puesto
+  // Capturar ubicación GPS y actualizar el documento en Firestore con updateDoc
   const handleCaptureLocation = async () => {
-    const cleanCode = projectCode.trim().toUpperCase();
-    if (!cleanCode) {
+    const code = projectCode.trim().toUpperCase();
+    if (!code) {
       toast({
-        title: "CÓDIGO DE PUESTO REQUERIDO",
-        description: "Indique el código del puesto actual antes de capturar la ubicación.",
+        title: "CÓDIGO REQUERIDO",
+        description: "Debe ingresar o seleccionar el código de puesto (projectCode).",
         variant: "destructive"
       });
       return;
@@ -167,8 +111,8 @@ export function GuardView() {
 
     if (!navigator.geolocation) {
       toast({
-        title: "SIN SOPORTE GPS",
-        description: "Su navegador o dispositivo móvil no soporta geolocalización.",
+        title: "SIN ACCESO GPS",
+        description: "El dispositivo o navegador no soporta geolocalización.",
         variant: "destructive"
       });
       return;
@@ -180,71 +124,72 @@ export function GuardView() {
       async (position) => {
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
 
         try {
-          // 1. Find the project document in Firestore 'projects'
-          const qProj = query(collection(db, 'projects'), where('code', '==', cleanCode));
-          const snapshot = await getDocs(qProj);
+          // Localizar el documento en Firestore colección 'projects' con el projectCode actual
+          let targetDocRef: any = null;
 
-          if (!snapshot.empty) {
-            // Update the matched document
-            const projDocRef = doc(db, 'projects', snapshot.docs[0].id);
-            await updateDoc(projDocRef, {
-              latitude: latitude,
-              longitude: longitude,
-              lat: latitude,
-              lng: longitude,
-              gpsAccuracy: accuracy,
-              locationCapturedAt: serverTimestamp(),
-              lastCapturedBy: guardName || 'Guardia en Turno'
-            });
+          if (currentProject?.id) {
+            targetDocRef = doc(db, 'projects', currentProject.id);
           } else {
-            // Check if document exists with id matching cleanCode
-            const directDocRef = doc(db, 'projects', cleanCode);
-            await setDoc(directDocRef, {
-              code: cleanCode,
-              name: currentProject?.name || `Puesto ${cleanCode}`,
-              location: currentProject?.location || 'Ubicación Registrada en Sitio',
-              latitude: latitude,
-              longitude: longitude,
-              lat: latitude,
-              lng: longitude,
-              gpsAccuracy: accuracy,
-              locationCapturedAt: serverTimestamp(),
-              lastCapturedBy: guardName || 'Guardia en Turno',
-              createdAt: serverTimestamp()
-            }, { merge: true });
+            const q = query(collection(db, 'projects'), where('code', '==', code));
+            const snapshot = await getDocs(q);
+
+            if (!snapshot.empty) {
+              targetDocRef = doc(db, 'projects', snapshot.docs[0].id);
+            } else {
+              const directRef = doc(db, 'projects', code);
+              const directDoc = await getDoc(directRef);
+              if (directDoc.exists()) {
+                targetDocRef = directRef;
+              }
+            }
           }
 
-          setLastCoords({ lat: latitude, lng: longitude });
+          if (!targetDocRef) {
+            toast({
+              title: "PUESTO NO ENCONTRADO",
+              description: `No se encontró un documento en la colección 'projects' con el código ${code}.`,
+              variant: "destructive"
+            });
+            setCapturingGps(false);
+            return;
+          }
+
+          // ACTUALIZAR DOCUMENTO EN FIRESTORE COLECCIÓN 'projects' CON updateDoc
+          // Guardar los campos: latitude, longitude y mappedAt con timestamp.
+          // El campo name ya existe en el documento, no hace falta guardarlo de nuevo.
+          await updateDoc(targetDocRef, {
+            latitude: latitude,
+            longitude: longitude,
+            mappedAt: serverTimestamp()
+          });
 
           toast({
-            title: "UBICACIÓN DE PUESTO ACTUALIZADA",
-            description: `Coordenadas guardadas en Firestore (${latitude.toFixed(5)}, ${longitude.toFixed(5)}). El mapa de PACSA Console ahora muestra el puesto en su ubicación real.`,
+            title: "UBICACIÓN CAPTURADA",
+            description: `Coordenadas (${latitude.toFixed(5)}, ${longitude.toFixed(5)}) registradas para el puesto actual. PACSA Console refleja la posición satelital en el mapa.`,
             className: "bg-emerald-950 border-emerald-500 text-white"
           });
-        } catch (error) {
-          console.error("Error guardando ubicación en Firestore:", error);
+        } catch (err) {
+          console.error("Error al actualizar ubicación en Firestore:", err);
           toast({
-            title: "ERROR AL GUARDAR UBICACIÓN",
-            description: "No se pudieron registrar las coordenadas en la base de datos de proyectos.",
+            title: "ERROR AL GUARDAR",
+            description: "No se pudo actualizar el documento del puesto en Firestore.",
             variant: "destructive"
           });
         } finally {
           setCapturingGps(false);
         }
       },
-      (error) => {
+      (err) => {
         setCapturingGps(false);
-        console.error("Error al capturar GPS:", error);
-        let errorMsg = "No se pudo obtener la posición GPS del dispositivo.";
-        if (error.code === error.PERMISSION_DENIED) {
-          errorMsg = "Permiso de geolocalización denegado. Habilite el acceso GPS en su navegador.";
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = "Señal GPS no disponible actualmente.";
-        } else if (error.code === error.TIMEOUT) {
-          errorMsg = "Tiempo de espera agotado al consultar el satélite GPS.";
+        let errorMsg = "No se pudo obtener la posición satelital del puesto.";
+        if (err.code === err.PERMISSION_DENIED) {
+          errorMsg = "Permiso de geolocalización denegado en el navegador.";
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          errorMsg = "Señal GPS no disponible temporalmente.";
+        } else if (err.code === err.TIMEOUT) {
+          errorMsg = "Tiempo de espera agotado al conectar con el sensor GPS.";
         }
         toast({
           title: "ERROR GPS",
@@ -260,383 +205,257 @@ export function GuardView() {
     );
   };
 
-  // Iniciar Turno
+  // Iniciar turno del guardia
   const handleStartShift = async () => {
-    setShiftLoading(true);
-    const cleanCode = projectCode.trim().toUpperCase();
     try {
-      await addDoc(collection(db, 'shift-registrations'), {
-        guardName: guardName.trim().toUpperCase(),
-        projectCode: cleanCode,
-        clientName: currentProject?.client || currentProject?.name || 'Cliente PACSA',
-        projectName: currentProject?.name || `PUESTO ${cleanCode}`,
-        projectLocation: currentProject?.location || 'Ubicación Sitio',
+      const docRef = await addDoc(collection(db, 'shift-registrations'), {
+        guardName: 'OFICIAL DE GUARDIA',
+        projectCode: currentProject?.code || projectCode,
+        clientName: currentProject?.name || 'Cliente PACSA',
+        projectName: currentProject?.name || 'Puesto Operativo',
+        projectLocation: currentProject?.location || 'Ciudad de Panamá',
         shiftType: 'Diurno',
         duration: '12h',
         shiftDuration: '12h',
         entryTime: serverTimestamp(),
-        status: 'Activo',
-        latitude: lastCoords?.lat || null,
-        longitude: lastCoords?.lng || null
+        status: 'Activo'
       });
-
+      setIsShiftActive(true);
+      setActiveShiftId(docRef.id);
       toast({
         title: "TURNO INICIADO",
-        description: `Se registró el inicio de turno para ${guardName} en ${cleanCode}.`,
-        className: "bg-emerald-950 border-emerald-500 text-white"
+        description: `Servicio activo en ${currentProject?.name || projectCode}.`,
+        className: "bg-green-950 border-green-500 text-white"
       });
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
       toast({
-        title: "ERROR AL INICIAR TURNO",
-        description: "No se pudo sincronizar el inicio de turno.",
+        title: "ERROR",
+        description: "No se pudo registrar el inicio de turno.",
         variant: "destructive"
       });
-    } finally {
-      setShiftLoading(false);
     }
   };
 
-  // Finalizar Turno
+  // Finalizar turno del guardia
   const handleEndShift = async () => {
-    if (!activeShift?.id) return;
-    setShiftLoading(true);
     try {
-      await updateDoc(doc(db, 'shift-registrations', activeShift.id), {
-        status: 'Finalizado',
-        exitTime: serverTimestamp()
-      });
-      setActiveShift(null);
+      if (activeShiftId) {
+        await updateDoc(doc(db, 'shift-registrations', activeShiftId), {
+          status: 'Completado',
+          exitTime: serverTimestamp()
+        });
+      }
+      setIsShiftActive(false);
+      setActiveShiftId(null);
       toast({
         title: "TURNO FINALIZADO",
-        description: "El turno ha concluido y fue registrado exitosamente.",
+        description: "Salida registrada con éxito.",
       });
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
       toast({
-        title: "ERROR AL FINALIZAR TURNO",
-        description: "No se pudo actualizar el estado de turno.",
+        title: "ERROR",
+        description: "No se pudo cerrar el turno.",
         variant: "destructive"
       });
-    } finally {
-      setShiftLoading(false);
     }
   };
 
-  // Reporte de Incidente
-  const handleSaveIncident = async () => {
-    if (!incidentText.trim()) {
-      toast({
-        title: "DESCRIPCIÓN REQUERIDA",
-        description: "Detalle la novedad o incidente ocurrido.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setSavingIncident(true);
-    const cleanCode = projectCode.trim().toUpperCase();
+  // Reportar novedad o incidente rápido
+  const handleReportIncident = async () => {
     try {
       await addDoc(collection(db, 'novedades'), {
-        proyectoId: currentProject?.id || cleanCode,
-        proyectoCodigo: cleanCode,
-        proyectoNombre: currentProject?.name || `Puesto ${cleanCode}`,
-        lugar: currentProject?.location || 'Puesto en Sitio',
-        tipoIncidente: incidentType,
-        severidad: 'Media',
-        resumen: incidentText.trim(),
-        descripcion: incidentText.trim(),
-        oficialReporta: guardName,
-        fecha: new Date().toISOString().split('T')[0],
-        hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        code: `NOV-${Date.now().toString().slice(-4)}`,
+        title: 'Verificación de Rutina y Puesto',
+        description: `Guardia operativo en ${currentProject?.name || projectCode} reporta situación bajo control.`,
+        severity: 'Baja',
+        status: 'Abierta',
         createdAt: serverTimestamp(),
-        estado: 'Pendiente',
-        latitude: lastCoords?.lat || null,
-        longitude: lastCoords?.lng || null
+        puesto: currentProject?.name || projectCode,
+        tipoNovedad: 'Relevo / Reporte'
       });
-
       toast({
-        title: "INCIDENTE REGISTRADO",
-        description: "La novedad ha sido enviada al centro de control de PACSA.",
-        className: "bg-amber-950 border-amber-500 text-white"
+        title: "REPORTE ENVIADO",
+        description: "El reporte fue recibido en PACSA Console.",
+        className: "bg-blue-950 border-blue-500 text-white"
       });
-
-      setIncidentText('');
-      setIncidentOpen(false);
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
       toast({
-        title: "ERROR AL REGISTRAR INCIDENTE",
-        description: "No se pudo guardar el reporte.",
+        title: "ERROR",
+        description: "No se pudo registrar la novedad.",
         variant: "destructive"
       });
-    } finally {
-      setSavingIncident(false);
     }
   };
 
-  const formattedTime = currentTime?.toLocaleTimeString('es-MX', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-
-  const formattedDate = currentTime?.toLocaleDateString('es-MX', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+  const hasCoords = typeof currentProject?.latitude === 'number' && typeof currentProject?.longitude === 'number';
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500 max-w-2xl mx-auto">
-      {/* Reloj y Estado de Conexión de Guardia */}
-      <div className="bg-[#12121c] border border-white/5 rounded-3xl p-6 shadow-xl flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-primary/20 p-3.5 rounded-2xl border border-primary/30">
-            <Shield className="h-7 w-7 text-primary" />
+      {/* Tarjeta del Puesto Actual */}
+      <div className="dashboard-card bg-[#151726]/90 border border-primary/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-36 h-36 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <Radio className="h-4 w-4 text-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Terminal de Puesto Activo</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5" />
-                CONEXIÓN OPERATIVA
+          <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+            <Clock className="h-3 w-3 text-primary" />
+            <span>{currentTime || '--:--:--'}</span>
+          </div>
+        </div>
+
+        {/* Información del Puesto Actual */}
+        <div className="space-y-2 text-left">
+          <p className="text-xs text-muted-foreground font-black uppercase tracking-widest">Puesto Actual</p>
+          <h2 id="current-project-name" className="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase">
+            {currentProject ? currentProject.name : 'Entrada Sector Norte'}
+          </h2>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Badge className="bg-primary/20 text-primary border-primary/30 font-mono font-bold text-xs uppercase px-2.5 py-0.5">
+              CÓDIGO: {currentProject ? currentProject.code : projectCode}
+            </Badge>
+
+            {currentProject?.location && (
+              <Badge variant="outline" className="text-muted-foreground text-xs font-medium border-white/10 flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-red-400" />
+                {currentProject.location}
               </Badge>
-              {activeShift && (
-                <Badge className="bg-primary/20 text-primary border-primary/30 text-[9px] font-black tracking-widest px-2.5 py-0.5">
-                  TURNO EN CURSO
-                </Badge>
-              )}
-            </div>
-            <h2 className="text-xl font-black tracking-tight text-white uppercase mt-1">Terminal de Guardia</h2>
-            <p className="text-xs text-muted-foreground capitalize">{formattedDate}</p>
+            )}
+
+            {hasCoords ? (
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs font-mono font-bold flex items-center gap-1">
+                <Navigation className="h-3 w-3" />
+                GPS: {currentProject!.latitude!.toFixed(5)}, {currentProject!.longitude!.toFixed(5)}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-amber-500/40 text-amber-400 text-xs font-mono">
+                GPS: Sin fijar
+              </Badge>
+            )}
           </div>
+
+          {currentProject?.mappedAt && (
+            <p className="text-[11px] text-muted-foreground font-mono pt-1">
+              Última sincronización GPS: {new Date(currentProject.mappedAt.toDate?.() || currentProject.mappedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          )}
         </div>
 
-        <div className="text-right font-mono">
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block">Hora Satelital</span>
-          <span className="text-2xl font-black text-primary tracking-tight">{formattedTime}</span>
-        </div>
-      </div>
-
-      {/* PUESTO ACTUAL & CAPTURA DE UBICACIÓN GPS */}
-      <div className="bg-[#161726] border-2 border-primary/30 rounded-3xl p-6 shadow-2xl space-y-6">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary/20 rounded-xl border border-primary/30 text-primary">
-              <Building2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Puesto Asignado</p>
-              <h3 className="text-xl font-black text-white uppercase tracking-tight">
-                {currentProject?.name || 'Entrada Sector Norte'}
-              </h3>
-            </div>
-          </div>
-          <Badge className="bg-white/10 text-white border-white/15 font-mono text-xs px-3 py-1 font-bold">
-            {projectCode}
-          </Badge>
-        </div>
-
-        {/* Selector de Puesto Rápido */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-              Seleccionar Puesto de Trabajo
-            </Label>
-            <Select 
-              value={projectCode} 
-              onValueChange={(val) => {
-                setProjectCode(val);
-                try { localStorage.setItem('pacsa_guard_project_code', val); } catch {}
-              }}
-            >
-              <SelectTrigger className="h-12 bg-white/5 border-white/10 text-white rounded-xl font-bold text-xs">
-                <SelectValue placeholder="Elegir Puesto..." />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1c1d2e] border-white/15 text-white max-h-56">
+        {/* Selector de Puesto / projectCode */}
+        {projects.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <label htmlFor="select-puesto" className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-primary" />
+              Cambiar Puesto Asignado:
+            </label>
+            <div className="relative w-full sm:w-64">
+              <select
+                id="select-puesto"
+                value={projectCode}
+                onChange={(e) => setProjectCode(e.target.value)}
+                className="w-full bg-[#1e2034] text-white text-xs font-bold rounded-xl border border-white/15 px-3 py-2 appearance-none focus:outline-none focus:border-primary pr-8"
+              >
                 {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.code} className="text-xs font-bold">
-                    {p.code} - {p.name}
-                  </SelectItem>
+                  <option key={p.id} value={p.code}>
+                    {p.code} — {p.name}
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-              Nombre de Guardia
-            </Label>
-            <Input 
-              value={guardName}
-              onChange={(e) => {
-                setGuardName(e.target.value.toUpperCase());
-                try { localStorage.setItem('pacsa_guard_name', e.target.value.toUpperCase()); } catch {}
-              }}
-              placeholder="NOMBRE COMPLETO"
-              className="h-12 bg-white/5 border-white/10 text-white rounded-xl font-bold text-xs uppercase"
-            />
-          </div>
-        </div>
-
-        {/* Estado GPS del Puesto */}
-        <div className="bg-black/30 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${lastCoords ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
-              <MapPin className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Coordenadas del Puesto en PACSA Console</p>
-              {lastCoords ? (
-                <p className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5 mt-0.5">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  GPS: {lastCoords.lat.toFixed(5)}, {lastCoords.lng.toFixed(5)}
-                </p>
-              ) : (
-                <p className="text-xs font-bold text-amber-400/90 flex items-center gap-1.5 mt-0.5">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Sin coordenadas GPS registradas
-                </p>
-              )}
+              </select>
+              <ChevronDown className="h-4 w-4 text-muted-foreground absolute right-2.5 top-2.5 pointer-events-none" />
             </div>
           </div>
+        )}
 
-          {currentProject?.location && (
-            <span className="text-[10px] font-semibold text-muted-foreground/80 uppercase">
-              {currentProject.location}
-            </span>
-          )}
+        {/* BOTÓN REQUERIDO: 'Capturar ubicación del puesto' */}
+        <div className="mt-6 pt-4 border-t border-white/10">
+          <Button
+            id="btn-capturar-ubicacion-puesto"
+            type="button"
+            onClick={handleCaptureLocation}
+            disabled={capturingGps}
+            className="w-full h-14 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm uppercase tracking-wider rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-950/50 transition-all active:scale-[0.99] cursor-pointer"
+          >
+            {capturingGps ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+                <span>Capturando posición GPS satelital...</span>
+              </>
+            ) : (
+              <>
+                <Navigation className="h-5 w-5 text-white" />
+                <span>Capturar ubicación del puesto</span>
+              </>
+            )}
+          </Button>
+          <p className="text-[10px] text-muted-foreground/80 mt-2 text-center">
+            Actualiza el documento del puesto <span className="font-mono text-white">{currentProject?.code || projectCode}</span> en Firestore con las coordenadas GPS en tiempo real.
+          </p>
         </div>
-
-        {/* BOTÓN PRINCIPAL REQUERIDO: Capturar ubicación del puesto */}
-        <Button
-          id="btn-capturar-ubicacion-puesto"
-          size="lg"
-          onClick={handleCaptureLocation}
-          disabled={capturingGps}
-          className="w-full h-16 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-xl shadow-emerald-950/40 border border-emerald-400/30 flex items-center justify-center gap-3 transition-all cursor-pointer"
-        >
-          {capturingGps ? (
-            <>
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
-              <span>Capturando ubicación GPS del puesto...</span>
-            </>
-          ) : (
-            <>
-              <Navigation className="h-6 w-6 text-white animate-bounce" />
-              <span>Capturar ubicación del puesto</span>
-            </>
-          )}
-        </Button>
-        <p className="text-[10px] text-center text-muted-foreground italic">
-          Guarda las coordenadas satelitales en Firestore colección &apos;projects&apos; para que el puesto aparezca en su ubicación real en el mapa de PACSA Console.
-        </p>
       </div>
 
-      {/* GESTIÓN DE DEBERES DE TURNO */}
-      <Card className="bg-[#12121c] border-white/5 shadow-xl">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-base font-black uppercase text-white">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Gestión de Deberes
+      {/* Gestión de Deberes */}
+      <Card className="bg-card border-border shadow-xl">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-base font-black uppercase tracking-tight">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Gestión de Deberes
+            </span>
+            {isShiftActive ? (
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 flex items-center gap-1 text-[10px] font-black uppercase">
+                <ShieldCheck className="h-3 w-3" />
+                Turno en Curso
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground text-[10px] font-black uppercase">
+                Sin Turno Activo
+              </Badge>
+            )}
           </CardTitle>
+          <CardDescription className="text-xs">
+            Registro de asistencias y novedades directas con el centro de control PACSA.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {!activeShift ? (
-            <Button 
-              size="lg" 
-              onClick={handleStartShift}
-              disabled={shiftLoading}
-              className="h-24 flex flex-col gap-2 text-base font-black uppercase rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
-            >
-              {shiftLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <LogIn className="h-6 w-6" />}
-              Iniciar Turno
-            </Button>
-          ) : (
-            <Button 
-              size="lg" 
-              variant="outline" 
-              onClick={handleEndShift}
-              disabled={shiftLoading}
-              className="h-24 flex flex-col gap-2 text-base font-black uppercase rounded-2xl border-destructive/60 text-destructive hover:bg-destructive/10"
-            >
-              {shiftLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <LogOut className="h-6 w-6" />}
-              Finalizar Turno
-            </Button>
-          )}
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <Button 
+            id="btn-iniciar-turno"
+            size="lg" 
+            onClick={handleStartShift}
+            disabled={isShiftActive}
+            className="h-20 flex flex-col gap-1.5 text-base font-black uppercase tracking-tight bg-primary hover:bg-primary/90 rounded-2xl shadow-lg"
+          >
+            <LogIn className="h-5 w-5" />
+            <span>Iniciar Turno</span>
+          </Button>
 
           <Button 
+            id="btn-finalizar-turno"
+            size="lg" 
+            variant="outline" 
+            onClick={handleEndShift}
+            disabled={!isShiftActive}
+            className="h-20 flex flex-col gap-1.5 text-base font-black uppercase tracking-tight border-destructive text-destructive hover:bg-destructive/10 rounded-2xl"
+          >
+            <LogOut className="h-5 w-5" />
+            <span>Finalizar Turno</span>
+          </Button>
+
+          <Button 
+            id="btn-reporte-incidente"
             size="lg" 
             variant="secondary" 
-            onClick={() => setIncidentOpen(true)}
-            className="h-24 flex flex-col gap-2 text-base font-black uppercase rounded-2xl bg-[#1d1f33] hover:bg-[#252842] text-white border border-white/5"
+            onClick={handleReportIncident}
+            className="h-16 flex items-center justify-center gap-2 text-sm font-black uppercase tracking-tight sm:col-span-2 rounded-2xl"
           >
-            <Camera className="h-6 w-6 text-amber-400" />
-            Reporte de Incidente
+            <Camera className="h-5 w-5 text-primary" />
+            <span>Reportar Novedad / Incidente</span>
           </Button>
         </CardContent>
       </Card>
-
-      {/* Modal Reportar Incidente */}
-      <Dialog open={incidentOpen} onOpenChange={setIncidentOpen}>
-        <DialogContent className="bg-[#1a1b2e] border-white/10 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg font-black uppercase">
-              <Camera className="h-5 w-5 text-amber-400" />
-              Reporte de Incidente / Novedad
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Puesto</Label>
-              <Input 
-                value={`${projectCode} - ${currentProject?.name || 'Puesto Actual'}`}
-                disabled
-                className="bg-white/5 border-white/10 text-white rounded-xl font-bold text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Tipo de Novedad</Label>
-              <Select value={incidentType} onValueChange={setIncidentType}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white rounded-xl font-bold text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1c1d2e] border-white/15 text-white">
-                  <SelectItem value="Novedad General">Novedad General</SelectItem>
-                  <SelectItem value="Control de Acceso">Control de Acceso</SelectItem>
-                  <SelectItem value="Rondín Sospechoso">Rondín Sospechoso</SelectItem>
-                  <SelectItem value="Emergencia Médica">Emergencia Médica</SelectItem>
-                  <SelectItem value="Falla de Equipos">Falla de Equipos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Descripción del Hecho</Label>
-              <Textarea 
-                value={incidentText}
-                onChange={(e) => setIncidentText(e.target.value)}
-                placeholder="Describa brevemente la novedad..."
-                className="bg-white/5 border-white/10 text-white rounded-xl min-h-[100px] text-xs font-normal"
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setIncidentOpen(false)} className="rounded-xl font-bold">
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSaveIncident} 
-              disabled={savingIncident}
-              className="bg-amber-500 hover:bg-amber-600 text-black font-black uppercase rounded-xl"
-            >
-              {savingIncident ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Registrar Novedad
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
+

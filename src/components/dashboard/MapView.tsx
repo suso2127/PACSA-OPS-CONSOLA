@@ -39,6 +39,7 @@ interface Project {
   lng?: number;
   latitude?: number;
   longitude?: number;
+  mappedAt?: any;
   requirements?: {
     lun: number;
     mar: number;
@@ -118,7 +119,7 @@ export function MapView() {
 
   // Helper to compute realistic coordinates in Panama from project data
   const getProjectCoords = (project: Project): [number, number] => {
-    // Check latitude/longitude or lat/lng
+    // Check if real GPS latitude & longitude were captured
     const pLat = typeof project.latitude === 'number' && !isNaN(project.latitude) ? project.latitude : project.lat;
     const pLng = typeof project.longitude === 'number' && !isNaN(project.longitude) ? project.longitude : project.lng;
 
@@ -442,7 +443,10 @@ export function MapView() {
               white-space: nowrap;
               letter-spacing: -0.02em;
               box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            ">${project.code}</div>
+              max-width: 140px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            ">${project.name || project.code}</div>
           </div>
         `,
         iconSize: [40, 50],
@@ -450,6 +454,20 @@ export function MapView() {
       });
 
       const marker = L.marker(coords, { icon: customIcon }).addTo(map);
+
+      // Tooltip informativo con nombre del proyecto
+      marker.bindTooltip(`
+        <div style="font-family: sans-serif; padding: 2px;">
+          <div style="font-weight: 900; font-size: 12px; color: #ffffff;">${project.name}</div>
+          <div style="font-size: 10px; color: #93c5fd; font-weight: 700;">${project.code}</div>
+          ${project.location ? `<div style="font-size: 10px; color: #d1d5db;">${project.location}</div>` : ''}
+          ${project.mappedAt ? '<div style="font-size: 9px; color: #4ade80; font-weight: bold; margin-top: 3px;">📍 Ubicación GPS satelital guardada</div>' : ''}
+        </div>
+      `, {
+        direction: 'top',
+        offset: [0, -20],
+        opacity: 0.95
+      });
 
       marker.on('click', () => {
         setSelectedProject(project);
@@ -953,16 +971,23 @@ export function MapView() {
                       <span className="text-primary font-black text-xs tracking-tighter uppercase">{selectedProject.code}</span>
                     </div>
                     <h3 className="text-xl font-black text-white">{selectedProject.name}</h3>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1 font-medium">
-                      <MapPin className="h-3.5 w-3.5 text-red-500" />
-                      {selectedProject.location || 'CIUDAD DE PANAMÁ'}
-                    </p>
-                    {(typeof selectedProject.latitude === 'number' || typeof selectedProject.lat === 'number') && (
-                      <p className="text-xs text-emerald-400 font-mono flex items-center gap-1.5 mt-1">
-                        <Navigation className="h-3 w-3" />
-                        GPS Real: {(selectedProject.latitude ?? selectedProject.lat)?.toFixed(5)}, {(selectedProject.longitude ?? selectedProject.lng)?.toFixed(5)}
+                    <div className="flex flex-wrap items-center gap-3 mt-1">
+                      <p className="text-sm text-muted-foreground flex items-center gap-1.5 font-medium">
+                        <MapPin className="h-3.5 w-3.5 text-red-500" />
+                        {selectedProject.location || 'CIUDAD DE PANAMÁ'}
                       </p>
-                    )}
+                      {(typeof selectedProject.latitude === 'number' || typeof selectedProject.lat === 'number') && (
+                        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Navigation className="h-2.5 w-2.5" />
+                          GPS: {(selectedProject.latitude ?? selectedProject.lat)?.toFixed(5)}, {(selectedProject.longitude ?? selectedProject.lng)?.toFixed(5)}
+                          {selectedProject.mappedAt && (
+                            <span className="text-muted-foreground ml-1">
+                              • Mapeado
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 

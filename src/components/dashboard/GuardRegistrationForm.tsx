@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,7 +57,7 @@ export function GuardRegistrationForm() {
   useEffect(() => {
     const searchProject = async () => {
       const code = formData.projectCode.trim().toUpperCase();
-      if (code.length >= 3) {
+      if (code.length >= 2) {
         setProjectLoading(true);
         try {
           const q = query(collection(db, 'projects'), where('code', '==', code));
@@ -114,56 +114,59 @@ export function GuardRegistrationForm() {
         const latitude = pos.coords.latitude;
         const longitude = pos.coords.longitude;
         try {
-          const q = query(collection(db, 'projects'), where('code', '==', code));
-          const snapshot = await getDocs(q);
+          let targetDocRef: any = null;
 
-          if (!snapshot.empty) {
-            const docRef = doc(db, 'projects', snapshot.docs[0].id);
-            await updateDoc(docRef, {
-              latitude,
-              longitude,
-              lat: latitude,
-              lng: longitude,
-              locationCapturedAt: serverTimestamp(),
-              lastCapturedBy: formData.guardName || 'Guardia'
-            });
+          if (detectedProject?.id) {
+            targetDocRef = doc(db, 'projects', detectedProject.id);
           } else {
-            const docRef = doc(db, 'projects', code);
-            await setDoc(docRef, {
-              code,
-              name: detectedProject?.name || `PUESTO ${code}`,
-              location: detectedProject?.location || 'Sitio Operativo',
-              latitude,
-              longitude,
-              lat: latitude,
-              lng: longitude,
-              locationCapturedAt: serverTimestamp(),
-              lastCapturedBy: formData.guardName || 'Guardia',
-              createdAt: serverTimestamp()
-            }, { merge: true });
+            const q = query(collection(db, 'projects'), where('code', '==', code));
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+              targetDocRef = doc(db, 'projects', snapshot.docs[0].id);
+            } else {
+              const directRef = doc(db, 'projects', code);
+              const directSnap = await getDoc(directRef);
+              if (directSnap.exists()) {
+                targetDocRef = directRef;
+              }
+            }
           }
+
+          if (!targetDocRef) {
+            toast({
+              title: "PUESTO NO ENCONTRADO",
+              description: `No se encontró un documento en la colección 'projects' con el código ${code}.`,
+              variant: "destructive"
+            });
+            setCapturingGps(false);
+            return;
+          }
+
+          // ACTUALIZAR DOCUMENTO EN FIRESTORE CON updateDoc
+          // Guardar SOLO: latitude, longitude y mappedAt con timestamp.
+          // El campo name ya existe en el documento, no hace falta guardarlo de nuevo.
+          await updateDoc(targetDocRef, {
+            latitude,
+            longitude,
+            mappedAt: serverTimestamp()
+          });
 
           setDetectedProject(prev => prev ? {
             ...prev,
             latitude,
             longitude
-          } : {
-            name: `PUESTO ${code}`,
-            location: 'Ubicación GPS registrada',
-            latitude,
-            longitude
-          });
+          } : null);
 
           toast({
-            title: "UBICACIÓN DE PUESTO ACTUALIZADA",
-            description: `Coordenadas guardadas en Firestore colección 'projects' (${latitude.toFixed(5)}, ${longitude.toFixed(5)}). El mapa de PACSA Console ahora muestra el puesto en su ubicación real.`,
+            title: "UBICACIÓN CAPTURADA",
+            description: `Coordenadas (${latitude.toFixed(5)}, ${longitude.toFixed(5)}) guardadas en Firestore para el puesto actual. PACSA Console refleja la posición en el mapa.`,
             className: "bg-emerald-950 border-emerald-500 text-white"
           });
         } catch (err) {
           console.error("Error al guardar GPS:", err);
           toast({
             title: "ERROR AL GUARDAR",
-            description: "No se pudieron guardar las coordenadas en Firestore.",
+            description: "No se pudieron actualizar las coordenadas en Firestore.",
             variant: "destructive"
           });
         } finally {
@@ -342,54 +345,54 @@ export function GuardRegistrationForm() {
           </div>
 
           <div className={`bg-[#1a1b2e] border-2 border-dashed rounded-3xl p-6 transition-all duration-500 ${detectedProject ? 'border-primary/40 bg-primary/5' : 'border-white/5'}`}>
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-muted-foreground'}`}>
-                {detectedProject ? <CheckCircle2 className="h-6 w-6" /> : <Building2 className="h-6 w-6" />}
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-2xl ${detectedProject ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-muted-foreground'}`}>
+                  {detectedProject ? <CheckCircle2 className="h-6 w-6" /> : <Building2 className="h-6 w-6" />}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Validación de Destino</span>
+                  <p className={`text-sm font-black uppercase italic tracking-tighter mt-1 ${detectedProject ? 'text-white' : 'text-muted-foreground/30'}`}>
+                    {detectedProject ? detectedProject.name : 'Esperando ID operativo...'}
+                  </p>
+                  {detectedProject && (
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <span className="text-[9px] font-bold text-primary/70 uppercase tracking-widest">
+                        {detectedProject.location}
+                      </span>
+                      {typeof detectedProject.latitude === 'number' && (
+                        <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Navigation className="h-2 w-2" />
+                          GPS: {detectedProject.latitude.toFixed(4)}, {detectedProject.longitude?.toFixed(4)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col flex-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Validación de Destino</span>
-                <p className={`text-sm font-black uppercase italic tracking-tighter mt-1 ${detectedProject ? 'text-white' : 'text-muted-foreground/30'}`}>
-                  {detectedProject ? detectedProject.name : 'Esperando ID operativo...'}
-                </p>
-                {detectedProject && (
-                  <span className="text-[9px] font-bold text-primary/70 uppercase tracking-widest mt-1">
-                    {detectedProject.location}
-                  </span>
-                )}
-                {detectedProject?.latitude && detectedProject?.longitude && (
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1 mt-1">
-                    <MapPin className="h-3 w-3" />
-                    GPS: {detectedProject.latitude.toFixed(5)}, {detectedProject.longitude.toFixed(5)}
-                  </span>
-                )}
-              </div>
-            </div>
 
-            {formData.projectCode.trim().length >= 2 && (
-              <div className="mt-4 pt-4 border-t border-white/5">
+              {formData.projectCode.trim().length >= 2 && (
                 <Button
+                  id="btn-capturar-ubicacion-puesto-form"
                   type="button"
                   onClick={handleCaptureLocation}
                   disabled={capturingGps}
-                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/30 cursor-pointer"
+                  className="h-11 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-950/40"
                 >
                   {capturingGps ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       <span>Capturando GPS...</span>
                     </>
                   ) : (
                     <>
-                      <Navigation className="h-4 w-4 text-white" />
+                      <Navigation className="h-4 w-4" />
                       <span>Capturar ubicación del puesto</span>
                     </>
                   )}
                 </Button>
-                <p className="text-[9px] text-muted-foreground/80 mt-1.5 text-center">
-                  Guarda las coordenadas GPS en Firestore colección &apos;projects&apos; para el puesto {formData.projectCode}
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
