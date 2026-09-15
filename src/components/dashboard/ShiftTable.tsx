@@ -74,6 +74,7 @@ interface Shift {
   exitTime?: any;
   shiftType: string;
   duration: string;
+  shiftDuration?: string;
   observation?: string;
   status: string;
 }
@@ -154,7 +155,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
           const entryDate = parseFirebaseDate(shift.entryTime);
           if (!entryDate) return;
 
-          const durationHrs = parseInt(shift.duration) || 0;
+          const durationHrs = parseInt(shift.shiftDuration || shift.duration) || 0;
           const diffMs = now.getTime() - entryDate.getTime();
           const diffHrs = diffMs / (1000 * 60 * 60);
 
@@ -204,7 +205,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
   const handleUpdateDuration = (id: string, name: string, duration: string) => {
     const shiftRef = doc(db, 'shift-registrations', id);
-    const updateData: any = { duration };
+    const updateData: any = { duration, shiftDuration: duration };
     
     if (duration === '24h') {
       updateData.status = 'Doble';
@@ -444,7 +445,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                           <DropdownMenuTrigger asChild>
                             <button className="outline-none group">
                               <Badge variant="secondary" className="bg-[#1a1b2e] text-primary border-primary/20 font-black text-[8px] py-0 px-1.5 hover:bg-primary hover:text-primary-foreground transition-colors flex items-center gap-1">
-                                {shift.duration || '12h'}<ChevronDown className="h-2 w-2 opacity-50" />
+                                {shift.shiftDuration || shift.duration || '12h'}<ChevronDown className="h-2 w-2 opacity-50" />
                               </Badge>
                             </button>
                           </DropdownMenuTrigger>

@@ -97,6 +97,7 @@ export function GuardRegistrationForm() {
         projectLocation: detectedProject?.location || 'UBICACIÓN NO ESPECIFICADA',
         shiftType: formData.shiftType,
         duration: formData.duration,
+        shiftDuration: formData.duration,
         entryTime: serverTimestamp(),
         status: formData.duration === '24h' ? 'Doble' : 'Activo'
       });
