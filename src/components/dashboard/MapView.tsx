@@ -52,8 +52,16 @@ interface Project {
 }
 
 interface Registration {
-  projectCode: string;
-  status: string;
+  id?: string;
+  guardName?: string;
+  projectCode?: string;
+  projectName?: string;
+  projectId?: string;
+  status?: string;
+  entryTime?: any;
+  exitTime?: any;
+  operationDate?: string;
+  createdAt?: any;
 }
 
 export interface TrackingUnit {
@@ -161,15 +169,20 @@ export function MapView() {
       setLoading(false);
     });
 
-    // 2. Escuchar registros de turno
-    const qRegs = query(
-      collection(db, 'shift-registrations'), 
-      where('status', 'in', ['Activo', 'Doble'])
+    // 2. Escuchar registros de turno en tiempo real desde Firestore colección 'shift-registrations'
+    const unsubRegs = onSnapshot(
+      collection(db, 'shift-registrations'),
+      (snapshot) => {
+        const fetched = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        })) as Registration[];
+        setRegistrations(fetched);
+      },
+      (error) => {
+        console.warn('Error escuchando shift-registrations en tiempo real:', error);
+      }
     );
-    const unsubRegs = onSnapshot(qRegs, (snapshot) => {
-      const fetched = snapshot.docs.map(doc => doc.data() as Registration);
-      setRegistrations(fetched);
-    });
 
     // 3. Escuchar Unidades en Tiempo Real (Guardias y Vehículos) desde Firestore
     const qUnits = collection(db, 'active_units');
@@ -372,18 +385,117 @@ export function MapView() {
     watchIdRef.current = id;
   };
 
+  // Cálculo en tiempo real de guardias activos por puesto para el día de hoy
   const projectStatus = useMemo(() => {
     const days = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
-    const today = days[new Date().getDay()] as keyof NonNullable<Project['requirements']>;
-    
+    const now = new Date();
+    const today = days[now.getDay()] as keyof NonNullable<Project['requirements']>;
+    const todayYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const normalize = (val?: string) => (val || '').trim().toUpperCase().replace(/[\s\-_.]+/g, '');
+
+    // 1. Filtrar registros activos del día de hoy
+    const activeTodayRegistrations = registrations.filter((r) => {
+      // Si ya tiene hora de salida registrada, no está activo
+      if (r.exitTime !== null && r.exitTime !== undefined && r.exitTime !== '') {
+        return false;
+      }
+
+      // Si el status es completado, finalizado o salida, no está activo
+      const st = (r.status || '').toString().trim().toLowerCase();
+      if (st === 'completado' || st === 'finalizado' || st === 'completo' || st === 'salida' || st === 'inactivo') {
+        return false;
+      }
+
+      // 2. Verificar que corresponda al día de hoy
+      // A) Por operationDate (YYYY-MM-DD)
+      if (r.operationDate) {
+        const opDate = String(r.operationDate).split('T')[0].trim();
+        if (opDate === todayYMD) return true;
+      }
+
+      // B) Por entryTime (Timestamp Firestore, Date o número)
+      let entryDate: Date | null = null;
+      if (r.entryTime?.toDate) {
+        entryDate = r.entryTime.toDate();
+      } else if (r.entryTime?.seconds) {
+        entryDate = new Date(r.entryTime.seconds * 1000);
+      } else if (r.entryTime instanceof Date) {
+        entryDate = r.entryTime;
+      } else if (typeof r.entryTime === 'string') {
+        entryDate = new Date(r.entryTime);
+      }
+
+      if (entryDate && !isNaN(entryDate.getTime())) {
+        const entryYMD = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}-${String(entryDate.getDate()).padStart(2, '0')}`;
+        if (entryYMD === todayYMD) return true;
+      }
+
+      // C) Por createdAt
+      let createdDate: Date | null = null;
+      if (r.createdAt?.toDate) {
+        createdDate = r.createdAt.toDate();
+      } else if (r.createdAt?.seconds) {
+        createdDate = new Date(r.createdAt.seconds * 1000);
+      } else if (r.createdAt instanceof Date) {
+        createdDate = r.createdAt;
+      }
+
+      if (createdDate && !isNaN(createdDate.getTime())) {
+        const createdYMD = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}`;
+        if (createdYMD === todayYMD) return true;
+      }
+
+      // D) Si no contiene campos explícitos de fecha pero no tiene exitTime y está activo, considerarlo del turno actual
+      if (!r.operationDate && !r.entryTime && !r.createdAt) {
+        return true;
+      }
+
+      return false;
+    });
+
     return projects.reduce((acc, project) => {
-      const required = Number(project.requirements?.[today] ?? (project as any).planilla_semanal?.[today]?.elementos ?? (project as any).planilla_semanal?.[today]?.elms ?? 0);
-      const onSite = registrations.filter(r => r.projectCode?.trim().toUpperCase() === project.code?.trim().toUpperCase()).length;
+      const required = Number(
+        project.requirements?.[today] ?? 
+        (project as any).planilla_semanal?.[today]?.elementos ?? 
+        (project as any).planilla_semanal?.[today]?.elms ?? 
+        (project as any).requiredGuards ?? 
+        0
+      );
+
+      const projCode = (project.code || '').trim().toUpperCase();
+      const projName = (project.name || '').trim().toUpperCase();
+      const normProjCode = normalize(projCode);
+      const normProjName = normalize(projName);
+
+      // Buscar registros activos coincidentes para este puesto
+      const matchingActiveRegs = activeTodayRegistrations.filter((r) => {
+        const regCode = (r.projectCode || '').trim().toUpperCase();
+        const regName = (r.projectName || '').trim().toUpperCase();
+        const normRegCode = normalize(regCode);
+        const normRegName = normalize(regName);
+
+        // Coincidencia por ID de proyecto
+        if (r.projectId && project.id && r.projectId === project.id) return true;
+
+        // Coincidencia directa por projectCode
+        if (regCode && projCode && regCode === projCode) return true;
+        if (normRegCode && normProjCode && normRegCode === normProjCode) return true;
+
+        // Coincidencia de código con nombre o viceversa
+        if (normRegCode && normProjName && normRegCode === normProjName) return true;
+        if (normRegName && normProjCode && normRegName === normProjCode) return true;
+        if (normRegName && normProjName && normRegName === normProjName) return true;
+
+        return false;
+      });
+
+      const onSite = matchingActiveRegs.length;
       
       let status: 'red' | 'yellow' | 'green' = 'red';
       if (onSite >= required && required > 0) status = 'green';
       else if (onSite > 0 && onSite < required) status = 'yellow';
-      else if (required === 0) status = 'green';
+      else if (required === 0) status = onSite > 0 ? 'green' : 'green';
 
       acc[project.id] = { status, onSite, required };
       return acc;
@@ -508,6 +620,8 @@ export function MapView() {
     projects.forEach((project) => {
       const coords = getProjectCoords(project);
       const status = projectStatus[project.id]?.status || 'red';
+      const onSite = projectStatus[project.id]?.onSite || 0;
+      const required = projectStatus[project.id]?.required || 0;
       const isSelected = selectedProject?.id === project.id;
       const badgeColor = status === 'green' ? '#22c55e' : status === 'yellow' ? '#eab308' : '#ef4444';
       
@@ -543,10 +657,16 @@ export function MapView() {
               white-space: nowrap;
               letter-spacing: -0.02em;
               box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-              max-width: 140px;
+              max-width: 150px;
               overflow: hidden;
               text-overflow: ellipsis;
-            ">${project.name || project.code}</div>
+              display: flex;
+              align-items: center;
+              gap: 4px;
+            ">
+              <span>${project.name || project.code}</span>
+              <span style="color: ${badgeColor}; font-weight: 900; font-size: 9px;">(${onSite}/${required})</span>
+            </div>
           </div>
         `,
         iconSize: [40, 50],
@@ -555,12 +675,13 @@ export function MapView() {
 
       const marker = L.marker(coords, { icon: customIcon }).addTo(map);
 
-      // Tooltip informativo con nombre del proyecto
+      // Tooltip informativo con nombre del proyecto y guardias en sitio en tiempo real
       marker.bindTooltip(`
         <div style="font-family: sans-serif; padding: 2px;">
           <div style="font-weight: 900; font-size: 12px; color: #ffffff;">${project.name}</div>
           <div style="font-size: 10px; color: #93c5fd; font-weight: 700;">${project.code}</div>
-          ${project.location ? `<div style="font-size: 10px; color: #d1d5db;">${project.location}</div>` : ''}
+          <div style="font-size: 11px; color: ${badgeColor}; font-weight: 900; margin-top: 4px;">🛡️ Guardias en sitio: ${onSite}/${required}</div>
+          ${project.location ? `<div style="font-size: 10px; color: #d1d5db; margin-top: 2px;">${project.location}</div>` : ''}
           ${project.mappedAt ? '<div style="font-size: 9px; color: #4ade80; font-weight: bold; margin-top: 3px;">📍 Ubicación GPS satelital guardada</div>' : ''}
         </div>
       `, {
@@ -773,6 +894,9 @@ export function MapView() {
 
   const activeGuardsCount = trackingUnits.filter(u => u.type === 'guard').length;
   const activeVehiclesCount = trackingUnits.filter(u => u.type === 'motorcycle' || u.type === 'patrol' || u.type === 'supervisor').length;
+  const totalGuardsOnSite = useMemo(() => {
+    return Object.values(projectStatus).reduce((acc, p) => acc + (p.onSite || 0), 0);
+  }, [projectStatus]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -872,7 +996,7 @@ export function MapView() {
             className="text-[10px] font-black uppercase h-7 px-3 rounded-lg border-white/10"
           >
             <Building2 className="h-3 w-3 mr-1" />
-            Puestos ({projects.length})
+            Puestos ({projects.length}) • {totalGuardsOnSite} en sitio
           </Button>
 
           <Button
@@ -1119,12 +1243,15 @@ export function MapView() {
                 
                 <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
                   <div className="text-center px-4 border-r border-white/10">
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Estado Fuerza</p>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guardias en Sitio</p>
                     <p className={`text-lg font-black ${
                       projectStatus[selectedProject.id]?.status === 'green' ? 'text-green-500' :
                       projectStatus[selectedProject.id]?.status === 'yellow' ? 'text-yellow-500' : 'text-red-500'
                     }`}>
-                      {projectStatus[selectedProject.id]?.onSite}/{projectStatus[selectedProject.id]?.required}
+                      {projectStatus[selectedProject.id]?.onSite ?? 0}/{projectStatus[selectedProject.id]?.required ?? 0}
+                    </p>
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase mt-0.5">
+                      {projectStatus[selectedProject.id]?.onSite === 0 ? 'Sin activos' : `${projectStatus[selectedProject.id]?.onSite} activo(s) hoy`}
                     </p>
                   </div>
                   <div className="text-center px-4">
