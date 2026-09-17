@@ -480,22 +480,6 @@ export function StatisticsView() {
     return sorted.slice(0, 5);
   }, [filteredShifts]);
 
-  // Eficiencia por tipo de servicio / estado de novedades
-  const severityBreakdown = useMemo(() => {
-    let alta = 0;
-    let media = 0;
-    let baja = 0;
-
-    filteredNovedades.forEach(n => {
-      const s = (n.severidad || '').toLowerCase();
-      if (s.includes('alta') || s.includes('crític')) alta++;
-      else if (s.includes('media') || s.includes('moder')) media++;
-      else baja++;
-    });
-
-    return { alta, media, baja, total: filteredNovedades.length };
-  }, [filteredNovedades]);
-
   return (
     <div className="space-y-10 animate-in fade-in duration-700 pb-20">
       {/* Cabecera Principal - Diseño Corporativo Robusto */}
