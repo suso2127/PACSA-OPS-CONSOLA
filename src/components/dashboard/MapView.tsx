@@ -125,34 +125,30 @@ export function MapView() {
   const tileLayerRef = useRef<any>(null);
   const leafletLRef = useRef<any>(null);
 
-  // Helper to compute realistic coordinates in Panama from project data
-  const getProjectCoords = (project: Project): [number, number] => {
-    // Check if real GPS latitude & longitude were captured
-    const pLat = typeof project.latitude === 'number' && !isNaN(project.latitude) ? project.latitude : project.lat;
-    const pLng = typeof project.longitude === 'number' && !isNaN(project.longitude) ? project.longitude : project.lng;
+  // Extraer coordenadas GPS del puesto en Firestore (colección 'projects')
+  // Solo se considera mapeado si tiene los campos latitude y longitude numéricos válidos
+  const getProjectCoords = (project: Project): [number, number] | null => {
+    const rawLat = project.latitude !== undefined && project.latitude !== null ? project.latitude : (project as any).lat;
+    const rawLng = project.longitude !== undefined && project.longitude !== null ? project.longitude : (project as any).lng;
 
-    if (typeof pLat === 'number' && typeof pLng === 'number' && !isNaN(pLat) && !isNaN(pLng)) {
+    if (rawLat === undefined || rawLat === null || rawLng === undefined || rawLng === null) {
+      return null;
+    }
+
+    const pLat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
+    const pLng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
+
+    if (!isNaN(pLat) && !isNaN(pLng) && pLat !== 0 && pLng !== 0) {
       return [pLat, pLng];
     }
 
-    const text = (project.name + ' ' + project.location + ' ' + project.code).toLowerCase();
-    
-    // Key Panama Location mappings
-    if (text.includes('bomba') || text.includes('albrook bomba')) return [8.9742, -79.5528];
-    if (text.includes('galera') || text.includes('albrook galera')) return [8.9715, -79.5562];
-    if (text.includes('san fernando') || text.includes('plaza san fernando')) return [8.9912, -79.5115];
-    if (text.includes('costa del este')) return [9.0081, -79.4728];
-    if (text.includes('obarrio') || text.includes('españa') || text.includes('via españa')) return [8.9875, -79.5218];
-    if (text.includes('miraflores') || text.includes('canal')) return [8.9985, -79.5910];
-    if (text.includes('pacora') || text.includes('este')) return [9.0833, -79.2833];
-    if (text.includes('tocumen')) return [9.0800, -79.3833];
-
-    // Panama City Base Offset hash fallback
-    const hash = project.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const latOffset = (((hash % 100) - 50) * 0.0025);
-    const lngOffset = ((((hash * 17) % 100) - 50) * 0.0025);
-    return [PANAMA_CENTER[0] + latOffset, PANAMA_CENTER[1] + lngOffset];
+    return null;
   };
+
+  // Puestos con coordenadas GPS registradas en Firestore
+  const mappedProjects = useMemo(() => {
+    return projects.filter(p => getProjectCoords(p) !== null);
+  }, [projects]);
 
   useEffect(() => {
     // 1. Escuchar proyectos desde Firestore
@@ -316,26 +312,12 @@ export function MapView() {
         setMyGpsCoords({ lat: latitude, lng: longitude });
         setIsGpsTransmitting(true);
 
-        // 1. Leer el projectCode del sessionStorage 'project-code' y el nombre del puesto de Firestore colección 'projects'
+        // 1. Leer el projectCode y el nombre del puesto para la unidad móvil
         const projData = await getProjectFromSessionAndFirestore();
         const realProjectName = projData?.name || initialName || 'Puesto Operativo';
         const postCode = projData?.code || currentProjectCode || 'GPS-LIVE';
-        const postDocId = projData?.docId;
 
-        // 2. Cada vez que el GPS se actualice, guardar las coordenadas en el documento del puesto en Firestore colección 'projects' con los campos latitude y longitude
-        if (postDocId) {
-          try {
-            await updateDoc(doc(db, 'projects', postDocId), {
-              latitude: latitude,
-              longitude: longitude,
-              mappedAt: serverTimestamp()
-            });
-          } catch (err) {
-            console.warn('Error actualizando coordenadas en colección projects de Firestore:', err);
-          }
-        }
-
-        // 3. Crear o actualizar la unidad activa 'my-device' con el nombre real del puesto en 'assignedProject'
+        // 2. Transmitir como unidad móvil rastreable en 'active_units' (SIN sobreescribir las coordenadas fijas del puesto en 'projects')
         const myUnit: TrackingUnit = {
           id: 'my-device',
           name: `Guardia GPS (${realProjectName})`,
@@ -491,15 +473,16 @@ export function MapView() {
       });
 
       const onSite = matchingActiveRegs.length;
+      const activeGuards = matchingActiveRegs.map(r => r.guardName).filter(Boolean) as string[];
       
       let status: 'red' | 'yellow' | 'green' = 'red';
       if (onSite >= required && required > 0) status = 'green';
       else if (onSite > 0 && onSite < required) status = 'yellow';
       else if (required === 0) status = onSite > 0 ? 'green' : 'green';
 
-      acc[project.id] = { status, onSite, required };
+      acc[project.id] = { status, onSite, required, activeGuards };
       return acc;
-    }, {} as Record<string, { status: 'red' | 'yellow' | 'green', onSite: number, required: number }>);
+    }, {} as Record<string, { status: 'red' | 'yellow' | 'green', onSite: number, required: number, activeGuards: string[] }>);
   }, [projects, registrations]);
 
   // Leaflet Map Initialization centered on Panama
@@ -605,7 +588,8 @@ export function MapView() {
     }
   };
 
-  // Synchronize Project Markers (Puestos) on Map
+  // Synchronize Project Markers (Puestos Mapeados) on Map
+  // Solo se grafican puestos que tienen los campos latitude y longitude en Firestore
   useEffect(() => {
     const map = mapRef.current;
     const L = leafletLRef.current;
@@ -617,77 +601,89 @@ export function MapView() {
 
     if (!showProjects) return;
 
-    projects.forEach((project) => {
+    mappedProjects.forEach((project) => {
       const coords = getProjectCoords(project);
+      if (!coords) return; // Solo puestos con coordenadas válidas
+
       const status = projectStatus[project.id]?.status || 'red';
       const onSite = projectStatus[project.id]?.onSite || 0;
       const required = projectStatus[project.id]?.required || 0;
+      const activeGuardsList = projectStatus[project.id]?.activeGuards || [];
       const isSelected = selectedProject?.id === project.id;
       const badgeColor = status === 'green' ? '#22c55e' : status === 'yellow' ? '#eab308' : '#ef4444';
       
       const customIcon = L.divIcon({
-        className: 'custom-leaflet-marker-wrapper',
+        className: 'custom-project-marker-wrapper',
         html: `
-          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer; user-select: none;">
+            <!-- Icono de Puesto / Base Fija -->
             <div style="
-              width: ${isSelected ? '36px' : '28px'};
-              height: ${isSelected ? '36px' : '28px'};
-              border-radius: 50%;
-              background-color: ${badgeColor};
-              border: 2px solid white;
-              box-shadow: 0 0 ${isSelected ? '20px' : '10px'} ${badgeColor};
+              width: ${isSelected ? '38px' : '32px'};
+              height: ${isSelected ? '38px' : '32px'};
+              border-radius: 10px;
+              background-color: #0d1322;
+              border: 2px solid ${badgeColor};
+              box-shadow: 0 0 ${isSelected ? '22px' : '12px'} ${badgeColor};
               display: flex;
               align-items: center;
               justify-content: center;
-              transition: all 0.3s ease;
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             ">
-              <svg width="${isSelected ? '18' : '14'}" height="${isSelected ? '18' : '14'}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="${isSelected ? '20' : '16'}" height="${isSelected ? '20' : '16'}" viewBox="0 0 24 24" fill="none" stroke="${badgeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
             </div>
+            <!-- Etiqueta del Puesto: Nombre, Código y Contador de guardias activos hoy en tiempo real -->
             <div style="
-              margin-top: 4px;
-              padding: 2px 8px;
-              border-radius: 6px;
-              background: rgba(15, 16, 29, 0.95);
-              border: 1px solid rgba(255, 255, 255, 0.2);
+              margin-top: 5px;
+              padding: 4px 8px;
+              border-radius: 8px;
+              background: rgba(13, 19, 34, 0.96);
+              border: 1px solid rgba(255, 255, 255, 0.18);
               color: white;
-              font-size: 10px;
-              font-weight: 900;
-              white-space: nowrap;
-              letter-spacing: -0.02em;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-              max-width: 150px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              display: flex;
-              align-items: center;
-              gap: 4px;
+              box-shadow: 0 4px 14px rgba(0,0,0,0.65);
+              min-width: 120px;
+              max-width: 220px;
+              text-align: center;
+              backdrop-filter: blur(6px);
             ">
-              <span>${project.name || project.code}</span>
-              <span style="color: ${badgeColor}; font-weight: 900; font-size: 9px;">(${onSite}/${required})</span>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 900; font-size: 11px; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                <span style="overflow: hidden; text-overflow: ellipsis;">${project.name}</span>
+                <span style="color: #60a5fa; font-size: 9px; font-family: monospace; background: rgba(59,130,246,0.18); padding: 1px 4px; border-radius: 4px; font-weight: 800;">[${project.code}]</span>
+              </div>
+              <div style="margin-top: 2px; font-size: 10px; font-weight: 800; color: ${badgeColor}; display: flex; align-items: center; justify-content: center; gap: 3px;">
+                <span>🛡️ ${onSite} ${onSite === 1 ? 'guardia' : 'guardias'} en sitio</span>
+                ${required > 0 ? `<span style="color: #94a3b8; font-size: 8px;">/ ${required}</span>` : ''}
+              </div>
             </div>
           </div>
         `,
-        iconSize: [40, 50],
-        iconAnchor: [20, 25]
+        iconSize: [50, 60],
+        iconAnchor: [25, 30]
       });
 
       const marker = L.marker(coords, { icon: customIcon }).addTo(map);
 
-      // Tooltip informativo con nombre del proyecto y guardias en sitio en tiempo real
+      // Tooltip informativo con nombre, código y guardias activos en tiempo real
       marker.bindTooltip(`
-        <div style="font-family: sans-serif; padding: 2px;">
-          <div style="font-weight: 900; font-size: 12px; color: #ffffff;">${project.name}</div>
-          <div style="font-size: 10px; color: #93c5fd; font-weight: 700;">${project.code}</div>
-          <div style="font-size: 11px; color: ${badgeColor}; font-weight: 900; margin-top: 4px;">🛡️ Guardias en sitio: ${onSite}/${required}</div>
-          ${project.location ? `<div style="font-size: 10px; color: #d1d5db; margin-top: 2px;">${project.location}</div>` : ''}
-          ${project.mappedAt ? '<div style="font-size: 9px; color: #4ade80; font-weight: bold; margin-top: 3px;">📍 Ubicación GPS satelital guardada</div>' : ''}
+        <div style="font-family: sans-serif; padding: 4px; min-width: 180px;">
+          <div style="font-weight: 900; font-size: 13px; color: #ffffff;">${project.name}</div>
+          <div style="font-size: 10px; color: #60a5fa; font-weight: 800; font-family: monospace; margin-top: 1px;">CÓDIGO: ${project.code}</div>
+          <div style="font-size: 11px; color: ${badgeColor}; font-weight: 900; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+            🛡️ Guardias en sitio hoy: ${onSite} ${required > 0 ? `(Req: ${required})` : ''}
+          </div>
+          ${activeGuardsList.length > 0 ? `
+            <div style="margin-top: 3px; font-size: 9px; color: #cbd5e1; max-height: 50px; overflow-y: auto;">
+              <span style="color: #94a3b8; font-weight: 700;">En turno activo:</span> ${activeGuardsList.join(', ')}
+            </div>
+          ` : '<div style="margin-top: 3px; font-size: 9px; color: #94a3b8; font-style: italic;">Sin guardias activos hoy</div>'}
+          ${project.location ? `<div style="font-size: 9px; color: #94a3b8; margin-top: 4px;">📍 ${project.location}</div>` : ''}
+          <div style="font-size: 8px; color: #64748b; margin-top: 3px; font-family: monospace;">GPS: ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</div>
         </div>
       `, {
         direction: 'top',
-        offset: [0, -20],
-        opacity: 0.95
+        offset: [0, -25],
+        opacity: 0.98
       });
 
       marker.on('click', () => {
@@ -698,7 +694,7 @@ export function MapView() {
 
       projectMarkersRef.current.set(project.id, marker);
     });
-  }, [projects, projectStatus, selectedProject, showProjects]);
+  }, [mappedProjects, projectStatus, selectedProject, showProjects]);
 
   // Synchronize Tracking Unit Markers (Guardias, Motos, Vehículos) on Map
   useEffect(() => {
@@ -813,9 +809,10 @@ export function MapView() {
 
     const bounds = L.latLngBounds([]);
 
-    // Add projects
-    projects.forEach((p) => {
-      bounds.extend(getProjectCoords(p));
+    // Add mapped projects only
+    mappedProjects.forEach((p) => {
+      const coords = getProjectCoords(p);
+      if (coords) bounds.extend(coords);
     });
 
     // Add active tracking units
@@ -835,7 +832,11 @@ export function MapView() {
     if (!mapRef.current) return;
     if (selectedProject) {
       const coords = getProjectCoords(selectedProject);
-      mapRef.current.flyTo(coords, 14, { duration: 0.8 });
+      if (coords) {
+        mapRef.current.flyTo(coords, 14, { duration: 0.8 });
+      } else {
+        handleFitPanamaBounds();
+      }
     } else if (selectedUnit) {
       mapRef.current.flyTo([selectedUnit.lat, selectedUnit.lng], 15, { duration: 0.8 });
     } else {
@@ -861,8 +862,8 @@ export function MapView() {
     }
     setAssignedProjectName(project.name);
     setCurrentProjectCode(project.code);
-    if (mapRef.current) {
-      const coords = getProjectCoords(project);
+    const coords = getProjectCoords(project);
+    if (mapRef.current && coords) {
       mapRef.current.flyTo(coords, 14, { duration: 0.8 });
     }
   };
@@ -996,7 +997,7 @@ export function MapView() {
             className="text-[10px] font-black uppercase h-7 px-3 rounded-lg border-white/10"
           >
             <Building2 className="h-3 w-3 mr-1" />
-            Puestos ({projects.length}) • {totalGuardsOnSite} en sitio
+            Puestos Mapeados ({mappedProjects.length}/{projects.length}) • {totalGuardsOnSite} en sitio
           </Button>
 
           <Button
@@ -1085,13 +1086,24 @@ export function MapView() {
                         <div className="overflow-hidden flex-1">
                           <div className="flex items-center justify-between">
                             <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{project.code}</p>
-                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${
-                              projectStatus[project.id]?.status === 'green' ? 'bg-green-500 text-white' :
-                              projectStatus[project.id]?.status === 'yellow' ? 'bg-yellow-500 text-black' :
-                              'bg-red-500 text-white'
-                            }`}>
-                              {projectStatus[project.id]?.onSite}/{projectStatus[project.id]?.required}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {getProjectCoords(project) ? (
+                                <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                  📍 GPS OK
+                                </span>
+                              ) : (
+                                <span className="text-[7px] font-semibold px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">
+                                  Sin GPS
+                                </span>
+                              )}
+                              <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${
+                                projectStatus[project.id]?.status === 'green' ? 'bg-green-500 text-white' :
+                                projectStatus[project.id]?.status === 'yellow' ? 'bg-yellow-500 text-black' :
+                                'bg-red-500 text-white'
+                              }`}>
+                                {projectStatus[project.id]?.onSite}/{projectStatus[project.id]?.required}
+                              </span>
+                            </div>
                           </div>
                           <p className="text-xs font-bold truncate text-white">{project.name}</p>
                         </div>
@@ -1226,38 +1238,54 @@ export function MapView() {
                         <MapPin className="h-3.5 w-3.5 text-red-500" />
                         {selectedProject.location || 'CIUDAD DE PANAMÁ'}
                       </p>
-                      {(typeof selectedProject.latitude === 'number' || typeof selectedProject.lat === 'number') && (
+                      {getProjectCoords(selectedProject) ? (
                         <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
                           <Navigation className="h-2.5 w-2.5" />
-                          GPS: {(selectedProject.latitude ?? selectedProject.lat)?.toFixed(5)}, {(selectedProject.longitude ?? selectedProject.lng)?.toFixed(5)}
+                          GPS: {getProjectCoords(selectedProject)![0].toFixed(5)}, {getProjectCoords(selectedProject)![1].toFixed(5)}
                           {selectedProject.mappedAt && (
                             <span className="text-muted-foreground ml-1">
                               • Mapeado
                             </span>
                           )}
                         </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-400 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <AlertTriangle className="h-2.5 w-2.5" />
+                          Sin coordenadas GPS en Firestore (No visible en mapa)
+                        </span>
                       )}
                     </div>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
-                  <div className="text-center px-4 border-r border-white/10">
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guardias en Sitio</p>
-                    <p className={`text-lg font-black ${
-                      projectStatus[selectedProject.id]?.status === 'green' ? 'text-green-500' :
-                      projectStatus[selectedProject.id]?.status === 'yellow' ? 'text-yellow-500' : 'text-red-500'
-                    }`}>
-                      {projectStatus[selectedProject.id]?.onSite ?? 0}/{projectStatus[selectedProject.id]?.required ?? 0}
-                    </p>
-                    <p className="text-[8px] font-bold text-muted-foreground uppercase mt-0.5">
-                      {projectStatus[selectedProject.id]?.onSite === 0 ? 'Sin activos' : `${projectStatus[selectedProject.id]?.onSite} activo(s) hoy`}
-                    </p>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
+                    <div className="text-center px-4 border-r border-white/10">
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Guardias en Sitio</p>
+                      <p className={`text-lg font-black ${
+                        projectStatus[selectedProject.id]?.status === 'green' ? 'text-green-500' :
+                        projectStatus[selectedProject.id]?.status === 'yellow' ? 'text-yellow-500' : 'text-red-500'
+                      }`}>
+                        {projectStatus[selectedProject.id]?.onSite ?? 0}/{projectStatus[selectedProject.id]?.required ?? 0}
+                      </p>
+                      <p className="text-[8px] font-bold text-muted-foreground uppercase mt-0.5">
+                        {projectStatus[selectedProject.id]?.onSite === 0 ? 'Sin activos' : `${projectStatus[selectedProject.id]?.onSite} activo(s) hoy`}
+                      </p>
+                    </div>
+                    <div className="text-center px-4">
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Tipo Servicio</p>
+                      <p className="text-lg font-black text-primary">{selectedProject.type?.toUpperCase() || 'GENERAL'}</p>
+                    </div>
                   </div>
-                  <div className="text-center px-4">
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Tipo Servicio</p>
-                    <p className="text-lg font-black text-primary">{selectedProject.type?.toUpperCase() || 'GENERAL'}</p>
-                  </div>
+
+                  {projectStatus[selectedProject.id]?.activeGuards && projectStatus[selectedProject.id]?.activeGuards.length > 0 && (
+                    <div className="bg-[#151728] border border-white/10 px-3 py-1.5 rounded-xl text-right max-w-sm">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Guardias con Turno Activo Hoy</p>
+                      <p className="text-[11px] font-bold text-emerald-400 truncate">
+                        {projectStatus[selectedProject.id].activeGuards.join(', ')}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
