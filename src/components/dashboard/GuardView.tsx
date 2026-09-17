@@ -49,12 +49,24 @@ interface ProjectData {
 
 export function GuardView() {
   const [projects, setProjects] = useState<ProjectData[]>([]);
-  const [projectCode, setProjectCode] = useState<string>('PRJ-NSE-001');
+  const [projectCode, setProjectCode] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('project-code') || 'PRJ-NSE-001';
+    }
+    return 'PRJ-NSE-001';
+  });
   const [capturingGps, setCapturingGps] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [isShiftActive, setIsShiftActive] = useState<boolean>(false);
   const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Guardar en sessionStorage 'project-code' cuando cambie
+  useEffect(() => {
+    if (typeof window !== 'undefined' && projectCode) {
+      sessionStorage.setItem('project-code', projectCode);
+    }
+  }, [projectCode]);
 
   // Reloj en tiempo real
   useEffect(() => {
@@ -81,8 +93,16 @@ export function GuardView() {
       // Si el código actual no existe entre los proyectos y hay proyectos disponibles, seleccionar el primero
       if (fetched.length > 0) {
         setProjectCode(prev => {
+          const stored = typeof window !== 'undefined' ? sessionStorage.getItem('project-code') : null;
+          if (stored && fetched.some(p => p.code?.toUpperCase() === stored.toUpperCase())) {
+            return stored;
+          }
           const exists = fetched.some(p => p.code?.toUpperCase() === prev.toUpperCase());
-          return exists ? prev : (fetched[0].code || prev);
+          const chosen = exists ? prev : (fetched[0].code || prev);
+          if (typeof window !== 'undefined' && chosen) {
+            sessionStorage.setItem('project-code', chosen);
+          }
+          return chosen;
         });
       }
     }, (error) => {

@@ -3,8 +3,11 @@ import type {Metadata} from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PACSA Ops Console',
-  description: 'Security operations platform for PACSA',
+  title: 'PACSA OPS CONSOLA',
+  description: 'Security operations platform for PACSA with realtime GPS and live operational monitoring',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({

@@ -71,6 +71,9 @@ export function GuardRegistrationForm() {
               latitude: data.latitude ?? data.lat,
               longitude: data.longitude ?? data.lng
             });
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('project-code', code);
+            }
           } else {
             setDetectedProject(null);
           }

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, where, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Map as MapIcon, 
@@ -210,8 +210,74 @@ export function MapView() {
     }
   }, [trackingUnits, selectedUnit]);
 
+  // Puesto asignado a la transmisión GPS en vivo
+  const [assignedProjectName, setAssignedProjectName] = useState<string>('');
+  const [currentProjectCode, setCurrentProjectCode] = useState<string>('');
+
+  // Helper: Leer projectCode de sessionStorage 'project-code' y el nombre del puesto de Firestore colección 'projects'
+  const getProjectFromSessionAndFirestore = async (): Promise<{ code: string; name: string; docId: string } | null> => {
+    let code = (typeof window !== 'undefined' ? sessionStorage.getItem('project-code') : null)?.trim();
+
+    if (!code && selectedProject?.code) {
+      code = selectedProject.code;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('project-code', code);
+      }
+    } else if (!code && projects.length > 0) {
+      code = projects[0].code;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('project-code', code);
+      }
+    }
+
+    if (!code) return null;
+
+    try {
+      // 1. Consultar Firestore colección 'projects' por el código
+      const q = query(collection(db, 'projects'), where('code', '==', code.toUpperCase()));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const pDoc = snap.docs[0];
+        const data = pDoc.data();
+        const pName = data.name || code.toUpperCase();
+        setAssignedProjectName(pName);
+        setCurrentProjectCode(code.toUpperCase());
+        return { code: code.toUpperCase(), name: pName, docId: pDoc.id };
+      }
+
+      // 2. Consultar por document ID directo en Firestore
+      const directRef = doc(db, 'projects', code);
+      const directDoc = await getDoc(directRef);
+      if (directDoc.exists()) {
+        const data = directDoc.data();
+        const pName = data.name || code.toUpperCase();
+        setAssignedProjectName(pName);
+        setCurrentProjectCode(code.toUpperCase());
+        return { code: code.toUpperCase(), name: pName, docId: directDoc.id };
+      }
+
+      // 3. Fallback en la lista de projects en memoria
+      const inMemory = projects.find(p => p.code?.toUpperCase() === code?.toUpperCase() || p.id === code);
+      if (inMemory) {
+        setAssignedProjectName(inMemory.name);
+        setCurrentProjectCode(inMemory.code);
+        return { code: inMemory.code, name: inMemory.name, docId: inMemory.id };
+      }
+    } catch (err) {
+      console.warn('Error leyendo puesto desde Firestore:', err);
+    }
+
+    return { code: code.toUpperCase(), name: code.toUpperCase(), docId: code };
+  };
+
+  // Cargar nombre del puesto desde sessionStorage y Firestore al iniciar o al recibir proyectos
+  useEffect(() => {
+    getProjectFromSessionAndFirestore();
+  }, [projects]);
+
   // Toggle Transmitir GPS Local desde el navegador/celular del guardia
-  const toggleGpsTransmission = () => {
+  const toggleGpsTransmission = async () => {
     if (isGpsTransmitting) {
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current);
@@ -226,6 +292,10 @@ export function MapView() {
       return;
     }
 
+    // Leer el projectCode del sessionStorage 'project-code' y el nombre del puesto de Firestore colección 'projects'
+    const initialProj = await getProjectFromSessionAndFirestore();
+    const initialName = initialProj?.name || assignedProjectName || 'Puesto Operativo';
+
     const id = navigator.geolocation.watchPosition(
       async (pos) => {
         const { latitude, longitude, speed } = pos.coords;
@@ -233,16 +303,37 @@ export function MapView() {
         setMyGpsCoords({ lat: latitude, lng: longitude });
         setIsGpsTransmitting(true);
 
+        // 1. Leer el projectCode del sessionStorage 'project-code' y el nombre del puesto de Firestore colección 'projects'
+        const projData = await getProjectFromSessionAndFirestore();
+        const realProjectName = projData?.name || initialName || 'Puesto Operativo';
+        const postCode = projData?.code || currentProjectCode || 'GPS-LIVE';
+        const postDocId = projData?.docId;
+
+        // 2. Cada vez que el GPS se actualice, guardar las coordenadas en el documento del puesto en Firestore colección 'projects' con los campos latitude y longitude
+        if (postDocId) {
+          try {
+            await updateDoc(doc(db, 'projects', postDocId), {
+              latitude: latitude,
+              longitude: longitude,
+              mappedAt: serverTimestamp()
+            });
+          } catch (err) {
+            console.warn('Error actualizando coordenadas en colección projects de Firestore:', err);
+          }
+        }
+
+        // 3. Crear o actualizar la unidad activa 'my-device' con el nombre real del puesto en 'assignedProject'
         const myUnit: TrackingUnit = {
           id: 'my-device',
-          name: 'Mi Dispositivo (Guardia en Vivo)',
-          code: 'GPS-LIVE',
+          name: `Guardia GPS (${realProjectName})`,
+          code: postCode,
           type: 'guard',
           lat: latitude,
           lng: longitude,
           speed: speedKmH,
           battery: 100,
           status: speedKmH > 3 ? 'moving' : 'active',
+          assignedProject: realProjectName,
           updatedAt: new Date().toISOString()
         };
 
@@ -250,14 +341,23 @@ export function MapView() {
         try {
           await setDoc(doc(db, 'active_units', 'my-device'), {
             ...myUnit,
+            assignedProject: realProjectName,
             updatedAt: serverTimestamp()
           });
         } catch (e) {
-          console.warn('Error syncing local GPS position to Firestore:', e);
+          console.warn('Error syncing local GPS position to Firestore active_units:', e);
         }
 
+        // Mantener la unidad seleccionada para que la tarjeta muestre el nombre real del puesto en 'Puesto Asignado'
+        setSelectedUnit(prev => {
+          if (!prev || prev.id === 'my-device') {
+            return myUnit;
+          }
+          return prev;
+        });
+
         // Centrar mapa suavemente la primera vez
-        if (mapRef.current) {
+        if (mapRef.current && !myGpsCoords) {
           mapRef.current.flyTo([latitude, longitude], 15, { duration: 0.8 });
         }
       },
@@ -266,7 +366,7 @@ export function MapView() {
         alert('No se pudo obtener la posición GPS. Revisa los permisos de ubicación en tu navegador.');
         setIsGpsTransmitting(false);
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
     );
 
     watchIdRef.current = id;
@@ -622,9 +722,24 @@ export function MapView() {
     }
   };
 
+  const getResolvedProjectName = (assigned?: string) => {
+    if (!assigned) return assignedProjectName || 'PANAMÁ GENERAL';
+    const match = projects.find(
+      p => p.code?.toUpperCase() === assigned.toUpperCase() ||
+           p.name?.toUpperCase() === assigned.toUpperCase() ||
+           p.id === assigned
+    );
+    return match?.name || assigned;
+  };
+
   const handleSelectProject = (project: Project) => {
     setSelectedProject(project);
     setSelectedUnit(null);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('project-code', project.code);
+    }
+    setAssignedProjectName(project.name);
+    setCurrentProjectCode(project.code);
     if (mapRef.current) {
       const coords = getProjectCoords(project);
       mapRef.current.flyTo(coords, 14, { duration: 0.8 });
@@ -713,6 +828,17 @@ export function MapView() {
             >
               OSM Standard
             </Button>
+          </div>
+
+          {/* Indicador de puesto para transmisión GPS */}
+          <div className="hidden sm:flex items-center gap-2 bg-[#151726] border border-white/10 px-3 py-1.5 rounded-xl text-xs">
+            <Radio className={`h-3.5 w-3.5 ${isGpsTransmitting ? 'text-emerald-400 animate-pulse' : 'text-muted-foreground'}`} />
+            <div className="flex flex-col text-left">
+              <span className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Puesto para GPS</span>
+              <span className="text-white font-bold text-xs truncate max-w-[190px]">
+                {assignedProjectName || currentProjectCode || 'Sin puesto'}
+              </span>
+            </div>
           </div>
 
           {/* Local GPS Transmitter Button */}
@@ -1050,7 +1176,11 @@ export function MapView() {
                   </div>
                   <div className="text-center px-4">
                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Puesto Asignado</p>
-                    <p className="text-xs font-black text-white uppercase">{selectedUnit.assignedProject || 'PANAMÁ GENERAL'}</p>
+                    <p className="text-xs font-black text-white uppercase">
+                      {selectedUnit.id === 'my-device' 
+                        ? (assignedProjectName || selectedUnit.assignedProject || 'PANAMÁ GENERAL')
+                        : (getResolvedProjectName(selectedUnit.assignedProject) || selectedUnit.assignedProject || 'PANAMÁ GENERAL')}
+                    </p>
                   </div>
                 </div>
               </div>

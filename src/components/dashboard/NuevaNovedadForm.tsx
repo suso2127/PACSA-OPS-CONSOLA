@@ -30,8 +30,11 @@ import {
   ShieldAlert, 
   Clock, 
   Terminal,
-  Loader2,
-  FileText
+  Loader2, 
+  FileText,
+  MessageSquare,
+  Sparkles,
+  CheckCheck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -44,6 +47,8 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
   const [loading, setLoading] = useState(false);
   const [proyectos, setProyectos] = useState<any[]>([]);
   const [personal, setPersonal] = useState<any[]>([]);
+  const [whatsappInput, setWhatsappInput] = useState('');
+  const [parsedSummary, setParsedSummary] = useState<any>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -66,6 +71,149 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
     estado: 'Abierto',
     notificadoInterno: ''
   });
+
+  // Analizar y extraer automáticamente los datos del reporte de WhatsApp
+  const handleParseWhatsApp = (text: string) => {
+    setWhatsappInput(text);
+    if (!text.trim()) {
+      setParsedSummary(null);
+      return;
+    }
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    let guardName = '';
+    let projectCode = '';
+    let clasificacion = '';
+    let detalles = '';
+    let fecha = '';
+    let hora = '';
+
+    // Extracción de timestamp típico de WhatsApp ej: [16/09/2026, 14:30] ó 16/09/2026 14:30
+    const waTimeMatch = text.match(/\[?(\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4})[,\s]+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?)\]?/i);
+    if (waTimeMatch) {
+      fecha = waTimeMatch[1];
+      hora = waTimeMatch[2];
+    }
+
+    for (const line of lines) {
+      // guardName
+      const gMatch = line.match(/(?:guardia|agente|oficial|unidad|nombre|reporta|guardName)\s*[:=-]\s*(.+)/i);
+      if (gMatch && !guardName) guardName = gMatch[1].trim();
+
+      // projectCode
+      const pMatch = line.match(/(?:proyecto|puesto|sitio|c[oó]digo|projectCode|cliente)\s*[:=-]\s*(.+)/i);
+      if (pMatch && !projectCode) projectCode = pMatch[1].trim();
+
+      // clasificacion
+      const cMatch = line.match(/(?:clasificaci[oó]n|tipo(?:\s+de\s+incidente)?|incidente|categor[ií]a)\s*[:=-]\s*(.+)/i);
+      if (cMatch && !clasificacion) clasificacion = cMatch[1].trim();
+
+      // fecha
+      const dMatch = line.match(/(?:fecha)\s*[:=-]\s*(\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4})/i);
+      if (dMatch && !fecha) fecha = dMatch[1].trim();
+
+      // hora
+      const hMatch = line.match(/(?:hora|horario)\s*[:=-]\s*(\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?)/i);
+      if (hMatch && !hora) hora = hMatch[1].trim();
+
+      // detalles
+      const dtMatch = line.match(/(?:detalles?|hechos?|descripci[oó]n|novedad|suceso|ocurrencia)\s*[:=-]\s*(.+)/i);
+      if (dtMatch && !detalles) detalles = dtMatch[1].trim();
+    }
+
+    // Si detalles no tiene clave directa, tomar párrafos que no sean campos clave
+    if (!detalles) {
+      const nonKeyLines = lines.filter(l => 
+        !l.match(/^(?:guardia|agente|oficial|unidad|nombre|reporta|proyecto|puesto|sitio|c[oó]digo|cliente|clasificaci[oó]n|tipo|fecha|hora|horario)\s*[:=-]/i) &&
+        !l.match(/^\[?\d{1,4}[-/.]\d{1,2}[-/.]\d{2,4}/)
+      );
+      if (nonKeyLines.length > 0) {
+        detalles = nonKeyLines.join('\n');
+      } else {
+        detalles = text;
+      }
+    }
+
+    // Normalizar Fecha a formato ISO YYYY-MM-DD
+    let formattedDate = '';
+    if (fecha) {
+      const parts = fecha.split(/[-/.]/);
+      if (parts.length === 3) {
+        let y = parts[2];
+        let m = parts[1];
+        let d = parts[0];
+        if (d.length === 4) {
+          y = parts[0];
+          m = parts[1].padStart(2, '0');
+          d = parts[2].padStart(2, '0');
+        } else {
+          d = d.padStart(2, '0');
+          m = m.padStart(2, '0');
+          if (y.length === 2) y = '20' + y;
+        }
+        if (!isNaN(Number(y)) && !isNaN(Number(m)) && !isNaN(Number(d))) {
+          formattedDate = `${y}-${m}-${d}`;
+        }
+      }
+    }
+
+    // Normalizar Clasificación a una de las categorías válidas
+    let normalizedClass = 'Control de acceso';
+    const classLower = (clasificacion || '').toLowerCase();
+    if (classLower.includes('robo') || classLower.includes('hurto')) normalizedClass = 'Robo/hurto';
+    else if (classLower.includes('médic') || classLower.includes('medic') || classLower.includes('salud') || classLower.includes('accidente')) normalizedClass = 'Emergencia médica';
+    else if (classLower.includes('daño') || classLower.includes('propiedad') || classLower.includes('rotura') || classLower.includes('cristal')) normalizedClass = 'Daño a propiedad';
+    else if (classLower.includes('orden') || classLower.includes('pelea') || classLower.includes('discusi')) normalizedClass = 'Alteración del orden';
+    else if (classLower.includes('falla') || classLower.includes('equipo') || classLower.includes('cámara') || classLower.includes('luz')) normalizedClass = 'Falla de equipo';
+    else if (classLower.includes('persona') && classLower.includes('sospech')) normalizedClass = 'Persona sospechosa';
+    else if (classLower.includes('veh') && classLower.includes('sospech')) normalizedClass = 'Vehículo sospechoso';
+    else if (classLower.includes('acceso') || classLower.includes('entrada') || classLower.includes('puerta')) normalizedClass = 'Control de acceso';
+    else if (clasificacion) normalizedClass = 'Otro';
+
+    // Buscar proyecto coincidente
+    let matchedProject = proyectos.find(p => 
+      (projectCode && p.code?.toUpperCase() === projectCode.toUpperCase()) ||
+      (projectCode && p.name?.toLowerCase().includes(projectCode.toLowerCase())) ||
+      (projectCode && projectCode.toLowerCase().includes(p.name?.toLowerCase()))
+    );
+
+    // Si guardName no está en personal, registrarlo en la lista local para selección
+    if (guardName) {
+      setPersonal(prev => {
+        if (prev.some(p => p.nombre.toLowerCase() === guardName.toLowerCase())) return prev;
+        return [...prev, { id: `custom-${Date.now()}`, nombre: guardName }];
+      });
+    }
+
+    // Auto-completar formulario
+    setFormData(prev => ({
+      ...prev,
+      unidadTurnoNombre: guardName || prev.unidadTurnoNombre,
+      proyectoId: matchedProject ? matchedProject.id : prev.proyectoId,
+      proyectoNombre: matchedProject ? matchedProject.name : prev.proyectoNombre,
+      contactoProyecto: matchedProject ? (matchedProject.location || 'MANDO GRUPSA') : prev.contactoProyecto,
+      tipoIncidente: normalizedClass,
+      descripcionHechos: detalles || prev.descripcionHechos,
+      referencia: (clasificacion || normalizedClass).toUpperCase() + (detalles ? ` - ${detalles.slice(0, 35)}` : ''),
+      fecha: formattedDate || prev.fecha,
+      horarioServicio: hora ? hora : prev.horarioServicio,
+    }));
+
+    setParsedSummary({
+      guardName: guardName || 'No detectado',
+      projectCode: projectCode || (matchedProject ? matchedProject.code : 'No detectado'),
+      projectName: matchedProject ? matchedProject.name : null,
+      clasificacion: normalizedClass,
+      detalles: detalles ? `${detalles.slice(0, 45)}...` : 'No detectados',
+      fecha: formattedDate || 'Actual',
+      hora: hora || 'No detectada'
+    });
+
+    toast({
+      title: "REPORTE DE WHATSAPP PROCESADO",
+      description: "Los campos del formulario se completaron automáticamente."
+    });
+  };
 
   useEffect(() => {
     // Carga de Proyectos Dinámicos
@@ -155,6 +303,90 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Importador Inteligente de Novedad desde WhatsApp */}
+        <div className="bg-gradient-to-br from-[#1a1b2e] to-[#121324] border border-emerald-500/20 rounded-3xl p-6 md:p-8 space-y-4 shadow-2xl relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                    Pegar Reporte WhatsApp
+                  </h3>
+                  <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Auto-Extracción
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                  Pegue el mensaje recibido por WhatsApp. El sistema analizará y extraerá automáticamente: guardia, puesto/código, clasificación, detalles, fecha y hora.
+                </p>
+              </div>
+            </div>
+
+            {whatsappInput && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setWhatsappInput('');
+                  setParsedSummary(null);
+                }}
+                className="text-[10px] font-bold text-muted-foreground hover:text-white h-7"
+              >
+                Limpiar
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <Textarea
+              placeholder={`Pegue aquí el reporte recibido por WhatsApp...\nEjemplo:\nGuardia: Juan Pérez\nPuesto: PRJ-NSE-001\nFecha: 16/09/2026\nHora: 14:30\nClasificación: Daño a propiedad\nDetalles: Se reporta impacto en portón vehicular por camión de reparto...`}
+              value={whatsappInput}
+              onChange={(e) => handleParseWhatsApp(e.target.value)}
+              onPaste={(e) => {
+                const pastedText = e.clipboardData.getData('text');
+                if (pastedText) {
+                  setTimeout(() => handleParseWhatsApp(pastedText), 50);
+                }
+              }}
+              className="min-h-[110px] bg-[#0c0d18] border-white/10 rounded-2xl p-4 text-xs font-mono text-emerald-300/90 focus:border-emerald-500/50"
+            />
+
+            {parsedSummary && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 bg-[#0a0b14] p-3 rounded-2xl border border-white/5 text-[10px]">
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">Guardia</span>
+                  <span className="font-bold text-emerald-400 truncate">{parsedSummary.guardName}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">Proyecto / Puesto</span>
+                  <span className="font-bold text-emerald-400 truncate">{parsedSummary.projectName || parsedSummary.projectCode}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">Clasificación</span>
+                  <span className="font-bold text-emerald-400 truncate">{parsedSummary.clasificacion}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">Fecha</span>
+                  <span className="font-bold text-emerald-400 truncate">{parsedSummary.fecha}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">Hora</span>
+                  <span className="font-bold text-emerald-400 truncate">{parsedSummary.hora}</span>
+                </div>
+                <div className="flex flex-col justify-center">
+                  <span className="text-[9px] font-black text-emerald-400 flex items-center gap-1">
+                    <CheckCheck className="h-3 w-3" /> Formulario Lleno
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Sección 1: Encabezado Operativo */}
         <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-8 space-y-6 shadow-2xl">
           <div className="flex items-center gap-3 text-primary/70 mb-2">
@@ -166,6 +398,7 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Proyecto / Cliente</Label>
               <Select 
+                value={formData.proyectoId}
                 onValueChange={(val) => {
                   const p = proyectos.find(x => x.id === val);
                   setFormData({...formData, proyectoId: val, proyectoNombre: p?.name, contactoProyecto: p?.location || 'MANDO GRUPSA'});
@@ -203,6 +436,7 @@ export function NuevaNovedadForm({ onCancel }: NuevaNovedadFormProps) {
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unidad de Turno</Label>
               <Select 
+                value={formData.unidadTurnoNombre}
                 onValueChange={(val) => setFormData({...formData, unidadTurnoNombre: val})}
               >
                 <SelectTrigger className="h-12 bg-[#0f101d] border-none text-[10px] font-black uppercase rounded-xl">
