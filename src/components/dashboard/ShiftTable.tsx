@@ -233,7 +233,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     const shiftRef = doc(db, 'shift-registrations', id);
     const updateData: any = { status };
     
-    if (status === 'Finalizado' || status === 'Completo') {
+    if (status === 'Finalizado' || status === 'Completo' || status.toLowerCase() === 'completado') {
       updateData.exitTime = serverTimestamp();
     } else {
       updateData.exitTime = null;
@@ -251,6 +251,27 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       title: "OPERACIÓN REGISTRADA",
       description: `El elemento ${name} ha sido actualizado a: ${status.toUpperCase()}.`
     });
+  };
+
+  // Registrar salida: Solo debe usar updateDoc para actualizar el registro de entrada existente con exitTime y status 'completado'
+  const handleRegisterExit = async (id: string, name?: string) => {
+    try {
+      const shiftRef = doc(db, 'shift-registrations', id);
+      await updateDoc(shiftRef, {
+        exitTime: serverTimestamp(),
+        status: 'completado'
+      });
+      toast({
+        title: "SALIDA REGISTRADA",
+        description: `Salida de ${name || 'elemento'} registrada con éxito (estado: completado).`
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "ERROR AL REGISTRAR SALIDA",
+        description: `No se pudo actualizar la salida de ${name || 'elemento'}.`
+      });
+    }
   };
 
   const handleUpdateDuration = (id: string, name: string, duration: string) => {
@@ -687,6 +708,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                                 </DropdownMenuSubContent>
                               </DropdownMenuPortal>
                             </DropdownMenuSub>
+                            <DropdownMenuItem onClick={() => handleRegisterExit(shift.id, shift.guardName)} className="text-[9px] font-black uppercase text-emerald-400 py-1.5"><CheckCircle2 className="h-3 w-3 mr-2" />Registrar Salida (Completado)</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleUpdateStatus(shift.id, shift.guardName, 'Completo')} className="text-[9px] font-black uppercase text-green-500 py-1.5"><CheckCircle2 className="h-3 w-3 mr-2" />Cierre Manual</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

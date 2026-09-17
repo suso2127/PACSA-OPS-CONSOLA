@@ -256,15 +256,44 @@ export function GuardView() {
     }
   };
 
-  // Finalizar turno del guardia
-  const handleEndShift = async () => {
+  // Registrar salida del guardia / Finalizar turno
+  // Solo debe usar updateDoc para actualizar el registro de entrada existente con exitTime y status 'completado'.
+  // Eliminar cualquier llamada a addDoc.
+  const handleRegisterExit = async () => {
     try {
-      if (activeShiftId) {
-        await updateDoc(doc(db, 'shift-registrations', activeShiftId), {
-          status: 'Completado',
+      let shiftIdToUpdate = activeShiftId;
+
+      if (!shiftIdToUpdate) {
+        const code = (currentProject?.code || projectCode).trim().toUpperCase();
+        const q = query(
+          collection(db, 'shift-registrations'),
+          where('projectCode', '==', code)
+        );
+        const snapshot = await getDocs(q);
+        const activeDocs = snapshot.docs.filter(d => {
+          const data = d.data();
+          return !data.exitTime && data.status?.toLowerCase() !== 'completado' && data.status !== 'Finalizado' && data.status !== 'Completo';
+        });
+
+        if (activeDocs.length > 0) {
+          activeDocs.sort((a, b) => {
+            const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
+            const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
+            return timeB - timeA;
+          });
+          shiftIdToUpdate = activeDocs[0].id;
+        }
+      }
+
+      if (shiftIdToUpdate) {
+        // Solo debe usar updateDoc para actualizar el registro de entrada existente con exitTime y status 'completado'
+        // SIN llamar a addDoc
+        await updateDoc(doc(db, 'shift-registrations', shiftIdToUpdate), {
+          status: 'completado',
           exitTime: serverTimestamp()
         });
       }
+
       setIsShiftActive(false);
       setActiveShiftId(null);
       toast({
@@ -279,6 +308,8 @@ export function GuardView() {
       });
     }
   };
+
+  const handleEndShift = handleRegisterExit;
 
   // Reportar novedad o incidente rápido
   const handleReportIncident = async () => {
@@ -455,12 +486,12 @@ export function GuardView() {
             id="btn-finalizar-turno"
             size="lg" 
             variant="outline" 
-            onClick={handleEndShift}
+            onClick={handleRegisterExit}
             disabled={!isShiftActive}
-            className="h-20 flex flex-col gap-1.5 text-base font-black uppercase tracking-tight border-destructive text-destructive hover:bg-destructive/10 rounded-2xl"
+            className="h-20 flex flex-col gap-1.5 text-base font-black uppercase tracking-tight border-destructive text-destructive hover:bg-destructive/10 rounded-2xl cursor-pointer"
           >
             <LogOut className="h-5 w-5" />
-            <span>Finalizar Turno</span>
+            <span>Registrar Salida</span>
           </Button>
 
           <Button 

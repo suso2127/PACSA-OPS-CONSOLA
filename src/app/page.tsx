@@ -50,7 +50,7 @@ export default function Home() {
     const normalize = (str?: string) => (str || '').trim().toUpperCase().replace(/[\s\-_.]+/g, '');
     const isShiftActive = (s: any) => {
       if (s.exitTime) return false;
-      if (s.status === 'Finalizado' || s.status === 'Completo') return false;
+      if (s.status === 'Finalizado' || s.status === 'Completo' || s.status?.toLowerCase() === 'completado') return false;
       return true;
     };
     const matchesProject = (s: any, p: any) => {

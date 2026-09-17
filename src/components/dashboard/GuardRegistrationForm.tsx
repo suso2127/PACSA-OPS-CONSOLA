@@ -233,6 +233,79 @@ export function GuardRegistrationForm() {
     }
   };
 
+  // Registrar salida del guardia: SOLO usa updateDoc para actualizar el registro existente con exitTime y status 'completado'.
+  // Se elimina cualquier llamada a addDoc.
+  const handleRegisterExit = async () => {
+    if (!formData.guardName) {
+      toast({
+        title: "NOMBRE REQUERIDO",
+        description: "Debe ingresar el nombre del elemento para registrar la salida.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const guardNameUpper = formData.guardName.trim().toUpperCase();
+
+      // Buscar el registro de entrada existente para este guardia en shift-registrations
+      const q = query(
+        collection(db, 'shift-registrations'),
+        where('guardName', '==', guardNameUpper)
+      );
+      const snapshot = await getDocs(q);
+
+      // Filtrar registros activos (sin exitTime y cuyo status no sea ya completado)
+      const activeDocs = snapshot.docs.filter(d => {
+        const data = d.data();
+        return !data.exitTime && data.status?.toLowerCase() !== 'completado' && data.status !== 'Finalizado' && data.status !== 'Completo';
+      });
+
+      if (activeDocs.length > 0) {
+        // Seleccionar el registro de entrada más reciente
+        activeDocs.sort((a, b) => {
+          const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
+          const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
+          return timeB - timeA;
+        });
+
+        const targetDoc = activeDocs[0];
+        
+        // SOLO usar updateDoc para actualizar el registro existente con exitTime y status 'completado'
+        // SIN llamadas a addDoc
+        await updateDoc(doc(db, 'shift-registrations', targetDoc.id), {
+          status: 'completado',
+          exitTime: serverTimestamp()
+        });
+
+        toast({
+          title: "SALIDA REGISTRADA",
+          description: `Salida de ${guardNameUpper} registrada con éxito en el registro existente.`,
+          variant: "default"
+        });
+
+        setFormData({ guardName: '', projectCode: '', duration: '12h', shiftType: 'Diurno' });
+        setDetectedProject(null);
+      } else {
+        toast({
+          title: "TURNO ACTIVO NO ENCONTRADO",
+          description: `No se encontró un registro de entrada activo para ${guardNameUpper}.`,
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      console.error("Error al registrar salida:", err);
+      toast({
+        title: "ERROR AL REGISTRAR SALIDA",
+        description: "No se pudo actualizar el registro con la salida.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getEstimatedExit = () => {
     if (!currentTime) return '--:--';
     const hours = parseInt(formData.duration) || 8;
@@ -428,18 +501,36 @@ export function GuardRegistrationForm() {
             </div>
           </div>
 
-          <Button 
-            type="submit" 
-            disabled={loading}
-            className="w-full h-20 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.4em] rounded-3xl shadow-[0_15px_40px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] group"
-          >
-            {loading ? "SINCRONIZANDO..." : (
-              <span className="flex items-center gap-3">
-                <Zap className="h-5 w-5 fill-primary-foreground group-hover:animate-bounce" />
-                REGISTRAR ENTRADA
-              </span>
-            )}
-          </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Button 
+              id="btn-registrar-entrada"
+              type="submit" 
+              disabled={loading}
+              className="w-full h-20 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.2em] rounded-3xl shadow-[0_15px_40px_rgba(59,130,246,0.3)] transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] group cursor-pointer"
+            >
+              {loading ? "SINCRONIZANDO..." : (
+                <span className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 fill-primary-foreground group-hover:animate-bounce" />
+                  REGISTRAR ENTRADA
+                </span>
+              )}
+            </Button>
+
+            <Button 
+              id="btn-registrar-salida"
+              type="button" 
+              onClick={handleRegisterExit}
+              disabled={loading}
+              className="w-full h-20 bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-[0.2em] rounded-3xl shadow-[0_15px_40px_rgba(217,119,6,0.3)] transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] group cursor-pointer"
+            >
+              {loading ? "SINCRONIZANDO..." : (
+                <span className="flex items-center gap-3">
+                  <LogOut className="h-5 w-5" />
+                  REGISTRAR SALIDA
+                </span>
+              )}
+            </Button>
+          </div>
         </form>
       </div>
     </div>
