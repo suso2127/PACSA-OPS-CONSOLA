@@ -211,6 +211,7 @@ export function GuardRegistrationForm() {
         duration: formData.duration,
         shiftDuration: formData.duration,
         entryTime: serverTimestamp(),
+        exitTime: null,
         status: formData.duration === '24h' ? 'Doble' : 'Activo'
       });
       
@@ -236,10 +237,10 @@ export function GuardRegistrationForm() {
   // Registrar salida del guardia: SOLO usa updateDoc para actualizar el registro existente con exitTime y status 'completado'.
   // Se elimina cualquier llamada a addDoc.
   const handleRegisterExit = async () => {
-    if (!formData.guardName) {
+    if (!formData.guardName || !formData.projectCode) {
       toast({
-        title: "NOMBRE REQUERIDO",
-        description: "Debe ingresar el nombre del elemento para registrar la salida.",
+        title: "DATOS REQUERIDOS",
+        description: "Debe ingresar el nombre del elemento y el código del puesto para registrar la salida.",
         variant: "destructive"
       });
       return;
@@ -248,32 +249,50 @@ export function GuardRegistrationForm() {
     setLoading(true);
     try {
       const guardNameUpper = formData.guardName.trim().toUpperCase();
+      const projectCodeUpper = formData.projectCode.trim().toUpperCase();
 
-      // Buscar el registro de entrada existente para este guardia en shift-registrations
+      // Búsqueda en Firestore colección 'shift-registrations' únicamente por:
+      // 1. guardName igual al nombre del guardia actual
+      // 2. projectCode igual al código del puesto actual
+      // 3. que el campo exitTime no exista (exitTime == null)
+      // Se elimina cualquier filtro por fecha u operationDate
       const q = query(
         collection(db, 'shift-registrations'),
-        where('guardName', '==', guardNameUpper)
+        where('guardName', '==', guardNameUpper),
+        where('projectCode', '==', projectCodeUpper),
+        where('exitTime', '==', null)
       );
       const snapshot = await getDocs(q);
 
-      // Filtrar registros activos (sin exitTime y cuyo status no sea ya completado)
-      const activeDocs = snapshot.docs.filter(d => {
-        const data = d.data();
-        return !data.exitTime && data.status?.toLowerCase() !== 'completado' && data.status !== 'Finalizado' && data.status !== 'Completo';
-      });
-
-      if (activeDocs.length > 0) {
-        // Seleccionar el registro de entrada más reciente
-        activeDocs.sort((a, b) => {
-          const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
-          const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
-          return timeB - timeA;
+      let targetDoc: any = null;
+      if (!snapshot.empty) {
+        targetDoc = snapshot.docs[0];
+      } else {
+        // Respaldo en caso de que registros previos no contengan el campo explícito exitTime: null
+        const fallbackQ = query(
+          collection(db, 'shift-registrations'),
+          where('guardName', '==', guardNameUpper),
+          where('projectCode', '==', projectCodeUpper)
+        );
+        const fallbackSnapshot = await getDocs(fallbackQ);
+        const activeDocs = fallbackSnapshot.docs.filter(d => {
+          const data = d.data();
+          return !data.exitTime || data.exitTime === null;
         });
 
-        const targetDoc = activeDocs[0];
-        
-        // SOLO usar updateDoc para actualizar el registro existente con exitTime y status 'completado'
-        // SIN llamadas a addDoc
+        if (activeDocs.length > 0) {
+          activeDocs.sort((a, b) => {
+            const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
+            const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
+            return timeB - timeA;
+          });
+          targetDoc = activeDocs[0];
+        }
+      }
+
+      if (targetDoc) {
+        // SOLO usar updateDoc para actualizar el registro encontrado con exitTime usando serverTimestamp() y status 'completado'
+        // NO crear documento nuevo con addDoc
         await updateDoc(doc(db, 'shift-registrations', targetDoc.id), {
           status: 'completado',
           exitTime: serverTimestamp()
@@ -281,7 +300,7 @@ export function GuardRegistrationForm() {
 
         toast({
           title: "SALIDA REGISTRADA",
-          description: `Salida de ${guardNameUpper} registrada con éxito en el registro existente.`,
+          description: `Salida de ${guardNameUpper} en puesto [${projectCodeUpper}] registrada con éxito (estado: completado).`,
           variant: "default"
         });
 
@@ -290,7 +309,7 @@ export function GuardRegistrationForm() {
       } else {
         toast({
           title: "TURNO ACTIVO NO ENCONTRADO",
-          description: `No se encontró un registro de entrada activo para ${guardNameUpper}.`,
+          description: `No se encontró un registro de entrada activo para ${guardNameUpper} en el puesto [${projectCodeUpper}].`,
           variant: "destructive"
         });
       }

@@ -228,9 +228,10 @@ export function GuardView() {
   // Iniciar turno del guardia
   const handleStartShift = async () => {
     try {
+      const code = (currentProject?.code || projectCode).trim().toUpperCase();
       const docRef = await addDoc(collection(db, 'shift-registrations'), {
         guardName: 'OFICIAL DE GUARDIA',
-        projectCode: currentProject?.code || projectCode,
+        projectCode: code,
         clientName: currentProject?.name || 'Cliente PACSA',
         projectName: currentProject?.name || 'Puesto Operativo',
         projectLocation: currentProject?.location || 'Ciudad de Panamá',
@@ -238,13 +239,14 @@ export function GuardView() {
         duration: '12h',
         shiftDuration: '12h',
         entryTime: serverTimestamp(),
+        exitTime: null,
         status: 'Activo'
       });
       setIsShiftActive(true);
       setActiveShiftId(docRef.id);
       toast({
         title: "TURNO INICIADO",
-        description: `Servicio activo en ${currentProject?.name || projectCode}.`,
+        description: `Servicio activo en ${currentProject?.name || code}.`,
         className: "bg-green-950 border-green-500 text-white"
       });
     } catch (e) {
@@ -257,31 +259,48 @@ export function GuardView() {
   };
 
   // Registrar salida del guardia / Finalizar turno
-  // Solo debe usar updateDoc para actualizar el registro de entrada existente con exitTime y status 'completado'.
-  // Eliminar cualquier llamada a addDoc.
+  // Búsqueda en Firestore colección 'shift-registrations' por:
+  // guardName == nombre del guardia actual, projectCode == código del puesto actual, y exitTime no exista
+  // Se elimina cualquier filtro por fecha u operationDate
+  // Usar query con where para estos tres filtros y updateDoc para actualizar con exitTime: serverTimestamp() y status: 'completado'
   const handleRegisterExit = async () => {
     try {
       let shiftIdToUpdate = activeShiftId;
 
       if (!shiftIdToUpdate) {
         const code = (currentProject?.code || projectCode).trim().toUpperCase();
+        const guardNameVal = 'OFICIAL DE GUARDIA';
         const q = query(
           collection(db, 'shift-registrations'),
-          where('projectCode', '==', code)
+          where('guardName', '==', guardNameVal),
+          where('projectCode', '==', code),
+          where('exitTime', '==', null)
         );
         const snapshot = await getDocs(q);
-        const activeDocs = snapshot.docs.filter(d => {
-          const data = d.data();
-          return !data.exitTime && data.status?.toLowerCase() !== 'completado' && data.status !== 'Finalizado' && data.status !== 'Completo';
-        });
 
-        if (activeDocs.length > 0) {
-          activeDocs.sort((a, b) => {
-            const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
-            const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
-            return timeB - timeA;
+        if (!snapshot.empty) {
+          shiftIdToUpdate = snapshot.docs[0].id;
+        } else {
+          // Respaldo para registros sin el campo explícito exitTime: null
+          const fallbackQ = query(
+            collection(db, 'shift-registrations'),
+            where('guardName', '==', guardNameVal),
+            where('projectCode', '==', code)
+          );
+          const fallbackSnap = await getDocs(fallbackQ);
+          const activeDocs = fallbackSnap.docs.filter(d => {
+            const data = d.data();
+            return !data.exitTime || data.exitTime === null;
           });
-          shiftIdToUpdate = activeDocs[0].id;
+
+          if (activeDocs.length > 0) {
+            activeDocs.sort((a, b) => {
+              const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
+              const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
+              return timeB - timeA;
+            });
+            shiftIdToUpdate = activeDocs[0].id;
+          }
         }
       }
 
@@ -298,7 +317,7 @@ export function GuardView() {
       setActiveShiftId(null);
       toast({
         title: "TURNO FINALIZADO",
-        description: "Salida registrada con éxito.",
+        description: "Salida registrada con éxito (estado: completado).",
       });
     } catch (e) {
       toast({

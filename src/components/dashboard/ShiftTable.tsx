@@ -428,6 +428,7 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
         shiftDuration: newDuration,
         status: isDouble ? 'Doble' : 'Activo',
         entryTime: serverTimestamp(),
+        exitTime: null,
         createdAt: serverTimestamp()
       });
 
