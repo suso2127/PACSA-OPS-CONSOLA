@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { 
   Map as MapIcon, 
@@ -23,11 +23,29 @@ import {
   Wifi,
   RefreshCw,
   Eye,
-  Layers
+  Layers,
+  MoreVertical,
+  Trash2,
+  Edit2,
+  Compass,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface Project {
   id: string;
@@ -107,6 +125,21 @@ export function MapView() {
   const [selectedUnit, setSelectedUnit] = useState<TrackingUnit | null>(null);
   const [currentTileSource, setCurrentTileSource] = useState<'cartoDark' | 'osm'>('cartoDark');
   const [tileErrorCount, setTileErrorCount] = useState(0);
+
+  // States for GPS Unit Actions: Editar, Eliminar, Volver a Mapear
+  const [editingUnit, setEditingUnit] = useState<TrackingUnit | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    code: '',
+    type: 'guard' as 'guard' | 'motorcycle' | 'patrol' | 'supervisor',
+    assignedProject: '',
+    status: 'active' as 'active' | 'moving' | 'idle' | 'offline',
+    battery: 100,
+    speed: 0
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [unitToDelete, setUnitToDelete] = useState<TrackingUnit | null>(null);
+  const [isDeletingUnit, setIsDeletingUnit] = useState(false);
 
   // Layer Visibility Toggles
   const [showProjects, setShowProjects] = useState(true);
@@ -876,6 +909,103 @@ export function MapView() {
     }
   };
 
+  // Accion: Volver a mapear (Centrar, enfocar y actualizar posicion en tiempo real en el mapa)
+  const handleRemapUnit = (unit: TrackingUnit) => {
+    setSelectedUnit(unit);
+    setSelectedProject(null);
+    if (mapRef.current) {
+      mapRef.current.invalidateSize();
+      mapRef.current.flyTo([unit.lat, unit.lng], 17, {
+        animate: true,
+        duration: 1.2
+      });
+
+      // Si existe el marcador en Leaflet, abrir su tooltip
+      const marker = unitMarkersRef.current.get(unit.id);
+      if (marker && marker.openTooltip) {
+        marker.openTooltip();
+      }
+    }
+  };
+
+  // Accion: Editar unidad GPS
+  const handleOpenEditUnit = (unit: TrackingUnit) => {
+    setEditingUnit(unit);
+    setEditFormData({
+      name: unit.name || '',
+      code: unit.code || '',
+      type: unit.type || 'guard',
+      assignedProject: unit.assignedProject || '',
+      status: unit.status || 'active',
+      battery: unit.battery ?? 100,
+      speed: unit.speed ?? 0
+    });
+  };
+
+  const handleSaveEditUnit = async () => {
+    if (!editingUnit) return;
+    setIsSavingEdit(true);
+    try {
+      const unitRef = doc(db, 'active_units', editingUnit.id);
+      await updateDoc(unitRef, {
+        name: editFormData.name,
+        code: editFormData.code,
+        type: editFormData.type,
+        assignedProject: editFormData.assignedProject,
+        status: editFormData.status,
+        battery: Number(editFormData.battery),
+        speed: Number(editFormData.speed),
+        updatedAt: serverTimestamp()
+      });
+
+      // Actualizar estado local si está seleccionada
+      if (selectedUnit?.id === editingUnit.id) {
+        setSelectedUnit(prev => prev ? {
+          ...prev,
+          name: editFormData.name,
+          code: editFormData.code,
+          type: editFormData.type,
+          assignedProject: editFormData.assignedProject,
+          status: editFormData.status,
+          battery: Number(editFormData.battery),
+          speed: Number(editFormData.speed)
+        } : null);
+      }
+
+      setEditingUnit(null);
+    } catch (err) {
+      console.error('Error al actualizar unidad GPS:', err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Accion: Eliminar unidad GPS
+  const handleConfirmDeleteUnit = async () => {
+    if (!unitToDelete) return;
+    setIsDeletingUnit(true);
+    try {
+      await deleteDoc(doc(db, 'active_units', unitToDelete.id));
+
+      if (selectedUnit?.id === unitToDelete.id) {
+        setSelectedUnit(null);
+      }
+
+      // Quitar marcador si está presente
+      const marker = unitMarkersRef.current.get(unitToDelete.id);
+      if (marker && mapRef.current) {
+        mapRef.current.removeLayer(marker);
+        unitMarkersRef.current.delete(unitToDelete.id);
+      }
+
+      setUnitToDelete(null);
+    } catch (err) {
+      console.error('Error al eliminar unidad GPS:', err);
+    } finally {
+      setIsDeletingUnit(false);
+    }
+  };
+
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.code.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1128,17 +1258,17 @@ export function MapView() {
               <div className="space-y-2">
                 {filteredUnits.length > 0 ? (
                   filteredUnits.map((unit) => (
-                    <button
+                    <div
                       key={unit.id}
                       onClick={() => handleSelectUnit(unit)}
-                      className={`w-full text-left p-3 rounded-2xl transition-all duration-300 border ${
+                      className={`w-full text-left p-3 rounded-2xl transition-all duration-300 border cursor-pointer ${
                         selectedUnit?.id === unit.id 
                           ? 'bg-blue-500/10 border-blue-500/40 shadow-lg' 
                           : 'bg-[#25273c] border-transparent hover:bg-white/5'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${
+                        <div className={`p-2 rounded-lg shrink-0 ${
                           unit.type === 'guard' ? 'bg-blue-500/20 text-blue-400' :
                           unit.type === 'motorcycle' ? 'bg-amber-500/20 text-amber-400' :
                           'bg-purple-500/20 text-purple-400'
@@ -1148,17 +1278,60 @@ export function MapView() {
                            <Car className="h-4 w-4" />}
                         </div>
 
-                        <div className="flex-1 overflow-hidden">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-white">{unit.code}</span>
-                            <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                              GPS LIVE
-                            </span>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10px] font-black text-white truncate">{unit.code}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                GPS LIVE
+                              </span>
+                              
+                              {/* Menú de Acciones: Volver a mapear, Eliminar, Editar */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-1 rounded-md text-muted-foreground hover:text-white hover:bg-white/10 transition-colors focus:outline-none"
+                                    title="Acciones"
+                                  >
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent 
+                                  align="end" 
+                                  className="bg-[#1a1b2e] border border-white/10 text-white min-w-[150px] shadow-2xl z-[9999]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <DropdownMenuItem
+                                    onClick={() => handleRemapUnit(unit)}
+                                    className="text-[10px] font-bold uppercase tracking-wider py-2 cursor-pointer hover:bg-white/5 focus:bg-white/10 text-cyan-400 focus:text-cyan-300"
+                                  >
+                                    <Compass className="h-3.5 w-3.5 mr-2 text-cyan-400" />
+                                    Volver a mapear
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenEditUnit(unit)}
+                                    className="text-[10px] font-bold uppercase tracking-wider py-2 cursor-pointer hover:bg-white/5 focus:bg-white/10 text-amber-400 focus:text-amber-300"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5 mr-2 text-amber-400" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => setUnitToDelete(unit)}
+                                    className="text-[10px] font-bold uppercase tracking-wider py-2 cursor-pointer hover:bg-red-500/20 focus:bg-red-500/20 text-red-400 focus:text-red-300"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 mr-2 text-red-400" />
+                                    Eliminar
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                           <p className="text-xs font-bold text-muted-foreground truncate">{unit.name}</p>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   ))
                 ) : (
                   <p className="text-[10px] italic text-muted-foreground text-center py-3">
@@ -1343,6 +1516,174 @@ export function MapView() {
           )}
         </div>
       </div>
+
+      {/* Modal Editar Unidad GPS */}
+      <Dialog open={!!editingUnit} onOpenChange={(open) => !open && setEditingUnit(null)}>
+        <DialogContent className="bg-[#1a1b2e] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
+              <Edit2 className="h-4 w-4 text-amber-400" />
+              Editar Unidad GPS: {editingUnit?.code}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div>
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                Código de la Unidad
+              </label>
+              <Input
+                value={editFormData.code}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                placeholder="Ej. GP-008"
+                className="bg-[#0f101d] border-white/10 text-white font-mono text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                Nombre de la Unidad / Guardia
+              </label>
+              <Input
+                value={editFormData.name}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Ej. Guardia GPS (CAF RONDING)"
+                className="bg-[#0f101d] border-white/10 text-white text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                  Tipo de Unidad
+                </label>
+                <select
+                  value={editFormData.type}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, type: e.target.value as any }))}
+                  className="w-full bg-[#0f101d] border border-white/10 rounded-md p-2 text-xs text-white focus:outline-none focus:border-primary"
+                >
+                  <option value="guard">Guardia</option>
+                  <option value="motorcycle">Motocicleta</option>
+                  <option value="patrol">Patrulla</option>
+                  <option value="supervisor">Supervisor</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                  Estado
+                </label>
+                <select
+                  value={editFormData.status}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                  className="w-full bg-[#0f101d] border border-white/10 rounded-md p-2 text-xs text-white focus:outline-none focus:border-primary"
+                >
+                  <option value="active">Activo</option>
+                  <option value="moving">En Movimiento</option>
+                  <option value="idle">En Espera</option>
+                  <option value="offline">Desconectado</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                Puesto Asignado
+              </label>
+              <Input
+                value={editFormData.assignedProject}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, assignedProject: e.target.value }))}
+                placeholder="Ej. CAF RONDING o código de puesto"
+                className="bg-[#0f101d] border-white/10 text-white text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                  Batería (%)
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editFormData.battery}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, battery: Number(e.target.value) }))}
+                  className="bg-[#0f101d] border-white/10 text-white text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
+                  Velocidad (km/h)
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editFormData.speed}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, speed: Number(e.target.value) }))}
+                  className="bg-[#0f101d] border-white/10 text-white text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setEditingUnit(null)}
+              className="text-xs font-bold uppercase text-muted-foreground hover:text-white"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveEditUnit}
+              disabled={isSavingEdit}
+              className="text-xs font-black uppercase bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isSavingEdit ? 'Guardando...' : 'Guardar Cambios'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Confirmar Eliminación */}
+      <Dialog open={!!unitToDelete} onOpenChange={(open) => !open && setUnitToDelete(null)}>
+        <DialogContent className="bg-[#1a1b2e] border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black text-red-400">
+              <Trash2 className="h-4 w-4 text-red-400" />
+              Eliminar Unidad GPS
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground py-2">
+            ¿Estás seguro de que deseas eliminar la unidad <span className="font-black text-white">{unitToDelete?.code} ({unitToDelete?.name})</span> del rastreo en tiempo real?
+          </p>
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setUnitToDelete(null)}
+              className="text-xs font-bold uppercase text-muted-foreground hover:text-white"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDeleteUnit}
+              disabled={isDeletingUnit}
+              className="text-xs font-black uppercase bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeletingUnit ? 'Eliminando...' : 'Eliminar Unidad'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
