@@ -37,7 +37,9 @@ import {
   Pencil,
   Plus,
   Search,
-  Loader2
+  Loader2,
+  User,
+  Save
 } from 'lucide-react';
 import {
   Select,
@@ -120,12 +122,24 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   const [newDuration, setNewDuration] = useState('12h');
   const [savingNewShift, setSavingNewShift] = useState(false);
 
-  // Modal para editar / registrar código de proyecto de un turno
+  // Modal para editar completamente el registro de turno en Operaciones
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
-  const [editProjectCode, setEditProjectCode] = useState('');
-  const [editProjectName, setEditProjectName] = useState('');
-  const [editProjectId, setEditProjectId] = useState('');
-  const [savingEditProject, setSavingEditProject] = useState(false);
+  const [editForm, setEditForm] = useState({
+    guardName: '',
+    projectCode: '',
+    projectName: '',
+    clientName: '',
+    projectLocation: '',
+    projectId: '',
+    shiftType: 'Diurno',
+    duration: '12h',
+    status: 'Activo',
+    entryDateTime: '',
+    exitDateTime: '',
+    hasExitTime: false,
+    observation: ''
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
   
   const { toast } = useToast();
   
@@ -143,6 +157,34 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       return isNaN(d.getTime()) ? null : d;
     }
     return null;
+  };
+
+  // Helper para convertir cualquier Date/Timestamp de Firebase a formato 'YYYY-MM-DDTHH:mm' para input datetime-local
+  const toDateTimeLocalValue = (ts: any): string => {
+    const d = parseFirebaseDate(ts);
+    if (!d) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const fromDateTimeLocalValue = (str: string): Date | null => {
+    if (!str || !str.trim()) return null;
+    const parts = str.split('T');
+    if (parts.length === 2) {
+      const [datePart, timePart] = parts;
+      const [y, m, d] = datePart.split('-').map(Number);
+      const [h, min] = timePart.split(':').map(Number);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d) && !isNaN(h) && !isNaN(min)) {
+        return new Date(y, m - 1, d, h, min, 0);
+      }
+    }
+    const parsed = new Date(str);
+    return isNaN(parsed.getTime()) ? null : parsed;
   };
 
   // Cargar catálogo de proyectos en tiempo real
@@ -455,31 +497,59 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
     }
   };
 
-  // Manejadores para Modificar o Asignar Código de Proyecto en Turno Existente
-  const handleOpenEditProject = (shift: Shift) => {
+  // Manejadores para Editar Registro Completo de Turno en Operaciones
+  const handleOpenEdit = (shift: Shift) => {
     setEditingShift(shift);
-    setEditProjectCode(shift.projectCode || '');
-    setEditProjectName(shift.projectName || '');
     const found = projects.find(p => 
       p.code?.trim().toUpperCase() === shift.projectCode?.trim().toUpperCase() ||
       p.name?.trim().toUpperCase() === shift.projectName?.trim().toUpperCase()
     );
-    setEditProjectId(found?.id || shift.projectId || '');
+    const exitDate = parseFirebaseDate(shift.exitTime);
+
+    setEditForm({
+      guardName: shift.guardName || '',
+      projectCode: shift.projectCode || '',
+      projectName: shift.projectName || '',
+      clientName: shift.clientName || shift.projectName || '',
+      projectLocation: shift.projectLocation || found?.location || '',
+      projectId: shift.projectId || found?.id || '',
+      shiftType: shift.shiftType || 'Diurno',
+      duration: shift.shiftDuration || shift.duration || '12h',
+      status: shift.status || (exitDate ? 'Completo' : 'Activo'),
+      entryDateTime: toDateTimeLocalValue(shift.entryTime),
+      exitDateTime: exitDate ? toDateTimeLocalValue(shift.exitTime) : '',
+      hasExitTime: !!exitDate,
+      observation: shift.observation || ''
+    });
   };
 
   const handleSelectProjectForEdit = (projectId: string) => {
     const proj = projects.find(p => p.id === projectId);
     if (proj) {
-      setEditProjectId(proj.id);
-      setEditProjectCode(proj.code);
-      setEditProjectName(proj.name);
+      setEditForm(prev => ({
+        ...prev,
+        projectId: proj.id,
+        projectCode: proj.code || '',
+        projectName: proj.name || '',
+        clientName: proj.name || '',
+        projectLocation: proj.location || prev.projectLocation
+      }));
     }
   };
 
-  const handleSaveEditProject = async (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingShift) return;
-    if (!editProjectCode.trim()) {
+
+    if (!editForm.guardName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "NOMBRE REQUERIDO",
+        description: "Debe ingresar el nombre del elemento o guardia."
+      });
+      return;
+    }
+    if (!editForm.projectCode.trim()) {
       toast({
         variant: "destructive",
         title: "CÓDIGO REQUERIDO",
@@ -488,33 +558,62 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
       return;
     }
 
-    setSavingEditProject(true);
+    setSavingEdit(true);
     try {
-      const code = editProjectCode.trim().toUpperCase();
-      const name = (editProjectName.trim() || code).toUpperCase();
+      const code = editForm.projectCode.trim().toUpperCase();
+      const pName = (editForm.projectName.trim() || code).toUpperCase();
+      const cName = (editForm.clientName.trim() || pName).toUpperCase();
 
-      await updateDoc(doc(db, 'shift-registrations', editingShift.id), {
+      const updateData: any = {
+        guardName: editForm.guardName.trim().toUpperCase(),
         projectCode: code,
-        projectName: name,
-        clientName: name,
-        projectId: editProjectId || '',
+        projectName: pName,
+        clientName: cName,
+        projectId: editForm.projectId || '',
+        projectLocation: editForm.projectLocation.trim(),
+        shiftType: editForm.shiftType,
+        duration: editForm.duration,
+        shiftDuration: editForm.duration,
+        status: editForm.status,
+        observation: editForm.observation.trim(),
         updatedAt: serverTimestamp()
-      });
+      };
+
+      // Fecha y hora de entrada
+      if (editForm.entryDateTime) {
+        const entryDate = fromDateTimeLocalValue(editForm.entryDateTime);
+        if (entryDate) {
+          updateData.entryTime = entryDate;
+        }
+      }
+
+      // Fecha y hora de salida
+      if (editForm.hasExitTime && editForm.exitDateTime) {
+        const exitDate = fromDateTimeLocalValue(editForm.exitDateTime);
+        if (exitDate) {
+          updateData.exitTime = exitDate;
+        }
+      } else {
+        updateData.exitTime = null;
+      }
+
+      await updateDoc(doc(db, 'shift-registrations', editingShift.id), updateData);
 
       toast({
-        title: "PROYECTO VINCULADO AL TURNO",
-        description: `Código [${code}] registrado para ${editingShift.guardName}. El Dashboard se actualizó en tiempo real.`
+        title: "TURNO ACTUALIZADO",
+        description: `Los cambios para ${updateData.guardName} han sido guardados y sincronizados.`
       });
 
       setEditingShift(null);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error al actualizar turno:", error);
       toast({
         variant: "destructive",
         title: "ERROR DE ACTUALIZACIÓN",
-        description: "No se pudo actualizar el código de proyecto."
+        description: error?.message || "No se pudieron guardar los cambios del turno."
       });
     } finally {
-      setSavingEditProject(false);
+      setSavingEdit(false);
     }
   };
 
@@ -661,9 +760,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                       </TableCell>
                       <TableCell className="py-2.5">
                         <div 
-                          onClick={() => handleOpenEditProject(shift)}
+                          onClick={() => handleOpenEdit(shift)}
                           className="flex flex-col cursor-pointer group/proj hover:bg-white/5 p-1.5 rounded-lg border border-transparent hover:border-primary/20 transition-all max-w-[220px]"
-                          title="Clic para registrar o modificar el código y nombre del proyecto"
+                          title="Clic para editar registro de turno completo"
                         >
                           <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center gap-1.5">
@@ -736,9 +835,9 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => handleOpenEditProject(shift)} 
+                            onClick={() => handleOpenEdit(shift)} 
                             className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                            title="Editar código y nombre de proyecto"
+                            title="Editar registro de turno completo"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -905,106 +1004,308 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
         </DialogContent>
       </Dialog>
 
-      {/* Modal para Editar / Asignar Código de Proyecto a un Turno */}
+      {/* Modal para Editar Registro Completo de Turno en Operaciones */}
       <Dialog open={!!editingShift} onOpenChange={(open) => !open && setEditingShift(null)}>
-        <DialogContent className="bg-[#1a1b2e] border border-primary/20 text-white max-w-md rounded-2xl p-6">
-          <DialogHeader className="space-y-2">
-            <div className="flex items-center gap-2">
+        <DialogContent className="bg-[#1a1b2e] border border-primary/20 text-white max-w-xl rounded-2xl p-6 max-h-[90vh] flex flex-col">
+          <DialogHeader className="space-y-1 shrink-0 pb-2 border-b border-white/5">
+            <div className="flex items-center gap-2.5">
               <div className="p-2 bg-primary/10 rounded-lg border border-primary/20">
-                <Building2 className="h-5 w-5 text-primary" />
+                <Pencil className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-base font-black uppercase text-white">
-                  Vincular Proyecto al Turno
+                <DialogTitle className="text-base font-black uppercase text-white tracking-tight">
+                  Editar Registro de Turno
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  Asigne el código y nombre del proyecto para actualizar el Dashboard en tiempo real.
+                  Modifique cualquier dato del turno (elemento, proyecto, horarios, jornada, estado u observaciones).
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
           {editingShift && (
-            <form onSubmit={handleSaveEditProject} className="space-y-4 py-3">
-              <div className="p-2.5 rounded-lg bg-[#0f101d] border border-white/5 flex items-center justify-between">
-                <div>
-                  <div className="text-[9px] font-black uppercase text-muted-foreground">Elemento / Guardia</div>
-                  <div className="text-xs font-black uppercase text-white mt-0.5">{editingShift.guardName}</div>
-                </div>
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-mono">
-                  {editingShift.duration || '12h'}
-                </Badge>
-              </div>
-
+            <form onSubmit={handleSaveEdit} className="space-y-4 py-2 overflow-y-auto pr-1">
+              {/* Sección: Elemento / Guardia */}
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                  Seleccionar Proyecto Existente
-                </Label>
-                <Select onValueChange={handleSelectProjectForEdit}>
-                  <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
-                    <SelectValue placeholder="-- Escoger del catálogo de proyectos --" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#1a1b2e] border-white/10 text-white max-h-[220px]">
-                    {projects.map((proj) => (
-                      <SelectItem key={proj.id} value={proj.id} className="text-xs">
-                        <span className="font-mono font-bold text-primary mr-2">[{proj.code}]</span>
-                        {proj.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                  Código de Proyecto *
+                <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                  <User className="h-3 w-3 text-primary" /> Nombre Completo del Elemento *
                 </Label>
                 <Input 
-                  value={editProjectCode} 
-                  onChange={(e) => setEditProjectCode(e.target.value.toUpperCase())}
-                  placeholder="EJ. BCT-01"
+                  value={editForm.guardName} 
+                  onChange={(e) => setEditForm({ ...editForm, guardName: e.target.value.toUpperCase() })}
+                  placeholder="EJ. JUAN CARLOS PÉREZ"
                   required
-                  className="bg-[#0f101d] border-white/10 font-mono font-bold text-primary text-xs h-9"
-                  autoFocus
-                />
-                <span className="text-[9px] text-muted-foreground">
-                  Este código es el que lee el Dashboard para vincular los elementos en sitio.
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                  Nombre del Proyecto
-                </Label>
-                <Input 
-                  value={editProjectName} 
-                  onChange={(e) => setEditProjectName(e.target.value.toUpperCase())}
-                  placeholder="EJ. BANCO TOWER"
                   className="bg-[#0f101d] border-white/10 font-bold text-xs h-9 text-white"
                 />
               </div>
 
-              <DialogFooter className="pt-3 flex gap-2">
+              {/* Sección: Proyecto y Ubicación */}
+              <div className="bg-[#0f101d] p-3 rounded-xl border border-white/5 space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3 text-primary" /> Catálogo de Proyectos (Autocompletar)
+                  </Label>
+                  <Select onValueChange={handleSelectProjectForEdit} value={editForm.projectId}>
+                    <SelectTrigger className="bg-[#151726] border-white/10 text-white text-xs h-9">
+                      <SelectValue placeholder="-- Escoger del catálogo de proyectos --" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1a1b2e] border-white/10 text-white max-h-[220px]">
+                      {projects.map((proj) => (
+                        <SelectItem key={proj.id} value={proj.id} className="text-xs">
+                          <span className="font-mono font-bold text-primary mr-2">[{proj.code}]</span>
+                          {proj.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                      Código de Proyecto *
+                    </Label>
+                    <Input 
+                      value={editForm.projectCode} 
+                      onChange={(e) => setEditForm({ ...editForm, projectCode: e.target.value.toUpperCase() })}
+                      placeholder="EJ. BCT-01 / GP-001"
+                      required
+                      className="bg-[#151726] border-white/10 font-mono font-bold text-primary text-xs h-9"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                      Nombre del Proyecto / Puesto
+                    </Label>
+                    <Input 
+                      value={editForm.projectName} 
+                      onChange={(e) => setEditForm({ ...editForm, projectName: e.target.value.toUpperCase() })}
+                      placeholder="EJ. BANCO TOWER"
+                      className="bg-[#151726] border-white/10 font-bold text-xs h-9 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                      Cliente
+                    </Label>
+                    <Input 
+                      value={editForm.clientName} 
+                      onChange={(e) => setEditForm({ ...editForm, clientName: e.target.value.toUpperCase() })}
+                      placeholder="EJ. GRUPO FINANCIERO"
+                      className="bg-[#151726] border-white/10 font-medium text-xs h-9 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-primary" /> Ubicación
+                    </Label>
+                    <Input 
+                      value={editForm.projectLocation} 
+                      onChange={(e) => setEditForm({ ...editForm, projectLocation: e.target.value })}
+                      placeholder="EJ. COSTA DEL ESTE, PANAMÁ"
+                      className="bg-[#151726] border-white/10 font-medium text-xs h-9 text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección: Horarios (Entrada y Salida) */}
+              <div className="bg-[#0f101d] p-3 rounded-xl border border-white/5 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 text-primary" /> Entrada (Fecha y Hora)
+                    </Label>
+                    <Input 
+                      type="datetime-local"
+                      value={editForm.entryDateTime}
+                      onChange={(e) => setEditForm({ ...editForm, entryDateTime: e.target.value })}
+                      className="bg-[#151726] border-white/10 text-white font-mono text-xs h-9"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                        <LogOut className="h-3 w-3 text-emerald-400" /> Salida Real
+                      </Label>
+                      <label className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={editForm.hasExitTime}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setEditForm(prev => ({
+                              ...prev,
+                              hasExitTime: checked,
+                              exitDateTime: checked ? (prev.exitDateTime || toDateTimeLocalValue(new Date())) : '',
+                              status: checked && prev.status === 'Activo' ? 'Completo' : prev.status
+                            }));
+                          }}
+                          className="rounded border-white/20 bg-[#151726] text-primary focus:ring-0 h-3.5 w-3.5"
+                        />
+                        <span>Registrar Salida</span>
+                      </label>
+                    </div>
+                    {editForm.hasExitTime ? (
+                      <Input 
+                        type="datetime-local"
+                        value={editForm.exitDateTime}
+                        onChange={(e) => setEditForm({ ...editForm, exitDateTime: e.target.value })}
+                        className="bg-[#151726] border-white/10 text-white font-mono text-xs h-9"
+                      />
+                    ) : (
+                      <div className="h-9 px-3 bg-[#151726]/60 border border-white/5 rounded-md flex items-center text-[10px] text-muted-foreground italic">
+                        Turno en curso (Sin salida registrada)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección: Jornada, Tipo de Turno y Estado */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                    Estado
+                  </Label>
+                  <Select 
+                    value={editForm.status} 
+                    onValueChange={(val) => setEditForm({ 
+                      ...editForm, 
+                      status: val,
+                      duration: val === 'Doble' ? '24h' : editForm.duration
+                    })}
+                  >
+                    <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                      <SelectItem value="Activo" className="text-xs text-green-400 font-bold">Activo</SelectItem>
+                      <SelectItem value="Doble" className="text-xs text-red-400 font-bold">Doble (24h)</SelectItem>
+                      <SelectItem value="Completo" className="text-xs text-blue-400 font-bold">Completo</SelectItem>
+                      <SelectItem value="Finalizado" className="text-xs text-muted-foreground font-bold">Finalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1">
+                    <Timer className="h-3 w-3 text-primary" /> Jornada
+                  </Label>
+                  <Select 
+                    value={editForm.duration} 
+                    onValueChange={(val) => setEditForm({ 
+                      ...editForm, 
+                      duration: val,
+                      status: val === '24h' ? 'Doble' : (editForm.status === 'Doble' ? 'Activo' : editForm.status)
+                    })}
+                  >
+                    <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                      <SelectItem value="4h" className="text-xs">4 Horas</SelectItem>
+                      <SelectItem value="6h" className="text-xs">6 Horas</SelectItem>
+                      <SelectItem value="8h" className="text-xs">8 Horas</SelectItem>
+                      <SelectItem value="10h" className="text-xs">10 Horas</SelectItem>
+                      <SelectItem value="12h" className="text-xs">12 Horas</SelectItem>
+                      <SelectItem value="16h" className="text-xs">16 Horas</SelectItem>
+                      <SelectItem value="24h" className="text-xs text-red-400 font-bold">24 Horas (Doble)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                    Tipo de Turno
+                  </Label>
+                  <Select 
+                    value={editForm.shiftType} 
+                    onValueChange={(val) => setEditForm({ ...editForm, shiftType: val })}
+                  >
+                    <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                      <SelectItem value="Diurno" className="text-xs">Diurno</SelectItem>
+                      <SelectItem value="Nocturno" className="text-xs">Nocturno</SelectItem>
+                      <SelectItem value="Mixto" className="text-xs">Mixto</SelectItem>
+                      <SelectItem value="24 Horas" className="text-xs">24 Horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Sección: Observaciones */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                    Observaciones Operativas
+                  </Label>
+                  <div className="flex items-center gap-1">
+                    {['DOBLE', 'COMPLETADO', 'CAMBIO DE TURNO'].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, observation: chip })}
+                        className="text-[8px] font-black px-1.5 py-0.5 rounded bg-white/5 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors uppercase"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Select 
+                    value={OBSERVATION_OPTIONS.includes(editForm.observation) ? editForm.observation : ''} 
+                    onValueChange={(val) => setEditForm({ ...editForm, observation: val })}
+                  >
+                    <SelectTrigger className="bg-[#0f101d] border-white/10 text-white text-xs h-9 sm:col-span-1">
+                      <SelectValue placeholder="Predefinidas..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                      {OBSERVATION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt} className="text-xs font-bold uppercase">{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input 
+                    value={editForm.observation} 
+                    onChange={(e) => setEditForm({ ...editForm, observation: e.target.value.toUpperCase() })}
+                    placeholder="Escribir o modificar observación libre..."
+                    className="bg-[#0f101d] border-white/10 font-bold text-xs h-9 text-white sm:col-span-2"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="pt-3 border-t border-white/5 flex flex-row items-center justify-end gap-2 shrink-0">
                 <Button 
                   type="button" 
                   variant="ghost" 
                   onClick={() => setEditingShift(null)}
+                  disabled={savingEdit}
                   className="h-9 text-muted-foreground font-bold uppercase text-[10px]"
                 >
                   Cancelar
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={savingEditProject}
-                  className="h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] px-4 flex items-center gap-1.5"
+                  disabled={savingEdit}
+                  className="h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] px-5 flex items-center gap-1.5 shadow-lg shadow-primary/20"
                 >
-                  {savingEditProject ? (
+                  {savingEdit ? (
                     <>
-                      <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando Cambios...
                     </>
                   ) : (
                     <>
-                      <Building2 className="h-3 w-3" /> Guardar y Sincronizar
+                      <Save className="h-3.5 w-3.5" /> Guardar Cambios
                     </>
                   )}
                 </Button>
