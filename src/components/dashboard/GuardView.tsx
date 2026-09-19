@@ -270,37 +270,28 @@ export function GuardView() {
       if (!shiftIdToUpdate) {
         const code = (currentProject?.code || projectCode).trim().toUpperCase();
         const guardNameVal = 'OFICIAL DE GUARDIA';
+        
+        // Buscar en shift-registrations con query donde guardName == nombre del guardia Y projectCode == código del puesto
         const q = query(
           collection(db, 'shift-registrations'),
           where('guardName', '==', guardNameVal),
-          where('projectCode', '==', code),
-          where('exitTime', '==', null)
+          where('projectCode', '==', code)
         );
         const snapshot = await getDocs(q);
 
-        if (!snapshot.empty) {
-          shiftIdToUpdate = snapshot.docs[0].id;
-        } else {
-          // Respaldo para registros sin el campo explícito exitTime: null
-          const fallbackQ = query(
-            collection(db, 'shift-registrations'),
-            where('guardName', '==', guardNameVal),
-            where('projectCode', '==', code)
-          );
-          const fallbackSnap = await getDocs(fallbackQ);
-          const activeDocs = fallbackSnap.docs.filter(d => {
-            const data = d.data();
-            return !data.exitTime || data.exitTime === null;
-          });
+        // De todos los resultados encontrados, filtrar en el código JavaScript (no en Firestore) el que no tenga exitTime o tenga exitTime igual a null
+        const activeDocs = snapshot.docs.filter(d => {
+          const data = d.data();
+          return !data.exitTime || data.exitTime === null;
+        });
 
-          if (activeDocs.length > 0) {
-            activeDocs.sort((a, b) => {
-              const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
-              const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
-              return timeB - timeA;
-            });
-            shiftIdToUpdate = activeDocs[0].id;
-          }
+        if (activeDocs.length > 0) {
+          activeDocs.sort((a, b) => {
+            const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
+            const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
+            return timeB - timeA;
+          });
+          shiftIdToUpdate = activeDocs[0].id;
         }
       }
 

@@ -234,8 +234,9 @@ export function GuardRegistrationForm() {
     }
   };
 
-  // Registrar salida del guardia: SOLO usa updateDoc para actualizar el registro existente con exitTime y status 'completado'.
-  // Se elimina cualquier llamada a addDoc.
+  // Registrar salida del guardia: Buscar en shift-registrations con query donde guardName == nombre del guardia Y projectCode == código del puesto.
+  // De todos los resultados encontrados, filtrar en el código JavaScript (no en Firestore) el que no tenga exitTime o tenga exitTime igual a null.
+  // Actualizar ese documento con updateDoc agregando exitTime con serverTimestamp() y status 'completado'. No usar addDoc.
   const handleRegisterExit = async () => {
     if (!formData.guardName || !formData.projectCode) {
       toast({
@@ -251,51 +252,34 @@ export function GuardRegistrationForm() {
       const guardNameUpper = formData.guardName.trim().toUpperCase();
       const projectCodeUpper = formData.projectCode.trim().toUpperCase();
 
-      // Búsqueda en Firestore colección 'shift-registrations' únicamente por:
-      // 1. guardName igual al nombre del guardia actual
-      // 2. projectCode igual al código del puesto actual
-      // 3. que el campo exitTime no exista (exitTime == null)
-      // Se elimina cualquier filtro por fecha u operationDate
+      // Buscar en shift-registrations con query donde guardName == nombre del guardia Y projectCode == código del puesto
       const q = query(
         collection(db, 'shift-registrations'),
         where('guardName', '==', guardNameUpper),
-        where('projectCode', '==', projectCodeUpper),
-        where('exitTime', '==', null)
+        where('projectCode', '==', projectCodeUpper)
       );
       const snapshot = await getDocs(q);
 
-      let targetDoc: any = null;
-      if (!snapshot.empty) {
-        targetDoc = snapshot.docs[0];
-      } else {
-        // Respaldo en caso de que registros previos no contengan el campo explícito exitTime: null
-        const fallbackQ = query(
-          collection(db, 'shift-registrations'),
-          where('guardName', '==', guardNameUpper),
-          where('projectCode', '==', projectCodeUpper)
-        );
-        const fallbackSnapshot = await getDocs(fallbackQ);
-        const activeDocs = fallbackSnapshot.docs.filter(d => {
-          const data = d.data();
-          return !data.exitTime || data.exitTime === null;
+      // De todos los resultados encontrados, filtrar en el código JavaScript (no en Firestore) el que no tenga exitTime o tenga exitTime igual a null
+      const activeDocs = snapshot.docs.filter(docItem => {
+        const data = docItem.data();
+        return !data.exitTime || data.exitTime === null;
+      });
+
+      if (activeDocs.length > 0) {
+        // En caso de múltiples turnos activos, seleccionar el más reciente según entryTime
+        activeDocs.sort((a, b) => {
+          const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
+          const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
+          return timeB - timeA;
         });
 
-        if (activeDocs.length > 0) {
-          activeDocs.sort((a, b) => {
-            const timeA = a.data().entryTime?.toMillis?.() || (a.data().entryTime?.seconds ? a.data().entryTime.seconds * 1000 : 0);
-            const timeB = b.data().entryTime?.toMillis?.() || (b.data().entryTime?.seconds ? b.data().entryTime.seconds * 1000 : 0);
-            return timeB - timeA;
-          });
-          targetDoc = activeDocs[0];
-        }
-      }
+        const targetDoc = activeDocs[0];
 
-      if (targetDoc) {
-        // SOLO usar updateDoc para actualizar el registro encontrado con exitTime usando serverTimestamp() y status 'completado'
-        // NO crear documento nuevo con addDoc
+        // Actualizar ese documento con updateDoc agregando exitTime con serverTimestamp() y status 'completado'. No usar addDoc.
         await updateDoc(doc(db, 'shift-registrations', targetDoc.id), {
-          status: 'completado',
-          exitTime: serverTimestamp()
+          exitTime: serverTimestamp(),
+          status: 'completado'
         });
 
         toast({
