@@ -28,8 +28,12 @@ import {
   Trash2,
   Edit2,
   Compass,
-  X
+  X,
+  Satellite,
+  Globe,
+  Loader2
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +50,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+
+export interface NominatimResult {
+  place_id: number;
+  lat: string;
+  lon: string;
+  display_name: string;
+  type?: string;
+  class?: string;
+}
+
+export type TileSourceKey = 'osm' | 'satellite' | 'cartoDark';
 
 interface Project {
   id: string;
@@ -99,23 +114,38 @@ export interface TrackingUnit {
 // Default Center: Panama City, Panama
 const PANAMA_CENTER: [number, number] = [8.9824, -79.5199];
 
-// Map Tile Sources
-const TILE_SOURCES = {
-  cartoDark: {
-    name: 'CARTO Dark',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd'
-  },
+// Map Tile Sources - Incluye mapa normal, satelital Esri World Imagery (gratuito) y modo oscuro
+const TILE_SOURCES: Record<TileSourceKey, {
+  name: string;
+  url: string;
+  attribution: string;
+  subdomains?: string;
+  maxZoom?: number;
+}> = {
   osm: {
-    name: 'OpenStreetMap',
+    name: 'Mapa Normal',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    subdomains: 'abc'
+    subdomains: 'abc',
+    maxZoom: 19
+  },
+  satellite: {
+    name: 'Vista Satelital (Esri)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    maxZoom: 19
+  },
+  cartoDark: {
+    name: 'Modo Oscuro',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
   }
 };
 
 export function MapView() {
+  const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [trackingUnits, setTrackingUnits] = useState<TrackingUnit[]>([]);
@@ -123,8 +153,17 @@ export function MapView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<TrackingUnit | null>(null);
-  const [currentTileSource, setCurrentTileSource] = useState<'cartoDark' | 'osm'>('cartoDark');
+  const [currentTileSource, setCurrentTileSource] = useState<TileSourceKey>('osm');
   const [tileErrorCount, setTileErrorCount] = useState(0);
+
+  // States for Nominatim Location Search (OpenStreetMap)
+  const [nominatimQuery, setNominatimQuery] = useState('');
+  const [nominatimResults, setNominatimResults] = useState<NominatimResult[]>([]);
+  const [isSearchingNominatim, setIsSearchingNominatim] = useState(false);
+  const [showNominatimResults, setShowNominatimResults] = useState(false);
+  const [activeLocationPin, setActiveLocationPin] = useState<{ name: string; lat: number; lng: number } | null>(null);
+  const searchMarkerRef = useRef<any>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   // States for GPS Unit Actions: Editar, Eliminar, Volver a Mapear
   const [editingUnit, setEditingUnit] = useState<TrackingUnit | null>(null);
@@ -548,11 +587,14 @@ export function MapView() {
 
       // Setup Tile Layer
       const source = TILE_SOURCES[currentTileSource];
-      const tileLayer = L.tileLayer(source.url, {
+      const tileOptions: any = {
         attribution: source.attribution,
-        subdomains: source.subdomains,
-        maxZoom: 19
-      }).addTo(map);
+        maxZoom: source.maxZoom || 19
+      };
+      if (source.subdomains) {
+        tileOptions.subdomains = source.subdomains;
+      }
+      const tileLayer = L.tileLayer(source.url, tileOptions).addTo(map);
 
       tileLayerRef.current = tileLayer;
 
@@ -589,6 +631,10 @@ export function MapView() {
 
     return () => {
       isMounted = false;
+      if (searchMarkerRef.current && mapRef.current) {
+        mapRef.current.removeLayer(searchMarkerRef.current);
+        searchMarkerRef.current = null;
+      }
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -596,8 +642,21 @@ export function MapView() {
     };
   }, []);
 
-  // Handle Tile Source Change
-  const handleTileSourceChange = (newSourceKey: 'cartoDark' | 'osm') => {
+  // Close Nominatim results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
+        setShowNominatimResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Handle Tile Source Change (Mapa Normal / Vista Satelital Esri / Modo Oscuro)
+  const handleTileSourceChange = (newSourceKey: TileSourceKey) => {
     setCurrentTileSource(newSourceKey);
     const L = leafletLRef.current;
     if (mapRef.current && L) {
@@ -605,11 +664,14 @@ export function MapView() {
         mapRef.current.removeLayer(tileLayerRef.current);
       }
       const source = TILE_SOURCES[newSourceKey];
-      const newLayer = L.tileLayer(source.url, {
+      const tileOptions: any = {
         attribution: source.attribution,
-        subdomains: source.subdomains,
-        maxZoom: 19
-      }).addTo(mapRef.current);
+        maxZoom: source.maxZoom || 19
+      };
+      if (source.subdomains) {
+        tileOptions.subdomains = source.subdomains;
+      }
+      const newLayer = L.tileLayer(source.url, tileOptions).addTo(mapRef.current);
 
       newLayer.on('tileerror', (error: any) => {
         console.warn('[Leaflet Tile Error] Failed to load tile:', error.url, error);
@@ -619,6 +681,134 @@ export function MapView() {
       tileLayerRef.current = newLayer;
       mapRef.current.invalidateSize();
     }
+  };
+
+  // Buscar ubicaciones con Nominatim de OpenStreetMap
+  const handleNominatimSearch = async (queryText?: string) => {
+    const q = (queryText !== undefined ? queryText : nominatimQuery).trim();
+    if (!q) {
+      setNominatimResults([]);
+      setShowNominatimResults(false);
+      return;
+    }
+
+    setIsSearchingNominatim(true);
+    setShowNominatimResults(true);
+
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=1`;
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error en Nominatim: ${response.status}`);
+      }
+
+      const data: NominatimResult[] = await response.json();
+      setNominatimResults(data);
+      if (data.length === 0) {
+        toast({
+          title: "SIN RESULTADOS",
+          description: `No se encontraron resultados para "${q}". Intenta con otra dirección o punto de referencia.`
+        });
+      }
+    } catch (error) {
+      console.error("Error al buscar en Nominatim:", error);
+      toast({
+        title: "ERROR DE BÚSQUEDA",
+        description: "No se pudo conectar con el servicio Nominatim de OpenStreetMap.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearchingNominatim(false);
+    }
+  };
+
+  // Centrar el mapa en la ubicación encontrada con pin marcador
+  const handleSelectNominatimLocation = (result: NominatimResult) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    if (isNaN(lat) || isNaN(lon)) return;
+
+    const map = mapRef.current;
+    const L = leafletLRef.current;
+    if (!map || !L) return;
+
+    // Remover pin previo de búsqueda
+    if (searchMarkerRef.current) {
+      map.removeLayer(searchMarkerRef.current);
+      searchMarkerRef.current = null;
+    }
+
+    // Centrar mapa suavemente
+    map.setView([lat, lon], 17, { animate: true });
+
+    // Crear pin marcador distintivo
+    const searchPinIcon = L.divIcon({
+      className: 'nominatim-search-pin',
+      html: `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+          <div style="position: absolute; width: 44px; height: 44px; background-color: rgba(37, 99, 235, 0.4); border-radius: 50%; animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="position: relative; width: 34px; height: 34px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border: 2.5px solid #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.6);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
+        </div>
+      `,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+      popupAnchor: [0, -22]
+    });
+
+    const marker = L.marker([lat, lon], { icon: searchPinIcon }).addTo(map);
+    const shortTitle = result.display_name.split(',')[0] || 'Ubicación';
+
+    marker.bindPopup(`
+      <div style="font-family: system-ui, sans-serif; padding: 4px; max-width: 260px;">
+        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+          <span style="background: #2563eb; color: #fff; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Nominatim OSM</span>
+        </div>
+        <div style="font-weight: 800; font-size: 13px; color: #0f172a; margin-bottom: 4px; line-height: 1.2;">
+          ${shortTitle}
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-bottom: 6px; line-height: 1.3;">
+          ${result.display_name}
+        </div>
+        <div style="font-size: 10px; color: #64748b; font-family: monospace; background: #f1f5f9; padding: 4px 6px; border-radius: 4px;">
+          Lat: ${lat.toFixed(5)}, Lng: ${lon.toFixed(5)}
+        </div>
+      </div>
+    `).openPopup();
+
+    searchMarkerRef.current = marker;
+    setActiveLocationPin({
+      name: result.display_name,
+      lat,
+      lng: lon
+    });
+    setShowNominatimResults(false);
+
+    toast({
+      title: "UBICACIÓN ENCONTRADA",
+      description: `Mapa centrado en: ${shortTitle}`
+    });
+  };
+
+  // Limpiar búsqueda y remover pin del mapa
+  const handleClearNominatimSearch = () => {
+    setNominatimQuery('');
+    setNominatimResults([]);
+    setShowNominatimResults(false);
+    if (searchMarkerRef.current && mapRef.current) {
+      mapRef.current.removeLayer(searchMarkerRef.current);
+      searchMarkerRef.current = null;
+    }
+    setActiveLocationPin(null);
   };
 
   // Synchronize Project Markers (Puestos Mapeados) on Map
@@ -1065,23 +1255,37 @@ export function MapView() {
             </div>
           </div>
 
-          {/* Map Tile Switcher */}
-          <div className="flex items-center gap-1.5 bg-[#1a1b2e] p-1 rounded-xl border border-white/5">
-            <Button
-              size="sm"
-              variant={currentTileSource === 'cartoDark' ? 'default' : 'ghost'}
-              onClick={() => handleTileSourceChange('cartoDark')}
-              className="text-[10px] font-black uppercase h-7 px-3 rounded-lg"
-            >
-              CARTO Dark
-            </Button>
+          {/* Map Layer Switcher */}
+          <div className="flex items-center gap-1 bg-[#1a1b2e] p-1 rounded-xl border border-white/5">
             <Button
               size="sm"
               variant={currentTileSource === 'osm' ? 'default' : 'ghost'}
               onClick={() => handleTileSourceChange('osm')}
-              className="text-[10px] font-black uppercase h-7 px-3 rounded-lg"
+              className="text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1.5"
+              title="Mapa estándar de OpenStreetMap"
             >
-              OSM Standard
+              <MapIcon className="h-3 w-3" />
+              <span>Normal</span>
+            </Button>
+            <Button
+              size="sm"
+              variant={currentTileSource === 'satellite' ? 'default' : 'ghost'}
+              onClick={() => handleTileSourceChange('satellite')}
+              className="text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1.5"
+              title="Vista satelital gratuita Esri World Imagery"
+            >
+              <Satellite className="h-3 w-3" />
+              <span>Satelital (Esri)</span>
+            </Button>
+            <Button
+              size="sm"
+              variant={currentTileSource === 'cartoDark' ? 'default' : 'ghost'}
+              onClick={() => handleTileSourceChange('cartoDark')}
+              className="text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1.5"
+              title="Modo Oscuro CARTO"
+            >
+              <Layers className="h-3 w-3" />
+              <span>Oscuro</span>
             </Button>
           </div>
 
@@ -1348,37 +1552,179 @@ export function MapView() {
           {/* Div Leaflet */}
           <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-          {/* Floating Controls */}
-          <div className="absolute top-6 right-6 flex flex-col gap-2 z-[400]">
-            <Button 
-              size="icon" 
-              variant="secondary" 
-              onClick={handleRecenter}
-              title="Centrar mapa en Panamá"
-              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg"
-            >
-              <Crosshair className="h-4 w-4" />
-            </Button>
-            <Button 
-              size="icon" 
-              variant="secondary" 
-              onClick={() => {
-                if (mapRef.current) {
-                  mapRef.current.invalidateSize();
-                }
-              }}
-              title="Recalcular dimensiones de mapa"
-              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Button>
+          {/* Campo de Búsqueda de Ubicaciones con Nominatim de OpenStreetMap */}
+          <div ref={searchBoxRef} className="absolute top-4 left-4 z-[400] w-72 sm:w-96 max-w-[calc(100%-140px)]">
+            <div className="flex items-center gap-1.5 bg-[#0f101d]/90 backdrop-blur-md border border-white/10 p-1.5 rounded-2xl shadow-2xl">
+              <div className="relative flex-1 flex items-center">
+                <Search className="absolute left-2.5 h-3.5 w-3.5 text-primary pointer-events-none" />
+                <Input
+                  value={nominatimQuery}
+                  onChange={(e) => setNominatimQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleNominatimSearch();
+                    }
+                  }}
+                  placeholder="Buscar dirección o lugar (Nominatim)..."
+                  className="pl-8 pr-7 h-8 text-xs bg-white/5 border-white/5 text-white placeholder:text-muted-foreground/70 rounded-xl focus-visible:ring-primary"
+                />
+                {nominatimQuery && (
+                  <button
+                    type="button"
+                    onClick={handleClearNominatimSearch}
+                    className="absolute right-2 p-0.5 rounded-full text-muted-foreground hover:text-white hover:bg-white/10 cursor-pointer"
+                    title="Limpiar búsqueda"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <Button
+                size="sm"
+                disabled={isSearchingNominatim || !nominatimQuery.trim()}
+                onClick={() => handleNominatimSearch()}
+                className="h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-[10px] uppercase rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+              >
+                {isSearchingNominatim ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  'Buscar'
+                )}
+              </Button>
+            </div>
+
+            {/* Dropdown de resultados de búsqueda Nominatim */}
+            {showNominatimResults && nominatimResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f101d]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl z-[500] max-h-72 overflow-y-auto space-y-1">
+                <div className="px-2.5 py-1 flex items-center justify-between text-[9px] font-black uppercase text-muted-foreground border-b border-white/5 pb-1.5">
+                  <span className="flex items-center gap-1 text-primary">
+                    <Globe className="h-3 w-3" />
+                    Resultados OpenStreetMap ({nominatimResults.length})
+                  </span>
+                  <button onClick={() => setShowNominatimResults(false)} className="text-muted-foreground hover:text-white cursor-pointer">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                {nominatimResults.map((item) => (
+                  <button
+                    key={item.place_id}
+                    type="button"
+                    onClick={() => handleSelectNominatimLocation(item)}
+                    className="w-full text-left p-2 hover:bg-white/5 rounded-xl transition-all flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-white group-hover:text-primary transition-colors line-clamp-1">
+                        {item.display_name.split(',')[0]}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5 leading-snug">
+                        {item.display_name}
+                      </p>
+                      <span className="text-[9px] font-mono text-emerald-400 mt-1 inline-block bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                        GPS: {parseFloat(item.lat).toFixed(4)}, {parseFloat(item.lon).toFixed(4)}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Banner de Pin Activo Centrado */}
+            {activeLocationPin && (
+              <div className="mt-2 bg-[#1e293b]/90 border border-blue-500/30 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg text-xs animate-in fade-in">
+                <div className="flex items-center gap-1.5 text-blue-300 truncate max-w-[230px]">
+                  <MapPin className="h-3.5 w-3.5 text-blue-400 shrink-0 animate-pulse" />
+                  <span className="truncate text-[11px] font-semibold">{activeLocationPin.name.split(',')[0]}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearNominatimSearch}
+                  className="text-[10px] font-bold text-blue-200 hover:text-white underline ml-2 shrink-0 cursor-pointer"
+                >
+                  Quitar pin
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Floating Controls y Selector de Capas flotante sobre el mapa */}
+          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-[400]">
+            {/* Selector de capas en mapa */}
+            <div className="flex items-center bg-[#0f101d]/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl">
+              <button
+                type="button"
+                onClick={() => handleTileSourceChange('osm')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
+                  currentTileSource === 'osm'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                }`}
+                title="Capa estándar OpenStreetMap"
+              >
+                <MapIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Normal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTileSourceChange('satellite')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
+                  currentTileSource === 'satellite'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                }`}
+                title="Vista satelital gratuita Esri World Imagery"
+              >
+                <Satellite className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Satelital</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTileSourceChange('cartoDark')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
+                  currentTileSource === 'cartoDark'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                }`}
+                title="Modo oscuro CARTO Dark"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Oscuro</span>
+              </button>
+            </div>
+
+            {/* Botones de acción de mapa */}
+            <div className="flex items-center gap-1.5">
+              <Button 
+                size="icon" 
+                variant="secondary" 
+                onClick={handleRecenter}
+                title="Centrar mapa en Panamá"
+                className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-9 w-9 rounded-xl shadow-lg cursor-pointer"
+              >
+                <Crosshair className="h-4 w-4" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="secondary" 
+                onClick={() => {
+                  if (mapRef.current) {
+                    mapRef.current.invalidateSize();
+                  }
+                }}
+                title="Recalcular dimensiones de mapa"
+                className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-9 w-9 rounded-xl shadow-lg cursor-pointer"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Warning banner for tile errors */}
           {tileErrorCount > 0 && (
-            <div className="absolute top-6 left-6 z-[400] bg-red-500/90 text-white px-3 py-1.5 rounded-lg border border-red-300 text-[10px] font-bold flex items-center gap-2 shadow-xl backdrop-blur-md">
+            <div className="absolute top-20 left-4 z-[400] bg-red-500/90 text-white px-3 py-1.5 rounded-lg border border-red-300 text-[10px] font-bold flex items-center gap-2 shadow-xl backdrop-blur-md">
               <AlertTriangle className="h-3.5 w-3.5" />
-              <span>Advertencia: {tileErrorCount} petición(es) de tiles fallaron. Puedes alternar a OSM Standard.</span>
+              <span>Advertencia: {tileErrorCount} petición(es) de tiles fallaron. Puedes alternar de capa.</span>
             </div>
           )}
 
