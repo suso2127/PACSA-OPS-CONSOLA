@@ -79,8 +79,8 @@ export function PayrollView() {
   const [rawShifts, setRawShifts] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<{code: string, name: string}[]>([]);
 
-  // Pestaña principal activa: 'quincenal' o 'analisis-dia'
-  const [mainTab, setMainTab] = useState<'quincenal' | 'analisis-dia'>('quincenal');
+  // Pestaña principal activa: 'analisis-dia' (Módulo de Análisis) o 'quincenal' (Matriz Quincenal)
+  const [mainTab, setMainTab] = useState<'quincenal' | 'analisis-dia'>('analisis-dia');
 
   // Filtros de Planilla Quincenal
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,8 +88,8 @@ export function PayrollView() {
   const [selectedDayFilter, setSelectedDayFilter] = useState('all');
   const [periodDays, setPeriodDays] = useState<{name: string, date: string, fullDate: string}[]>([]);
 
-  // Estados de la pestaña Análisis por Día
-  const [selectedDay, setSelectedDay] = useState<string>(new Date().toDateString());
+  // Estados de la pestaña Análisis: por defecto 'quincena' para ver el Reporte Quincenal completo, o un día específico
+  const [selectedDay, setSelectedDay] = useState<string>('quincena');
   const [daySearch, setDaySearch] = useState('');
   const [dayStatusFilter, setDayStatusFilter] = useState<'all' | 'tardy' | 'double' | 'ontime'>('all');
 
@@ -269,14 +269,28 @@ export function PayrollView() {
     return () => unsubscribe();
   }, [periodDays]);
 
-  // Turnos del día seleccionado para Análisis por Día
+  // Turnos para la vista de Análisis (Toda la Quincena o Día individual)
   const dayShifts = useMemo(() => {
+    if (selectedDay === 'quincena') {
+      const validDates = new Set(periodDays.map(p => p.fullDate));
+      const shifts = rawShifts.filter((s) => {
+        const d = parseShiftDate(s.entryTime);
+        if (!d) return false;
+        return validDates.has(d.toDateString());
+      });
+      // Ordenar cronológicamente (más recientes primero)
+      return shifts.sort((a, b) => {
+        const timeA = parseShiftDate(a.entryTime)?.getTime() || 0;
+        const timeB = parseShiftDate(b.entryTime)?.getTime() || 0;
+        return timeB - timeA;
+      });
+    }
     return rawShifts.filter((s) => {
       const d = parseShiftDate(s.entryTime);
       if (!d) return false;
       return d.toDateString() === selectedDay;
     });
-  }, [rawShifts, selectedDay]);
+  }, [rawShifts, selectedDay, periodDays]);
 
   // Estadísticas del día seleccionado
   const dailyStats = useMemo(() => {
@@ -466,8 +480,8 @@ export function PayrollView() {
           description: `Se guardaron los cambios de tardanza y doble para ${recordForm.guardName.toUpperCase()}.`
         });
       } else {
-        // Crear registro en la fecha seleccionada
-        const dateObj = new Date(selectedDay);
+        // Crear registro en la fecha seleccionada (o fecha de hoy si se está en vista quincenal)
+        const dateObj = selectedDay === 'quincena' ? new Date() : new Date(selectedDay);
         const [hh, mm] = recordForm.entryHour.split(':').map(Number);
         dateObj.setHours(hh || 7, mm || 0, 0, 0);
 
@@ -518,31 +532,318 @@ export function PayrollView() {
     });
   }, [guardsData, searchTerm, projectSearch]);
 
+  // Exportar Reporte de Análisis en PDF (con columnas Elemento PACSA, Puesto, Entrada/Salida, Tardanza, Doble, Motivos)
+  const exportAnalysisPDF = (scope: 'current' | 'quincena' = 'quincena') => {
+    const docPdf = new jsPDF('landscape');
+    const isQuincena = scope === 'quincena' || selectedDay === 'quincena';
+    
+    // Encabezado Principal
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setFontSize(15);
+    docPdf.text('PLANILLA OPERATIVA PACSA - REPORTE QUINCENAL', 14, 18);
+    
+    docPdf.setFont('helvetica', 'normal');
+    docPdf.setFontSize(10);
+    const periodStart = periodDays[0]?.date || '16/09';
+    const periodEnd = periodDays[periodDays.length - 1]?.date || '30/09';
+    const periodSubtitle = isQuincena 
+      ? `Periodo: ${periodStart} al ${periodEnd}` 
+      : `Fecha: ${selectedDay}`;
+    docPdf.text(periodSubtitle, 14, 25);
+
+    // Obtener turnos
+    let shiftsToExport = isQuincena ? rawShifts.filter((s) => {
+      const d = parseShiftDate(s.entryTime);
+      if (!d) return false;
+      return new Set(periodDays.map(p => p.fullDate)).has(d.toDateString());
+    }) : dayShifts;
+
+    // Aplicar filtros de búsqueda si aplican
+    if (daySearch.trim()) {
+      const term = daySearch.toLowerCase();
+      shiftsToExport = shiftsToExport.filter((shift) => 
+        (shift.guardName || '').toLowerCase().includes(term) ||
+        (shift.projectCode || '').toLowerCase().includes(term) ||
+        (shift.projectName || '').toLowerCase().includes(term) ||
+        (shift.observations || '').toLowerCase().includes(term)
+      );
+    }
+    if (dayStatusFilter === 'tardy') shiftsToExport = shiftsToExport.filter(s => isShiftTardy(s));
+    if (dayStatusFilter === 'double') shiftsToExport = shiftsToExport.filter(s => isShiftDouble(s));
+    if (dayStatusFilter === 'ontime') shiftsToExport = shiftsToExport.filter(s => !isShiftTardy(s));
+
+    // Ordenar cronológicamente (más recientes primero)
+    shiftsToExport.sort((a, b) => {
+      const timeA = parseShiftDate(a.entryTime)?.getTime() || 0;
+      const timeB = parseShiftDate(b.entryTime)?.getTime() || 0;
+      return timeB - timeA;
+    });
+
+    const head = [[
+      'Elemento PACSA',
+      'Puesto Asignado',
+      'Entrada / Salida',
+      'Control Tardanza',
+      'Control Doble (24H)',
+      'Observaciones / Motivos'
+    ]];
+
+    const body = shiftsToExport.map((shift) => {
+      const isTardy = isShiftTardy(shift);
+      const isDouble = isShiftDouble(shift);
+      const entryDate = parseShiftDate(shift.entryTime);
+      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      const dayLabel = entryDate 
+        ? `Día: ${dayNames[entryDate.getDay()]} ${entryDate.getDate().toString().padStart(2, '0')}/${(entryDate.getMonth() + 1).toString().padStart(2, '0')}`
+        : '';
+      const entryStr = formatShiftTime(shift.entryTime);
+      const exitStr = shift.exitTime ? formatShiftTime(shift.exitTime) : 'En turno';
+
+      const timeCell = [
+        dayLabel,
+        `Entrada: ${entryStr}`,
+        `Salida: ${exitStr}`
+      ].filter(Boolean).join('\n');
+
+      const tardyText = isTardy 
+        ? `Tardanza (+${shift.tardinessMinutes || 15}m)` 
+        : 'Puntual';
+
+      const doubleText = isDouble 
+        ? 'DOBLE (24H)' 
+        : 'NORMAL (12H)';
+
+      const reasons: string[] = [];
+      if (shift.tardyReason) reasons.push(`Motivo Retraso: ${shift.tardyReason}`);
+      if (shift.doubleReason) reasons.push(`Motivo Doble: ${shift.doubleReason}`);
+      if (shift.observations) reasons.push(shift.observations);
+      const obsText = reasons.length > 0 ? reasons.join('\n') : 'Sin observaciones';
+
+      return [
+        shift.guardName || 'SIN NOMBRE',
+        `[${shift.projectCode || 'S/C'}]\n${shift.projectName || 'Sin Puesto'}`,
+        timeCell,
+        tardyText,
+        doubleText,
+        obsText
+      ];
+    });
+
+    autoTable(docPdf, {
+      startY: 32,
+      head,
+      body,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [15, 23, 42], // Slate 900 PACSA
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8.5,
+        halign: 'left'
+      },
+      columnStyles: {
+        0: { cellWidth: 45, fontStyle: 'bold' },
+        1: { cellWidth: 46 },
+        2: { cellWidth: 44, halign: 'center' },
+        3: { cellWidth: 35, halign: 'center' },
+        4: { cellWidth: 35, halign: 'center' },
+        5: { cellWidth: 'auto' },
+      },
+      styles: {
+        fontSize: 7.5,
+        cellPadding: 3,
+        overflow: 'linebreak',
+        textColor: [30, 41, 59]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      }
+    });
+
+    const filePeriod = isQuincena 
+      ? `${periodDays[0]?.date?.replace('/', '-') || '16-09'}_al_${periodDays[periodDays.length - 1]?.date?.replace('/', '-') || '30-09'}`
+      : selectedDay.replace(/ /g, '_');
+    docPdf.save(`Planilla_Operativa_PACSA_Reporte_Quincenal_${filePeriod}.pdf`);
+  };
+
+  // Exportar Reporte de Análisis a Excel/CSV (con columnas Elemento PACSA, Puesto, Entrada/Salida, Tardanza, Doble, Motivos)
+  const exportAnalysisExcel = (scope: 'current' | 'quincena' = 'quincena') => {
+    const isQuincena = scope === 'quincena' || selectedDay === 'quincena';
+    let shiftsToExport = isQuincena ? rawShifts.filter((s) => {
+      const d = parseShiftDate(s.entryTime);
+      if (!d) return false;
+      return new Set(periodDays.map(p => p.fullDate)).has(d.toDateString());
+    }) : dayShifts;
+
+    if (daySearch.trim()) {
+      const term = daySearch.toLowerCase();
+      shiftsToExport = shiftsToExport.filter((shift) => 
+        (shift.guardName || '').toLowerCase().includes(term) ||
+        (shift.projectCode || '').toLowerCase().includes(term) ||
+        (shift.projectName || '').toLowerCase().includes(term) ||
+        (shift.observations || '').toLowerCase().includes(term)
+      );
+    }
+    if (dayStatusFilter === 'tardy') shiftsToExport = shiftsToExport.filter(s => isShiftTardy(s));
+    if (dayStatusFilter === 'double') shiftsToExport = shiftsToExport.filter(s => isShiftDouble(s));
+    if (dayStatusFilter === 'ontime') shiftsToExport = shiftsToExport.filter(s => !isShiftTardy(s));
+
+    shiftsToExport.sort((a, b) => {
+      const timeA = parseShiftDate(a.entryTime)?.getTime() || 0;
+      const timeB = parseShiftDate(b.entryTime)?.getTime() || 0;
+      return timeB - timeA;
+    });
+
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const periodStart = periodDays[0]?.date || '16/09';
+    const periodEnd = periodDays[periodDays.length - 1]?.date || '30/09';
+    const periodSubtitle = isQuincena 
+      ? `Periodo: ${periodStart} al ${periodEnd}` 
+      : `Fecha: ${selectedDay}`;
+
+    const headers = [
+      'Elemento PACSA',
+      'Puesto Asignado',
+      'Entrada / Salida',
+      'Control Tardanza',
+      'Control Doble (24H)',
+      'Observaciones / Motivos'
+    ];
+
+    const rows = shiftsToExport.map(shift => {
+      const isTardy = isShiftTardy(shift);
+      const isDouble = isShiftDouble(shift);
+      const entryDate = parseShiftDate(shift.entryTime);
+      const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      const dayLabel = entryDate 
+        ? `Día: ${dayNames[entryDate.getDay()]} ${entryDate.getDate().toString().padStart(2, '0')}/${(entryDate.getMonth() + 1).toString().padStart(2, '0')} | ` 
+        : '';
+      const entryStr = formatShiftTime(shift.entryTime);
+      const exitStr = shift.exitTime ? formatShiftTime(shift.exitTime) : 'En turno';
+
+      const tardyText = isTardy ? `Tardanza (+${shift.tardinessMinutes || 15}m)` : 'Puntual';
+      const doubleText = isDouble ? 'DOBLE (24H)' : 'NORMAL (12H)';
+
+      const reasons: string[] = [];
+      if (shift.tardyReason) reasons.push(`Motivo Retraso: ${shift.tardyReason}`);
+      if (shift.doubleReason) reasons.push(`Motivo Doble: ${shift.doubleReason}`);
+      if (shift.observations) reasons.push(shift.observations);
+      const obsText = reasons.length > 0 ? reasons.join(' | ') : 'Sin observaciones';
+
+      return [
+        shift.guardName || '',
+        `[${shift.projectCode || 'S/C'}] ${shift.projectName || ''}`.trim(),
+        `${dayLabel}Entrada: ${entryStr} / Salida: ${exitStr}`,
+        tardyText,
+        doubleText,
+        obsText
+      ];
+    });
+
+    const titleRow = escapeCSV('PLANILLA OPERATIVA PACSA - REPORTE QUINCENAL');
+    const periodRow = escapeCSV(periodSubtitle);
+    const emptyRow = '';
+    const headerRow = headers.map(escapeCSV).join(',');
+    const dataRows = rows.map(row => row.map(escapeCSV).join(','));
+
+    const csvContent = [
+      titleRow,
+      periodRow,
+      emptyRow,
+      headerRow,
+      ...dataRows
+    ].join('\r\n');
+
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    const filePeriod = isQuincena 
+      ? `${periodDays[0]?.date?.replace('/', '-') || '16-09'}_al_${periodDays[periodDays.length - 1]?.date?.replace('/', '-') || '30-09'}`
+      : 'Dia';
+    link.setAttribute("download", `Planilla_Operativa_PACSA_Reporte_Quincenal_${filePeriod}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
   const exportPDF = () => {
     const docPdf = new jsPDF('landscape');
-    docPdf.setFontSize(16);
-    docPdf.text('PLANILLA OPERATIVA PACSA - REPORTE QUINCENAL', 14, 20);
-    docPdf.setFontSize(10);
-    docPdf.text(`Periodo: ${periodDays[0]?.date} al ${periodDays[periodDays.length - 1]?.date}`, 14, 28);
     
-    const head = [['GUARDIA', 'PUESTO', ...periodDays.map(d => d.name + ' ' + d.date.split('/')[0]), 'TOTAL']];
+    // Título idéntico a la imagen de referencia
+    docPdf.setFont('helvetica', 'bold');
+    docPdf.setFontSize(16);
+    docPdf.setTextColor(0, 0, 0);
+    docPdf.text('PLANILLA OPERATIVA PACSA - REPORTE QUINCENAL', 14, 18);
+    
+    // Subtítulo de periodo idéntico a la imagen de referencia
+    docPdf.setFont('helvetica', 'normal');
+    docPdf.setFontSize(11);
+    docPdf.setTextColor(0, 0, 0);
+    const periodStart = periodDays[0]?.date || '16/09';
+    const periodEnd = periodDays[periodDays.length - 1]?.date || '30/09';
+    docPdf.text(`Periodo: ${periodStart} al ${periodEnd}`, 14, 26);
+    
+    // Columnas exactas de la imagen: GUARDIA | PUESTO | Mié 16 | Jue 17 | ... | TOTAL
+    const head = [[
+      'GUARDIA',
+      'PUESTO',
+      ...periodDays.map(d => `${d.name} ${d.date.split('/')[0]}`),
+      'TOTAL'
+    ]];
+
     const body = filteredData.map(g => [
-      g.guardName,
-      g.projectCode,
+      (g.guardName || '').toUpperCase(),
+      g.projectCode || '-',
       ...periodDays.map(d => g.shiftsByDay[d.fullDate]?.displayHours || '-'),
       formatToHHMM(g.totalHours)
     ]);
 
+    const totalColIndex = head[0].length - 1;
+    const colStyles: any = {
+      0: { halign: 'left', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } }, // GUARDIA
+      1: { halign: 'center' }, // PUESTO
+    };
+    colStyles[totalColIndex] = { halign: 'center' };
+
     autoTable(docPdf, {
-      startY: 35,
+      startY: 32,
       head,
       body,
       theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246] },
-      styles: { fontSize: 7 }
+      headStyles: {
+        fillColor: [37, 99, 235], // Azul brillante #2563eb idéntico al de la imagen
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8,
+        halign: 'center',
+        valign: 'middle',
+        cellPadding: 3
+      },
+      columnStyles: colStyles,
+      styles: {
+        font: 'helvetica',
+        fontSize: 7.5,
+        cellPadding: 2.8,
+        halign: 'center',
+        valign: 'middle',
+        textColor: [30, 41, 59],
+        lineColor: [226, 232, 240], // Bordes limpios de cuadrícula (#e2e8f0)
+        lineWidth: 0.25
+      },
+      alternateRowStyles: {
+        fillColor: [255, 255, 255] // Filas con fondo blanco limpio igual a la imagen
+      }
     });
 
-    docPdf.save(`Planilla_PACSA_Quincena_${periodDays[0]?.date.replace('/', '-')}.pdf`);
+    const filePeriod = `${periodStart.replace('/', '-')}_al_${periodEnd.replace('/', '-')}`;
+    docPdf.save(`PLANILLA_OPERATIVA_PACSA_REPORTE_QUINCENAL_${filePeriod}.pdf`);
   };
 
   const exportExcel = () => {
@@ -552,20 +853,20 @@ export function PayrollView() {
       return `"${str}"`;
     };
 
-    const periodText = periodDays.length > 0 
-      ? `Periodo: ${periodDays[0]?.date} al ${periodDays[periodDays.length - 1]?.date}`
-      : '';
+    const periodStart = periodDays[0]?.date || '16/09';
+    const periodEnd = periodDays[periodDays.length - 1]?.date || '30/09';
+    const periodText = `Periodo: ${periodStart} al ${periodEnd}`;
 
     const headers = [
-      'Guardia',
-      'Puesto',
+      'GUARDIA',
+      'PUESTO',
       ...periodDays.map(d => `${d.name} ${d.date.split('/')[0]}`),
-      'Total Horas'
+      'TOTAL'
     ];
 
     const rows = filteredData.map(g => [
-      g.guardName || '',
-      g.projectCode || '',
+      (g.guardName || '').toUpperCase(),
+      g.projectCode || '-',
       ...periodDays.map(d => g.shiftsByDay[d.fullDate]?.displayHours || '-'),
       formatToHHMM(g.totalHours)
     ]);
@@ -588,8 +889,8 @@ export function PayrollView() {
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    const startDate = periodDays[0]?.date ? periodDays[0].date.replace('/', '-') : 'quincena';
-    link.setAttribute("download", `Planilla_PACSA_Quincena_${startDate}.csv`);
+    const filePeriod = `${periodStart.replace('/', '-')}_al_${periodEnd.replace('/', '-')}`;
+    link.setAttribute("download", `PLANILLA_OPERATIVA_PACSA_REPORTE_QUINCENAL_${filePeriod}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -604,33 +905,20 @@ export function PayrollView() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Módulo de Planilla</h1>
+            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Módulo de Planilla y Análisis</h1>
             <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-mono font-bold uppercase">
               PACSA ERP
             </Badge>
           </div>
           <p className="text-muted-foreground text-xs font-medium mt-1 uppercase tracking-wider">
             {mainTab === 'quincenal' 
-              ? `Auditoría Quincenal — Periodo del ${periodDays[0]?.date || '01'} al ${periodDays[periodDays.length - 1]?.date || '15'}`
-              : `Control Diario de Asistencia — Registro Activo de Tardanzas y Dobles`}
+              ? `Matriz Quincenal de Horas — Periodo del ${periodDays[0]?.date || '16/09'} al ${periodDays[periodDays.length - 1]?.date || '30/09'}`
+              : `Módulo de Análisis Operativo — Planilla Quincenal y Control de Asistencia, Tardanzas y Dobles`}
           </p>
         </div>
 
         {/* Selector de Pestañas */}
         <div className="flex items-center bg-[#1a1b2e] p-1.5 rounded-2xl border border-white/10 shadow-xl">
-          <Button
-            type="button"
-            variant={mainTab === 'quincenal' ? 'default' : 'ghost'}
-            onClick={() => setMainTab('quincenal')}
-            className={`h-10 px-5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 ${
-              mainTab === 'quincenal' 
-                ? 'bg-primary text-white shadow-lg' 
-                : 'text-muted-foreground hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Planilla Quincenal
-          </Button>
           <Button
             type="button"
             variant={mainTab === 'analisis-dia' ? 'default' : 'ghost'}
@@ -642,18 +930,31 @@ export function PayrollView() {
             }`}
           >
             <Timer className="h-4 w-4" />
-            Análisis por Día
+            Módulo de Análisis
             {dailyStats.tardyCount > 0 && (
               <Badge className="bg-red-600 text-white text-[9px] font-mono px-1.5 py-0 h-4 ml-1">
                 {dailyStats.tardyCount}
               </Badge>
             )}
           </Button>
+          <Button
+            type="button"
+            variant={mainTab === 'quincenal' ? 'default' : 'ghost'}
+            onClick={() => setMainTab('quincenal')}
+            className={`h-10 px-5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 ${
+              mainTab === 'quincenal' 
+                ? 'bg-primary text-white shadow-lg' 
+                : 'text-muted-foreground hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Matriz Quincenal (Horas)
+          </Button>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* PESTAÑA 1: PLANILLA QUINCENAL                                            */}
+      {/* PESTAÑA: PLANILLA QUINCENAL (MATRIZ)                                     */}
       {/* ========================================================================= */}
       {mainTab === 'quincenal' && (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -667,13 +968,17 @@ export function PayrollView() {
               </Badge>
             </div>
             <div className="flex items-center gap-3">
-              <Button onClick={exportPDF} variant="outline" className="bg-red-600 hover:bg-red-700 text-white border-none h-11 px-6 rounded-xl shadow-lg font-black text-xs uppercase">
+              <Button onClick={exportPDF} variant="outline" className="bg-red-600 hover:bg-red-700 text-white border-none h-11 px-5 rounded-xl shadow-lg font-black text-xs uppercase cursor-pointer" title="Descargar Planilla Operativa PACSA - Reporte Quincenal (PDF idéntico al formato solicitado)">
                 <Printer className="mr-2 h-4 w-4" />
-                PDF Quincenal
+                Descargar PDF Quincenal
               </Button>
-              <Button onClick={exportExcel} variant="outline" className="bg-[#10b981] hover:bg-[#059669] text-white border-none h-11 px-6 rounded-xl shadow-lg font-black text-xs uppercase">
+              <Button onClick={exportExcel} variant="outline" className="bg-[#10b981] hover:bg-[#059669] text-white border-none h-11 px-5 rounded-xl shadow-lg font-black text-xs uppercase cursor-pointer" title="Descargar Planilla Operativa PACSA - Reporte Quincenal en Excel">
                 <Download className="mr-2 h-4 w-4" />
-                Excel Quincenal
+                Descargar Excel Quincenal
+              </Button>
+              <Button onClick={() => exportAnalysisPDF('quincena')} variant="outline" className="bg-secondary/40 hover:bg-secondary text-white border-white/10 h-11 px-4 rounded-xl font-black text-xs uppercase cursor-pointer" title="Descargar Reporte Detallado de Tardanzas y Dobles">
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Reporte Detallado (Novedades)
               </Button>
             </div>
           </div>
@@ -826,7 +1131,7 @@ export function PayrollView() {
       )}
 
       {/* ========================================================================= */}
-      {/* PESTAÑA 2: ANÁLISIS POR DÍA (REGISTRO DE TARDANZAS Y DOBLES)               */}
+      {/* PESTAÑA 2: ANÁLISIS OPERATIVO - PLANILLA OPERATIVA PACSA                   */}
       {/* ========================================================================= */}
       {mainTab === 'analisis-dia' && (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -838,22 +1143,36 @@ export function PayrollView() {
                   <CalendarCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-wider">Fecha de Análisis Operativo</h3>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                    PLANILLA OPERATIVA PACSA - REPORTE {selectedDay === 'quincena' ? 'QUINCENAL' : 'DIARIO'}
+                  </h3>
                   <p className="text-[11px] font-bold text-amber-400/90 uppercase tracking-widest mt-0.5">
-                    {selectedDay}
+                    {selectedDay === 'quincena' 
+                      ? `Periodo: ${periodDays[0]?.date || '16/09'} al ${periodDays[periodDays.length - 1]?.date || '30/09'}` 
+                      : selectedDay}
                   </p>
                 </div>
               </div>
 
-              {/* Botón Acción Principal: Registrar Tardanza / Doble y Descargar PDF Quincenal */}
+              {/* Botón Acción Principal: Registrar Tardanza / Doble y Descargar Reportes */}
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  onClick={exportPDF}
+                  onClick={() => exportAnalysisPDF(selectedDay === 'quincena' ? 'quincena' : 'current')}
                   variant="outline"
                   className="h-10 bg-red-600 hover:bg-red-700 text-white border-none font-black text-xs uppercase px-4 rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
+                  title="Descargar Reporte en PDF con Elemento PACSA, Puesto, Entrada/Salida, Tardanza, Doble 24H y Motivos"
                 >
                   <Printer className="h-4 w-4" />
-                  Descargar PDF Quincenal
+                  PDF Reporte {selectedDay === 'quincena' ? 'Quincenal' : 'Diario'}
+                </Button>
+                <Button
+                  onClick={() => exportAnalysisExcel(selectedDay === 'quincena' ? 'quincena' : 'current')}
+                  variant="outline"
+                  className="h-10 bg-[#10b981] hover:bg-[#059669] text-white border-none font-black text-xs uppercase px-4 rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
+                  title="Descargar Reporte en Excel con Elemento PACSA, Puesto, Entrada/Salida, Tardanza, Doble 24H y Motivos"
+                >
+                  <Download className="h-4 w-4" />
+                  Excel Reporte {selectedDay === 'quincena' ? 'Quincenal' : 'Diario'}
                 </Button>
                 <Button
                   onClick={handleOpenCreateModal}
@@ -868,8 +1187,25 @@ export function PayrollView() {
             {/* Selector de días en píldoras horizontales */}
             <div className="pt-2 border-t border-white/5 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mr-2 shrink-0">
-                Seleccionar Día:
+                Periodo / Día:
               </span>
+
+              {/* Botón Toda la Quincena */}
+              <button
+                type="button"
+                onClick={() => setSelectedDay('quincena')}
+                className={`shrink-0 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all flex flex-col items-center border ${
+                  selectedDay === 'quincena'
+                    ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20'
+                    : 'bg-[#0f101d] text-muted-foreground border-white/5 hover:border-white/20 hover:text-white'
+                }`}
+              >
+                <span className="leading-none">Toda la Quincena</span>
+                <span className="text-[9px] font-mono mt-0.5">{periodDays[0]?.date || '16/09'} al {periodDays[periodDays.length - 1]?.date || '30/09'}</span>
+              </button>
+
+              <div className="h-6 w-[1px] bg-white/10 shrink-0 mx-1" />
+
               {periodDays.map((day) => {
                 const isSelected = day.fullDate === selectedDay;
                 const isToday = day.fullDate === todayDateString;
@@ -1084,9 +1420,27 @@ export function PayrollView() {
 
                           {/* Entrada / Salida */}
                           <TableCell className="text-center font-mono text-xs">
-                            <div className="flex flex-col items-center">
-                              <span className="font-bold text-white">{entryStr}</span>
-                              <span className="text-[10px] text-muted-foreground">{exitStr}</span>
+                            <div className="flex flex-col items-center gap-1">
+                              {(() => {
+                                const d = parseShiftDate(shift.entryTime);
+                                if (!d) return null;
+                                const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                                return (
+                                  <Badge variant="outline" className="text-[9px] font-black text-amber-400 border-amber-500/30 bg-amber-500/10 font-mono px-2 py-0.5">
+                                    Día: {dayNames[d.getDay()]} {d.getDate().toString().padStart(2, '0')}/{((d.getMonth() + 1)).toString().padStart(2, '0')}
+                                  </Badge>
+                                );
+                              })()}
+                              <div className="flex flex-col text-[11px] leading-tight space-y-0.5">
+                                <span className="text-white font-bold">
+                                  <span className="text-muted-foreground text-[10px] font-normal mr-1">Entrada:</span>
+                                  {entryStr}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  <span className="text-muted-foreground/70 text-[10px] font-normal mr-1">Salida:</span>
+                                  {exitStr}
+                                </span>
+                              </div>
                             </div>
                           </TableCell>
 

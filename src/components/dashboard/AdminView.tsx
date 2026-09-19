@@ -78,7 +78,7 @@ export function AdminView() {
     { id: 'estadistica', label: 'Estadística', icon: BarChart3 },
     { id: 'mapa', label: 'Mapa', icon: MapIcon },
     { id: 'historial', label: 'Historial', icon: History },
-    { id: 'planilla', label: 'Planilla', icon: FileSpreadsheet },
+    { id: 'planilla', label: 'Planilla / Análisis', icon: FileSpreadsheet },
   ] as const;
 
   return (
