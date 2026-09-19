@@ -183,7 +183,9 @@ export function MapView() {
     assignedProject: '',
     status: 'active' as 'active' | 'moving' | 'idle' | 'offline',
     battery: 100,
-    speed: 0
+    speed: 0,
+    lat: '',
+    lng: ''
   });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [unitToDelete, setUnitToDelete] = useState<TrackingUnit | null>(null);
@@ -1317,43 +1319,92 @@ export function MapView() {
       assignedProject: unit.assignedProject || '',
       status: unit.status || 'active',
       battery: unit.battery ?? 100,
-      speed: unit.speed ?? 0
+      speed: unit.speed ?? 0,
+      lat: (typeof unit.lat === 'number' && !isNaN(unit.lat)) ? String(unit.lat) : '',
+      lng: (typeof unit.lng === 'number' && !isNaN(unit.lng)) ? String(unit.lng) : ''
     });
   };
 
   const handleSaveEditUnit = async () => {
     if (!editingUnit) return;
+
+    const latRaw = (editFormData.lat || '').toString().trim();
+    const lngRaw = (editFormData.lng || '').toString().trim();
+
+    const parsedLat = parseFloat(latRaw);
+    const parsedLng = parseFloat(lngRaw);
+
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      toast({
+        variant: "destructive",
+        title: "COORDENADAS INVÁLIDAS",
+        description: "Ingrese valores numéricos válidos para Latitud y Longitud (Ej: 8.9824, -79.5199)."
+      });
+      return;
+    }
+
+    if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
+      toast({
+        variant: "destructive",
+        title: "COORDENADAS FUERA DE RANGO",
+        description: "La Latitud debe estar entre -90 y 90, y la Longitud entre -180 y 180."
+      });
+      return;
+    }
+
     setIsSavingEdit(true);
     try {
       const unitRef = doc(db, 'active_units', editingUnit.id);
-      await updateDoc(unitRef, {
-        name: editFormData.name,
-        code: editFormData.code,
+      const updatePayload = {
+        name: editFormData.name.trim(),
+        code: editFormData.code.trim().toUpperCase(),
         type: editFormData.type,
-        assignedProject: editFormData.assignedProject,
+        assignedProject: editFormData.assignedProject.trim(),
         status: editFormData.status,
-        battery: Number(editFormData.battery),
-        speed: Number(editFormData.speed),
+        battery: Number(editFormData.battery) || 0,
+        speed: Number(editFormData.speed) || 0,
+        lat: parsedLat,
+        lng: parsedLng,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      await updateDoc(unitRef, updatePayload);
 
       // Actualizar estado local si está seleccionada
       if (selectedUnit?.id === editingUnit.id) {
         setSelectedUnit(prev => prev ? {
           ...prev,
-          name: editFormData.name,
-          code: editFormData.code,
-          type: editFormData.type,
-          assignedProject: editFormData.assignedProject,
-          status: editFormData.status,
-          battery: Number(editFormData.battery),
-          speed: Number(editFormData.speed)
+          name: updatePayload.name,
+          code: updatePayload.code,
+          type: updatePayload.type,
+          assignedProject: updatePayload.assignedProject,
+          status: updatePayload.status,
+          battery: updatePayload.battery,
+          speed: updatePayload.speed,
+          lat: parsedLat,
+          lng: parsedLng
         } : null);
       }
 
+      // Si el marcador Leaflet existe, reubicar su posición en el mapa
+      const marker = unitMarkersRef.current.get(editingUnit.id);
+      if (marker && marker.setLatLng) {
+        marker.setLatLng([parsedLat, parsedLng]);
+      }
+
+      toast({
+        title: "UNIDAD ACTUALIZADA",
+        description: `Unidad ${updatePayload.code} guardada con éxito.`
+      });
+
       setEditingUnit(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al actualizar unidad GPS:', err);
+      toast({
+        variant: "destructive",
+        title: "ERROR AL GUARDAR",
+        description: err?.message || "Ocurrió un error al actualizar la unidad."
+      });
     } finally {
       setIsSavingEdit(false);
     }
@@ -1710,14 +1761,18 @@ export function MapView() {
                                     Volver a mapear
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => handleOpenEditUnit(unit)}
+                                    onSelect={() => {
+                                      setTimeout(() => handleOpenEditUnit(unit), 50);
+                                    }}
                                     className="text-[10px] font-bold uppercase tracking-wider py-2 cursor-pointer hover:bg-white/5 focus:bg-white/10 text-amber-400 focus:text-amber-300"
                                   >
                                     <Edit2 className="h-3.5 w-3.5 mr-2 text-amber-400" />
                                     Editar
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => setUnitToDelete(unit)}
+                                    onSelect={() => {
+                                      setTimeout(() => setUnitToDelete(unit), 50);
+                                    }}
                                     className="text-[10px] font-bold uppercase tracking-wider py-2 cursor-pointer hover:bg-red-500/20 focus:bg-red-500/20 text-red-400 focus:text-red-300"
                                   >
                                     <Trash2 className="h-3.5 w-3.5 mr-2 text-red-400" />
@@ -1999,16 +2054,23 @@ export function MapView() {
       </div>
 
       {/* Modal Editar Unidad GPS */}
-      <Dialog open={!!editingUnit} onOpenChange={(open) => !open && setEditingUnit(null)}>
-        <DialogContent className="bg-[#1a1b2e] border-white/10 text-white max-w-md">
-          <DialogHeader>
+      <Dialog 
+        open={!!editingUnit} 
+        onOpenChange={(open) => {
+          if (!isSavingEdit && !open) {
+            setEditingUnit(null);
+          }
+        }}
+      >
+        <DialogContent className="bg-[#1a1b2e] border-white/10 text-white max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-5 pb-3 border-b border-white/10">
             <DialogTitle className="flex items-center gap-2 text-base font-black">
               <Edit2 className="h-4 w-4 text-amber-400" />
               Editar Unidad GPS: {editingUnit?.code}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
+          <div className="space-y-4 p-5 overflow-y-auto max-h-[calc(90vh-130px)]">
             <div>
               <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block mb-1.5">
                 Código de la Unidad
@@ -2031,6 +2093,39 @@ export function MapView() {
                 placeholder="Ej. Guardia GPS (CAF RONDING)"
                 className="bg-[#0f101d] border-white/10 text-white text-sm"
               />
+            </div>
+
+            {/* Coordenadas GPS (Latitud y Longitud) */}
+            <div className="grid grid-cols-2 gap-3 bg-[#0f101d] p-3.5 rounded-xl border border-white/10">
+              <div>
+                <label className="text-[10px] font-black uppercase text-cyan-400 tracking-wider flex items-center gap-1.5 mb-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-cyan-400" />
+                  Latitud
+                </label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={editFormData.lat}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, lat: e.target.value }))}
+                  placeholder="Ej. 8.982400"
+                  className="bg-[#151726] border-white/10 text-white font-mono text-xs focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-cyan-400 tracking-wider flex items-center gap-1.5 mb-1.5">
+                  <Navigation className="h-3.5 w-3.5 text-cyan-400" />
+                  Longitud
+                </label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={editFormData.lng}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, lng: e.target.value }))}
+                  placeholder="Ej. -79.519900"
+                  className="bg-[#151726] border-white/10 text-white font-mono text-xs focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -2109,10 +2204,11 @@ export function MapView() {
             </div>
           </div>
 
-          <DialogFooter className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+          <DialogFooter className="flex items-center justify-end gap-2 p-4 border-t border-white/10 bg-[#161726]">
             <Button
               type="button"
               variant="ghost"
+              disabled={isSavingEdit}
               onClick={() => setEditingUnit(null)}
               className="text-xs font-bold uppercase text-muted-foreground hover:text-white"
             >
@@ -2122,9 +2218,16 @@ export function MapView() {
               type="button"
               onClick={handleSaveEditUnit}
               disabled={isSavingEdit}
-              className="text-xs font-black uppercase bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="text-xs font-black uppercase bg-primary hover:bg-primary/90 text-primary-foreground min-w-[130px]"
             >
-              {isSavingEdit ? 'Guardando...' : 'Guardar Cambios'}
+              {isSavingEdit ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Cambios'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
