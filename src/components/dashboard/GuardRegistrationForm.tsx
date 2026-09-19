@@ -1,9 +1,10 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { erpDb } from '@/lib/firebase-erp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,8 +24,18 @@ import {
   Clock as ClockIcon,
   Zap,
   MapPin,
-  Navigation
+  Navigation,
+  User
 } from 'lucide-react';
+
+interface ActiveCollaborator {
+  id: string;
+  fullName: string;
+  cedula?: string;
+  displayId?: string;
+  department?: string;
+  status: string;
+}
 
 export function GuardRegistrationForm() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -47,6 +58,90 @@ export function GuardRegistrationForm() {
   });
 
   const { toast } = useToast();
+
+  // Autocompletado de Colaboradores Activos desde ERP ('employees' o 'colaboradores')
+  const [activeCollaborators, setActiveCollaborators] = useState<ActiveCollaborator[]>([]);
+  const [showColabDropdown, setShowColabDropdown] = useState(false);
+  const colabDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let empsDocs: any[] = [];
+    let colabsDocs: any[] = [];
+
+    const syncCollaborators = () => {
+      const map = new Map<string, ActiveCollaborator>();
+      [...empsDocs, ...colabsDocs].forEach(docSnap => {
+        const d = docSnap.data ? docSnap.data() : docSnap;
+        const status = (d.status || '').toString().trim();
+        const isActive = !status || status.toLowerCase() === 'activo';
+        const rawName = (d.fullName || d.name || '').toString().trim();
+        if (isActive && rawName) {
+          const fullName = rawName.toUpperCase();
+          if (!map.has(fullName)) {
+            map.set(fullName, {
+              id: docSnap.id,
+              fullName,
+              cedula: d.cedula || '',
+              displayId: d.displayId || '',
+              department: d.department || '',
+              status: status || 'Activo'
+            });
+          }
+        }
+      });
+      const sorted = Array.from(map.values()).sort((a, b) => a.fullName.localeCompare(b.fullName));
+      setActiveCollaborators(sorted);
+    };
+
+    const unsubEmps = onSnapshot(collection(erpDb, 'employees'), (snap) => {
+      empsDocs = snap.docs;
+      syncCollaborators();
+    }, (err) => {
+      console.warn("ERP employees listener warning:", err);
+    });
+
+    const unsubColabs = onSnapshot(collection(erpDb, 'colaboradores'), (snap) => {
+      colabsDocs = snap.docs;
+      syncCollaborators();
+    }, () => {});
+
+    return () => {
+      unsubEmps();
+      unsubColabs();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (colabDropdownRef.current && !colabDropdownRef.current.contains(event.target as Node)) {
+        setShowColabDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredCollaborators = useMemo(() => {
+    const q = formData.guardName.trim().toUpperCase();
+    if (!q) {
+      return activeCollaborators.slice(0, 8);
+    }
+    return activeCollaborators
+      .filter(c => 
+        c.fullName.includes(q) || 
+        (c.cedula && c.cedula.includes(q)) ||
+        (c.displayId && c.displayId.toUpperCase().includes(q))
+      )
+      .slice(0, 12);
+  }, [activeCollaborators, formData.guardName]);
+
+  const handleSelectCollaborator = (colab: ActiveCollaborator) => {
+    setFormData(prev => ({
+      ...prev,
+      guardName: colab.fullName
+    }));
+    setShowColabDropdown(false);
+  };
 
   useEffect(() => {
     setCurrentTime(new Date());
@@ -394,14 +489,75 @@ export function GuardRegistrationForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Nombre del Elemento</Label>
-            <input 
-              placeholder="NOMBRE Y APELLIDO" 
-              value={formData.guardName}
-              onChange={(e) => setFormData({...formData, guardName: e.target.value.toUpperCase()})}
-              className="w-full h-16 bg-[#1a1b2e] border border-white/5 focus:ring-1 focus:ring-primary/50 text-base font-black tracking-tight rounded-2xl pl-6 text-white outline-none"
-            />
+          <div className="space-y-3 relative" ref={colabDropdownRef}>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
+                Nombre del Elemento
+              </Label>
+              {activeCollaborators.length > 0 && (
+                <span className="text-[9px] font-bold text-emerald-400/80 flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {activeCollaborators.length} Colaboradores Activos (ERP)
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input 
+                placeholder="NOMBRE Y APELLIDO" 
+                value={formData.guardName}
+                onFocus={() => setShowColabDropdown(true)}
+                onChange={(e) => {
+                  setFormData({...formData, guardName: e.target.value.toUpperCase()});
+                  setShowColabDropdown(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setShowColabDropdown(false);
+                }}
+                className="w-full h-16 bg-[#1a1b2e] border border-white/5 focus:ring-1 focus:ring-primary/50 text-base font-black tracking-tight rounded-2xl pl-6 pr-12 text-white outline-none"
+              />
+              <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground">
+                <User className="h-5 w-5 text-primary/60" />
+              </div>
+            </div>
+
+            {/* Menú desplegable de autocompletado */}
+            {showColabDropdown && filteredCollaborators.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-[#161726] border border-primary/20 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl max-h-64 overflow-y-auto">
+                <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                  <span>Colaboradores Activos ({filteredCollaborators.length})</span>
+                  <span className="text-primary font-bold">Clic para autocompletar</span>
+                </div>
+                <div className="p-1.5 space-y-0.5">
+                  {filteredCollaborators.map((colab) => (
+                    <button
+                      key={colab.id}
+                      type="button"
+                      onClick={() => handleSelectCollaborator(colab)}
+                      className="w-full text-left px-3.5 py-2.5 rounded-xl hover:bg-primary/20 flex items-center justify-between group transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-black transition-colors">
+                          <User className="h-4 w-4 text-primary group-hover:text-black" />
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-black uppercase text-white group-hover:text-primary transition-colors truncate">
+                            {colab.fullName}
+                          </p>
+                          <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-mono">
+                            {colab.cedula && <span>CÉD: {colab.cedula}</span>}
+                            {colab.displayId && <span>• {colab.displayId}</span>}
+                            {colab.department && <span>• {colab.department}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[8px] font-black uppercase shrink-0">
+                        Activo
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -499,6 +655,7 @@ export function GuardRegistrationForm() {
                 <SelectContent className="bg-[#1a1b2e] border-white/10">
                   <SelectItem value="Diurno" className="font-black text-[10px] uppercase">DIURNO</SelectItem>
                   <SelectItem value="Nocturno" className="font-black text-[10px] uppercase">NOCTURNO</SelectItem>
+                  <SelectItem value="Mixto" className="font-black text-[10px] uppercase">MIXTO</SelectItem>
                 </SelectContent>
               </Select>
             </div>
