@@ -55,3 +55,48 @@
 .dashboard-card {
   @apply bg-card border border-border rounded-xl shadow-lg p-6;
 }
+
+/* Leaflet Dark Theme Popups */
+.leaflet-popup-content-wrapper {
+  background: #0f101d !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.7) !important;
+}
+
+.leaflet-popup-tip {
+  background: #0f101d !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: #94a3b8 !important;
+  padding: 6px !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: #ffffff !important;
+}
+
+.pacsa-click-popup .leaflet-popup-content-wrapper {
+  background: #111322 !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.8), 0 0 20px rgba(37, 99, 235, 0.2) !important;
+}
+
+.pacsa-click-popup .leaflet-popup-tip {
+  background: #111322 !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+}
+
+.nominatim-search-pin {
+  background: transparent !important;
+  border: none !important;
+}

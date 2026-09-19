@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Map as MapIcon, 
   MapPin, 
@@ -33,7 +34,6 @@ import {
   Globe,
   Loader2
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -50,17 +50,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-export interface NominatimResult {
-  place_id: number;
-  lat: string;
-  lon: string;
-  display_name: string;
-  type?: string;
-  class?: string;
-}
-
-export type TileSourceKey = 'osm' | 'satellite' | 'cartoDark';
 
 interface Project {
   id: string;
@@ -111,10 +100,25 @@ export interface TrackingUnit {
   assignedProject?: string;
 }
 
+// Interface para búsqueda Nominatim
+export interface NominatimResult {
+  place_id: number;
+  lat: string;
+  lon: string;
+  display_name: string;
+  type?: string;
+  class?: string;
+}
+
+export type TileSourceKey = 'osm' | 'satellite' | 'cartoDark';
+
+// Códigos de puestos configurables: GP-001 al GP-014
+const POST_CODES = Array.from({ length: 14 }, (_, i) => `GP-${String(i + 1).padStart(3, '0')}`);
+
 // Default Center: Panama City, Panama
 const PANAMA_CENTER: [number, number] = [8.9824, -79.5199];
 
-// Map Tile Sources - Incluye mapa normal, satelital Esri World Imagery (gratuito) y modo oscuro
+// Map Tile Sources con soporte de capa satelital Esri World Imagery gratuita
 const TILE_SOURCES: Record<TileSourceKey, {
   name: string;
   url: string;
@@ -156,14 +160,19 @@ export function MapView() {
   const [currentTileSource, setCurrentTileSource] = useState<TileSourceKey>('osm');
   const [tileErrorCount, setTileErrorCount] = useState(0);
 
-  // States for Nominatim Location Search (OpenStreetMap)
+  // States para Búsqueda de Direcciones con Nominatim
   const [nominatimQuery, setNominatimQuery] = useState('');
   const [nominatimResults, setNominatimResults] = useState<NominatimResult[]>([]);
   const [isSearchingNominatim, setIsSearchingNominatim] = useState(false);
   const [showNominatimResults, setShowNominatimResults] = useState(false);
   const [activeLocationPin, setActiveLocationPin] = useState<{ name: string; lat: number; lng: number } | null>(null);
-  const searchMarkerRef = useRef<any>(null);
   const searchBoxRef = useRef<HTMLDivElement>(null);
+  const searchMarkerRef = useRef<any>(null);
+
+  // States y Refs para Asignación de Puesto por Clic en el Mapa
+  const [clickedMapCoords, setClickedMapCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const projectsRef = useRef<Project[]>([]);
+  const mapClickPopupRef = useRef<any>(null);
 
   // States for GPS Unit Actions: Editar, Eliminar, Volver a Mapear
   const [editingUnit, setEditingUnit] = useState<TrackingUnit | null>(null);
@@ -557,6 +566,157 @@ export function MapView() {
     }, {} as Record<string, { status: 'red' | 'yellow' | 'green', onSite: number, required: number, activeGuards: string[] }>);
   }, [projects, registrations]);
 
+  // Sincronizar projects en ref para los eventos del mapa
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
+  // Creador del contenido del popup interactivo al hacer clic en el mapa
+  const createMapClickPopup = (
+    lat: number,
+    lng: number,
+    currentProjects: Project[],
+    onSave: (code: string, lat: number, lng: number) => Promise<void>
+  ) => {
+    const container = document.createElement('div');
+    container.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    container.style.padding = '4px';
+    container.style.color = '#f8fafc';
+    container.style.minWidth = '250px';
+
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <span style="background: #2563eb; color: #fff; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;">PACSA GPS</span>
+        <span style="font-size: 10px; font-weight: 800; color: #38bdf8; text-transform: uppercase;">Guardar Puesto</span>
+      </div>
+      <div style="background: #090a14; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px; font-family: monospace; font-size: 11px; color: #38bdf8; line-height: 1.3;">
+        <div><strong>Lat:</strong> ${lat.toFixed(6)}</div>
+        <div><strong>Lng:</strong> ${lng.toFixed(6)}</div>
+      </div>
+      <label style="display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px;">
+        Código del Puesto (GP-001 al GP-014):
+      </label>
+    `;
+
+    const select = document.createElement('select');
+    select.style.width = '100%';
+    select.style.background = '#151726';
+    select.style.color = '#ffffff';
+    select.style.border = '1px solid rgba(255,255,255,0.2)';
+    select.style.borderRadius = '6px';
+    select.style.padding = '6px 8px';
+    select.style.fontSize = '11px';
+    select.style.fontWeight = '700';
+    select.style.marginBottom = '10px';
+    select.style.outline = 'none';
+
+    POST_CODES.forEach((code) => {
+      const p = currentProjects.find(item => item.code?.toUpperCase() === code);
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = p?.name ? `${code} - ${p.name}` : `${code}`;
+      select.appendChild(opt);
+    });
+    container.appendChild(select);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Guardar ubicación del puesto';
+    btn.style.width = '100%';
+    btn.style.background = '#2563eb';
+    btn.style.color = '#ffffff';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '8px';
+    btn.style.padding = '8px 10px';
+    btn.style.fontSize = '11px';
+    btn.style.fontWeight = '800';
+    btn.style.textTransform = 'uppercase';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 2px 8px rgba(37, 99, 235, 0.4)';
+    btn.style.transition = 'all 0.2s ease';
+
+    btn.onmouseover = () => { btn.style.background = '#1d4ed8'; };
+    btn.onmouseout = () => { btn.style.background = '#2563eb'; };
+
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      btn.disabled = true;
+      btn.textContent = 'Guardando en Firestore...';
+      btn.style.opacity = '0.7';
+      try {
+        await onSave(select.value, lat, lng);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Guardar ubicación del puesto';
+        btn.style.opacity = '1';
+      }
+    };
+    container.appendChild(btn);
+
+    return container;
+  };
+
+  // Guardar ubicación del puesto en Firestore colección 'projects'
+  const handleSavePostLocation = async (code: string, lat: number, lng: number) => {
+    try {
+      const latNum = parseFloat(lat.toFixed(6));
+      const lngNum = parseFloat(lng.toFixed(6));
+      const formattedCode = code.toUpperCase().trim();
+
+      // 1. Buscar en Firestore colección 'projects' por el campo 'code'
+      const q = query(collection(db, 'projects'), where('code', '==', formattedCode));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const docSnap = snap.docs[0];
+        const pData = docSnap.data();
+        const targetDocRef = doc(db, 'projects', docSnap.id);
+
+        await updateDoc(targetDocRef, {
+          latitude: latNum,
+          longitude: lngNum,
+          mappedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        toast({
+          title: "UBICACIÓN GUARDADA",
+          description: `Puesto ${formattedCode} (${pData.name || 'Puesto'}) asignado a [${latNum}, ${lngNum}].`
+        });
+      } else {
+        // 2. Si no existe documento con ese código, crearlo en Firestore
+        await addDoc(collection(db, 'projects'), {
+          code: formattedCode,
+          name: `PUESTO ${formattedCode}`,
+          location: 'Panamá',
+          latitude: latNum,
+          longitude: lngNum,
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          mappedAt: serverTimestamp()
+        });
+
+        toast({
+          title: "PUESTO CREADO Y GUARDADO",
+          description: `Nuevo puesto ${formattedCode} registrado y asignado a [${latNum}, ${lngNum}].`
+        });
+      }
+
+      if (mapRef.current) {
+        mapRef.current.closePopup();
+      }
+      setClickedMapCoords(null);
+    } catch (err: any) {
+      console.error("Error guardando ubicación en Firestore:", err);
+      toast({
+        title: "ERROR AL GUARDAR",
+        description: err.message || "No se pudo guardar la ubicación del puesto.",
+        variant: "destructive"
+      });
+      throw err;
+    }
+  };
+
   // Leaflet Map Initialization centered on Panama
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -603,6 +763,35 @@ export function MapView() {
         setTileErrorCount(prev => prev + 1);
       });
 
+      // Evento de clic en cualquier punto del mapa para guardar ubicación de puesto
+      map.on('click', (e: any) => {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        const currentL = leafletLRef.current;
+        if (!currentL) return;
+
+        const content = createMapClickPopup(
+          lat,
+          lng,
+          projectsRef.current,
+          async (chosenCode, clickLat, clickLng) => {
+            await handleSavePostLocation(chosenCode, clickLat, clickLng);
+          }
+        );
+
+        const popup = currentL.popup({
+          minWidth: 260,
+          maxWidth: 320,
+          className: 'pacsa-click-popup'
+        })
+          .setLatLng([lat, lng])
+          .setContent(content)
+          .openOn(map);
+
+        mapClickPopupRef.current = popup;
+        setClickedMapCoords({ lat, lng });
+      });
+
       // Ensure map dimensions settle and call invalidateSize()
       setTimeout(() => {
         if (mapRef.current) {
@@ -642,7 +831,7 @@ export function MapView() {
     };
   }, []);
 
-  // Close Nominatim results when clicking outside
+  // Cerrar dropdown de Nominatim al hacer clic afuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
@@ -773,13 +962,13 @@ export function MapView() {
         <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
           <span style="background: #2563eb; color: #fff; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Nominatim OSM</span>
         </div>
-        <div style="font-weight: 800; font-size: 13px; color: #0f172a; margin-bottom: 4px; line-height: 1.2;">
+        <div style="font-weight: 800; font-size: 13px; color: #f8fafc; margin-bottom: 4px; line-height: 1.2;">
           ${shortTitle}
         </div>
-        <div style="font-size: 11px; color: #475569; margin-bottom: 6px; line-height: 1.3;">
+        <div style="font-size: 11px; color: #94a3b8; margin-bottom: 6px; line-height: 1.3;">
           ${result.display_name}
         </div>
-        <div style="font-size: 10px; color: #64748b; font-family: monospace; background: #f1f5f9; padding: 4px 6px; border-radius: 4px;">
+        <div style="font-size: 10px; color: #38bdf8; font-family: monospace; background: rgba(0,0,0,0.4); padding: 4px 6px; border-radius: 4px;">
           Lat: ${lat.toFixed(5)}, Lng: ${lon.toFixed(5)}
         </div>
       </div>
@@ -1255,37 +1444,43 @@ export function MapView() {
             </div>
           </div>
 
-          {/* Map Layer Switcher */}
-          <div className="flex items-center gap-1 bg-[#1a1b2e] p-1 rounded-xl border border-white/5">
+          {/* Map Tile Switcher */}
+          <div className="flex items-center gap-1 bg-[#1a1b2e] p-1 rounded-xl border border-white/10 shadow-md">
             <Button
               size="sm"
               variant={currentTileSource === 'osm' ? 'default' : 'ghost'}
               onClick={() => handleTileSourceChange('osm')}
-              className="text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1.5"
-              title="Mapa estándar de OpenStreetMap"
+              className={`text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1 ${
+                currentTileSource === 'osm' ? 'bg-primary text-white shadow' : 'text-muted-foreground hover:text-white'
+              }`}
+              title="Capa estándar OpenStreetMap"
             >
-              <MapIcon className="h-3 w-3" />
-              <span>Normal</span>
+              <Globe className="h-3 w-3" />
+              Normal
             </Button>
             <Button
               size="sm"
               variant={currentTileSource === 'satellite' ? 'default' : 'ghost'}
               onClick={() => handleTileSourceChange('satellite')}
-              className="text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1.5"
-              title="Vista satelital gratuita Esri World Imagery"
+              className={`text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1 ${
+                currentTileSource === 'satellite' ? 'bg-blue-600 text-white shadow' : 'text-muted-foreground hover:text-white'
+              }`}
+              title="Vista Satelital gratuita con Esri World Imagery"
             >
-              <Satellite className="h-3 w-3" />
-              <span>Satelital (Esri)</span>
+              <Satellite className="h-3 w-3 text-cyan-300" />
+              Satelital
             </Button>
             <Button
               size="sm"
               variant={currentTileSource === 'cartoDark' ? 'default' : 'ghost'}
               onClick={() => handleTileSourceChange('cartoDark')}
-              className="text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1.5"
+              className={`text-[10px] font-black uppercase h-7 px-2.5 rounded-lg flex items-center gap-1 ${
+                currentTileSource === 'cartoDark' ? 'bg-slate-700 text-white shadow' : 'text-muted-foreground hover:text-white'
+              }`}
               title="Modo Oscuro CARTO"
             >
-              <Layers className="h-3 w-3" />
-              <span>Oscuro</span>
+              <MapIcon className="h-3 w-3" />
+              Oscuro
             </Button>
           </div>
 
@@ -1553,11 +1748,13 @@ export function MapView() {
           <div ref={mapContainerRef} className="w-full h-full z-0" />
 
           {/* Campo de Búsqueda de Ubicaciones con Nominatim de OpenStreetMap */}
-          <div ref={searchBoxRef} className="absolute top-4 left-4 z-[400] w-72 sm:w-96 max-w-[calc(100%-140px)]">
-            <div className="flex items-center gap-1.5 bg-[#0f101d]/90 backdrop-blur-md border border-white/10 p-1.5 rounded-2xl shadow-2xl">
-              <div className="relative flex-1 flex items-center">
-                <Search className="absolute left-2.5 h-3.5 w-3.5 text-primary pointer-events-none" />
-                <Input
+          <div ref={searchBoxRef} className="absolute top-4 left-4 z-[400] w-72 sm:w-96 max-w-[calc(100%-120px)]">
+            <div className="relative shadow-2xl">
+              <div className="relative flex items-center bg-[#151726]/95 border border-white/15 rounded-2xl backdrop-blur-md overflow-hidden focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                <Search className="h-4 w-4 text-primary ml-3.5 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Buscar dirección en Panamá (Nominatim)..."
                   value={nominatimQuery}
                   onChange={(e) => setNominatimQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -1566,165 +1763,103 @@ export function MapView() {
                       handleNominatimSearch();
                     }
                   }}
-                  placeholder="Buscar dirección o lugar (Nominatim)..."
-                  className="pl-8 pr-7 h-8 text-xs bg-white/5 border-white/5 text-white placeholder:text-muted-foreground/70 rounded-xl focus-visible:ring-primary"
+                  onFocus={() => {
+                    if (nominatimResults.length > 0) setShowNominatimResults(true);
+                  }}
+                  className="w-full bg-transparent border-none py-2.5 px-3 text-xs text-white placeholder:text-muted-foreground/70 focus:outline-none"
                 />
-                {nominatimQuery && (
+                {isSearchingNominatim ? (
+                  <Loader2 className="h-4 w-4 text-primary animate-spin mr-3 shrink-0" />
+                ) : nominatimQuery ? (
                   <button
                     type="button"
                     onClick={handleClearNominatimSearch}
-                    className="absolute right-2 p-0.5 rounded-full text-muted-foreground hover:text-white hover:bg-white/10 cursor-pointer"
+                    className="p-1 mr-2 text-muted-foreground hover:text-white rounded-lg hover:bg-white/10"
                     title="Limpiar búsqueda"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
-                )}
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleNominatimSearch()}
+                  disabled={isSearchingNominatim || !nominatimQuery.trim()}
+                  className="h-8 px-3 mr-1 bg-primary hover:bg-primary/90 text-white text-[10px] font-black uppercase rounded-xl shrink-0"
+                >
+                  Buscar
+                </Button>
               </div>
-              <Button
-                size="sm"
-                disabled={isSearchingNominatim || !nominatimQuery.trim()}
-                onClick={() => handleNominatimSearch()}
-                className="h-8 px-3 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-[10px] uppercase rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
-              >
-                {isSearchingNominatim ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  'Buscar'
-                )}
-              </Button>
+
+              {/* Resultados de Búsqueda Nominatim */}
+              {showNominatimResults && nominatimResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-[#151726]/95 border border-white/15 rounded-2xl backdrop-blur-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="p-2 border-b border-white/5 text-[9px] font-black text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                    <span>Resultados OpenStreetMap Nominatim</span>
+                    <span className="text-primary">{nominatimResults.length} encontrados</span>
+                  </div>
+                  <div className="divide-y divide-white/5">
+                    {nominatimResults.map((item) => (
+                      <button
+                        key={item.place_id}
+                        type="button"
+                        onClick={() => handleSelectNominatimLocation(item)}
+                        className="w-full text-left p-2.5 hover:bg-white/10 transition-colors flex items-start gap-2.5 group"
+                      >
+                        <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">
+                            {item.display_name.split(',')[0]}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground line-clamp-1">
+                            {item.display_name}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Dropdown de resultados de búsqueda Nominatim */}
-            {showNominatimResults && nominatimResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f101d]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl z-[500] max-h-72 overflow-y-auto space-y-1">
-                <div className="px-2.5 py-1 flex items-center justify-between text-[9px] font-black uppercase text-muted-foreground border-b border-white/5 pb-1.5">
-                  <span className="flex items-center gap-1 text-primary">
-                    <Globe className="h-3 w-3" />
-                    Resultados OpenStreetMap ({nominatimResults.length})
-                  </span>
-                  <button onClick={() => setShowNominatimResults(false)} className="text-muted-foreground hover:text-white cursor-pointer">
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-                {nominatimResults.map((item) => (
-                  <button
-                    key={item.place_id}
-                    type="button"
-                    onClick={() => handleSelectNominatimLocation(item)}
-                    className="w-full text-left p-2 hover:bg-white/5 rounded-xl transition-all flex items-start gap-2.5 group cursor-pointer"
-                  >
-                    <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-white group-hover:text-primary transition-colors line-clamp-1">
-                        {item.display_name.split(',')[0]}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5 leading-snug">
-                        {item.display_name}
-                      </p>
-                      <span className="text-[9px] font-mono text-emerald-400 mt-1 inline-block bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                        GPS: {parseFloat(item.lat).toFixed(4)}, {parseFloat(item.lon).toFixed(4)}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Banner de Pin Activo Centrado */}
-            {activeLocationPin && (
-              <div className="mt-2 bg-[#1e293b]/90 border border-blue-500/30 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg text-xs animate-in fade-in">
-                <div className="flex items-center gap-1.5 text-blue-300 truncate max-w-[230px]">
-                  <MapPin className="h-3.5 w-3.5 text-blue-400 shrink-0 animate-pulse" />
-                  <span className="truncate text-[11px] font-semibold">{activeLocationPin.name.split(',')[0]}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClearNominatimSearch}
-                  className="text-[10px] font-bold text-blue-200 hover:text-white underline ml-2 shrink-0 cursor-pointer"
-                >
-                  Quitar pin
-                </button>
-              </div>
-            )}
+            {/* Banner Orientativo para Asignación de Puestos */}
+            <div className="mt-2 hidden sm:flex items-center gap-1.5 bg-[#0b0c16]/80 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-lg text-[9px] text-slate-300 shadow-md">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping shrink-0" />
+              <span>Haz clic en el mapa para asignar coordenadas al puesto <strong>(GP-001 al GP-014)</strong></span>
+            </div>
           </div>
 
-          {/* Floating Controls y Selector de Capas flotante sobre el mapa */}
-          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-[400]">
-            {/* Selector de capas en mapa */}
-            <div className="flex items-center bg-[#0f101d]/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl">
-              <button
-                type="button"
-                onClick={() => handleTileSourceChange('osm')}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
-                  currentTileSource === 'osm'
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
-                }`}
-                title="Capa estándar OpenStreetMap"
-              >
-                <MapIcon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Normal</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTileSourceChange('satellite')}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
-                  currentTileSource === 'satellite'
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
-                }`}
-                title="Vista satelital gratuita Esri World Imagery"
-              >
-                <Satellite className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Satelital</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTileSourceChange('cartoDark')}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
-                  currentTileSource === 'cartoDark'
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
-                }`}
-                title="Modo oscuro CARTO Dark"
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Oscuro</span>
-              </button>
-            </div>
-
-            {/* Botones de acción de mapa */}
-            <div className="flex items-center gap-1.5">
-              <Button 
-                size="icon" 
-                variant="secondary" 
-                onClick={handleRecenter}
-                title="Centrar mapa en Panamá"
-                className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-9 w-9 rounded-xl shadow-lg cursor-pointer"
-              >
-                <Crosshair className="h-4 w-4" />
-              </Button>
-              <Button 
-                size="icon" 
-                variant="secondary" 
-                onClick={() => {
-                  if (mapRef.current) {
-                    mapRef.current.invalidateSize();
-                  }
-                }}
-                title="Recalcular dimensiones de mapa"
-                className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-9 w-9 rounded-xl shadow-lg cursor-pointer"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-            </div>
+          {/* Floating Controls */}
+          <div className="absolute top-6 right-6 flex flex-col gap-2 z-[400]">
+            <Button 
+              size="icon" 
+              variant="secondary" 
+              onClick={handleRecenter}
+              title="Centrar mapa en Panamá"
+              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg"
+            >
+              <Crosshair className="h-4 w-4" />
+            </Button>
+            <Button 
+              size="icon" 
+              variant="secondary" 
+              onClick={() => {
+                if (mapRef.current) {
+                  mapRef.current.invalidateSize();
+                }
+              }}
+              title="Recalcular dimensiones de mapa"
+              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Warning banner for tile errors */}
           {tileErrorCount > 0 && (
-            <div className="absolute top-20 left-4 z-[400] bg-red-500/90 text-white px-3 py-1.5 rounded-lg border border-red-300 text-[10px] font-bold flex items-center gap-2 shadow-xl backdrop-blur-md">
+            <div className="absolute top-6 left-6 z-[400] bg-red-500/90 text-white px-3 py-1.5 rounded-lg border border-red-300 text-[10px] font-bold flex items-center gap-2 shadow-xl backdrop-blur-md">
               <AlertTriangle className="h-3.5 w-3.5" />
-              <span>Advertencia: {tileErrorCount} petición(es) de tiles fallaron. Puedes alternar de capa.</span>
+              <span>Advertencia: {tileErrorCount} petición(es) de tiles fallaron. Puedes alternar a OSM Standard.</span>
             </div>
           )}
 
