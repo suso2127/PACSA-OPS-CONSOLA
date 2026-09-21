@@ -6,14 +6,15 @@ import { PinScreen } from '@/components/auth/PinScreen';
 import { AdminView } from '@/components/dashboard/AdminView';
 import { SupervisorView } from '@/components/dashboard/SupervisorView';
 import { GuardView } from '@/components/dashboard/GuardView';
-import { LogOut, LayoutDashboard, Shield, Bell, Clock, Activity, AlertTriangle } from 'lucide-react';
+import { LogOut, LayoutDashboard, Shield, Bell, Clock, Activity, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toaster';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 type Role = 'Admin' | 'Supervisor' | 'Guard';
 
@@ -22,6 +23,9 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState<string | null>(null);
   const [deficits, setDeficits] = useState<{name: string, count: number, required: number, onSite: number, status: 'uncovered' | 'partial'}[]>([]);
   const prevDeficitCount = useRef(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { toast } = useToast();
 
   useEffect(() => {
     const updateTime = () => {
@@ -114,7 +118,51 @@ export default function Home() {
     });
 
     return () => unsubProjects();
-  }, [role]);
+  }, [role, refreshKey]);
+
+  const handleRefreshSystem = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      // Forzar lectura activa de colecciones clave en Firestore para verificar conectividad y actualizar caché
+      const collectionsToPing = ['projects', 'shift-registrations', 'novedades', 'active_units'];
+      await Promise.all([
+        ...collectionsToPing.map(colName => getDocs(query(collection(db, colName), limit(1)))),
+        // Breve retardo para garantizar que las suscripciones reconecten y el usuario aprecie el estado visual
+        new Promise(resolve => setTimeout(resolve, 800))
+      ]);
+
+      // Incrementar refreshKey para actualizar todas las vistas hijas sin recargar la página completa
+      setRefreshKey(prev => prev + 1);
+
+      const nowTime = new Date().toLocaleTimeString('es-MX', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit',
+        hour12: false 
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('system-refresh', { detail: { timestamp: Date.now() } }));
+      }
+
+      toast({
+        title: "SISTEMA ACTUALIZADO",
+        description: `Datos en tiempo real sincronizados exitosamente con Firestore (${nowTime}).`,
+        duration: 3500,
+      });
+    } catch (error) {
+      console.error("Error al sincronizar con Firestore:", error);
+      toast({
+        title: "ERROR DE ACTUALIZACIÓN",
+        description: "No se pudo sincronizar con Firestore. Verifique su conexión de red.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const playAlarm = () => {
     try {
@@ -174,7 +222,25 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Botón Actualizar Sistema */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshSystem}
+            disabled={isRefreshing}
+            className={cn(
+              "relative font-black uppercase text-[10px] tracking-wider transition-all duration-300 border h-9 px-3",
+              "bg-cyan-950/30 text-cyan-400 border-cyan-500/40 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/70 shadow-[0_0_15px_rgba(6,182,212,0.15)]",
+              isRefreshing && "opacity-75 cursor-not-allowed border-cyan-400"
+            )}
+            title="Recargar todos los datos en tiempo real desde Firestore sin recargar la página"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5 shrink-0 transition-transform", isRefreshing && "animate-spin text-cyan-300")} />
+            <span className="hidden sm:inline">{isRefreshing ? "Actualizando..." : "Actualizar Sistema"}</span>
+            <span className="sm:hidden">{isRefreshing ? "..." : "Actualizar"}</span>
+          </Button>
+
           {/* Campana de Notificaciones con Alerta de Cobertura */}
           <Popover>
             <PopoverTrigger asChild>
@@ -270,6 +336,14 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Indicador de carga mientras se actualizan los datos */}
+      {isRefreshing && (
+        <div className="w-full bg-cyan-950/90 border-b border-cyan-500/40 px-6 py-2 flex items-center justify-center gap-2.5 text-cyan-300 text-[11px] font-black uppercase tracking-widest animate-pulse z-40 sticky top-[73px] shadow-lg backdrop-blur-sm">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+          <span>Sincronizando y recargando datos en tiempo real desde Firestore...</span>
+        </div>
+      )}
+
       {/* Área de Contenido Principal */}
       <main className="flex-1 p-6 md:p-10 max-w-[1600px] mx-auto w-full">
         <div className="flex items-center gap-3 mb-8">
@@ -281,9 +355,9 @@ export default function Home() {
           </h2>
         </div>
 
-        {role === 'Admin' && <AdminView />}
-        {role === 'Supervisor' && <SupervisorView />}
-        {role === 'Guard' && <GuardView />}
+        {role === 'Admin' && <AdminView refreshKey={refreshKey} />}
+        {role === 'Supervisor' && <SupervisorView refreshKey={refreshKey} />}
+        {role === 'Guard' && <GuardView key={refreshKey} />}
       </main>
 
       {/* Pie de Página */}

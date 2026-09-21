@@ -5,9 +5,9 @@ import React from 'react';
 import { ShiftTable } from './ShiftTable';
 import { Eye, AlertTriangle } from 'lucide-react';
 
-export function SupervisorView() {
+export function SupervisorView({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
-    <div className="space-y-8 animate-in slide-in-from-bottom-2 duration-500">
+    <div key={refreshKey} className="space-y-8 animate-in slide-in-from-bottom-2 duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="dashboard-card flex items-center justify-between border-l-4 border-l-accent">
           <div>

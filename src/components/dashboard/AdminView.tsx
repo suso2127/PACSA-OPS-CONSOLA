@@ -44,7 +44,11 @@ import { useToast } from '@/hooks/use-toast';
 type AdminTab = 'dashboard' | 'registro' | 'estado' | 'planificacion' | 'novedades' | 'dobles' | 'estadistica' | 'mapa' | 'historial' | 'planilla';
 type RegistroSubTab = 'guardia' | 'proyecto' | 'dotacion' | 'emergencia' | 'config';
 
-export function AdminView() {
+interface AdminViewProps {
+  refreshKey?: number;
+}
+
+export function AdminView({ refreshKey = 0 }: AdminViewProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [activeRegistroSubTab, setActiveRegistroSubTab] = useState<RegistroSubTab>('guardia');
   const [configPass, setConfigPass] = useState('');
@@ -107,7 +111,7 @@ export function AdminView() {
       </div>
 
       {/* Contenido Dinámico */}
-      <div className="animate-in fade-in duration-300">
+      <div key={refreshKey} className="animate-in fade-in duration-300">
         {activeTab === 'dashboard' && <OperationalDashboard />}
         
         {activeTab === 'registro' && (
