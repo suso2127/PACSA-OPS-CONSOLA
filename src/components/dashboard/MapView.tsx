@@ -11,6 +11,7 @@ import {
   Search,
   Crosshair,
   Maximize2,
+  Minimize2,
   Shield,
   Activity,
   AlertTriangle,
@@ -50,6 +51,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 interface Project {
   id: string;
@@ -195,6 +197,80 @@ export function MapView() {
   const [showProjects, setShowProjects] = useState(true);
   const [showGuards, setShowGuards] = useState(true);
   const [showVehicles, setShowVehicles] = useState(true);
+
+  // Fullscreen Mode State & Handlers
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const isFullscreenRef = useRef(isFullscreen);
+  const toggleFullscreenRef = useRef<() => void>(() => {});
+
+  const toggleFullscreen = () => {
+    setIsFullscreen((prev) => {
+      const nextState = !prev;
+      try {
+        if (nextState) {
+          if (document.fullscreenEnabled && !document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.().catch(() => {});
+          }
+        } else {
+          if (document.fullscreenElement) {
+            document.exitFullscreen?.().catch(() => {});
+          }
+        }
+      } catch {
+        // Fallback gracefully for iframe sandboxes
+      }
+      return nextState;
+    });
+  };
+
+  useEffect(() => {
+    isFullscreenRef.current = isFullscreen;
+    toggleFullscreenRef.current = toggleFullscreen;
+  }, [isFullscreen]);
+
+  // Tecla ESC para volver al tamaño normal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreenRef.current) {
+        e.preventDefault();
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Sincronizar evento nativo de fullscreen del navegador
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isFullscreenRef.current) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Recalcular dimensiones del mapa Leaflet al cambiar a/de pantalla completa
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    const timers = [
+      setTimeout(() => mapRef.current?.invalidateSize(), 50),
+      setTimeout(() => mapRef.current?.invalidateSize(), 150),
+      setTimeout(() => mapRef.current?.invalidateSize(), 300),
+      setTimeout(() => mapRef.current?.invalidateSize(), 550),
+    ];
+
+    return () => {
+      document.body.style.overflow = '';
+      timers.forEach(clearTimeout);
+    };
+  }, [isFullscreen]);
 
   // Local Device GPS Transmitting State
   const [isGpsTransmitting, setIsGpsTransmitting] = useState(false);
@@ -765,33 +841,9 @@ export function MapView() {
         setTileErrorCount(prev => prev + 1);
       });
 
-      // Evento de clic en cualquier punto del mapa para guardar ubicación de puesto
-      map.on('click', (e: any) => {
-        const lat = e.latlng.lat;
-        const lng = e.latlng.lng;
-        const currentL = leafletLRef.current;
-        if (!currentL) return;
-
-        const content = createMapClickPopup(
-          lat,
-          lng,
-          projectsRef.current,
-          async (chosenCode, clickLat, clickLng) => {
-            await handleSavePostLocation(chosenCode, clickLat, clickLng);
-          }
-        );
-
-        const popup = currentL.popup({
-          minWidth: 260,
-          maxWidth: 320,
-          className: 'pacsa-click-popup'
-        })
-          .setLatLng([lat, lng])
-          .setContent(content)
-          .openOn(map);
-
-        mapClickPopupRef.current = popup;
-        setClickedMapCoords({ lat, lng });
+      // Evento de clic en el mapa para expandir a pantalla completa o volver al tamaño normal
+      map.on('click', () => {
+        toggleFullscreenRef.current();
       });
 
       // Ensure map dimensions settle and call invalidateSize()
@@ -1100,7 +1152,10 @@ export function MapView() {
         opacity: 0.98
       });
 
-      marker.on('click', () => {
+      marker.on('click', (e: any) => {
+        if (e && e.originalEvent) {
+          L.DomEvent.stopPropagation(e.originalEvent);
+        }
         setSelectedProject(project);
         setSelectedUnit(null);
         map.flyTo(coords, 14, { duration: 0.8 });
@@ -1205,7 +1260,10 @@ export function MapView() {
 
       const marker = L.marker([unit.lat, unit.lng], { icon: customIcon }).addTo(map);
 
-      marker.on('click', () => {
+      marker.on('click', (e: any) => {
+        if (e && e.originalEvent) {
+          L.DomEvent.stopPropagation(e.originalEvent);
+        }
         setSelectedUnit(unit);
         setSelectedProject(null);
         map.flyTo([unit.lat, unit.lng], 15, { duration: 0.8 });
@@ -1609,6 +1667,22 @@ export function MapView() {
             <Crosshair className="h-3 w-3 mr-1" />
             Ajustar a Panamá
           </Button>
+
+          <Button
+            size="sm"
+            variant={isFullscreen ? 'default' : 'outline'}
+            onClick={toggleFullscreen}
+            className={cn(
+              "text-[10px] font-black uppercase h-7 px-3 rounded-lg border-white/10 transition-all cursor-pointer",
+              isFullscreen 
+                ? "bg-cyan-500 text-black hover:bg-cyan-400 font-black shadow-[0_0_15px_rgba(6,182,212,0.4)]" 
+                : "text-cyan-400 hover:text-cyan-300 border-cyan-500/40 hover:bg-cyan-950/40"
+            )}
+            title={isFullscreen ? "Salir de pantalla completa (ESC)" : "Expandir mapa a pantalla completa"}
+          >
+            {isFullscreen ? <Minimize2 className="h-3 w-3 mr-1" /> : <Maximize2 className="h-3 w-3 mr-1" />}
+            {isFullscreen ? "Salir de Pantalla Completa (ESC)" : "Pantalla Completa"}
+          </Button>
         </div>
       </div>
 
@@ -1798,12 +1872,23 @@ export function MapView() {
         </div>
 
         {/* Contenedor Principal del Mapa Leaflet */}
-        <div className="lg:col-span-9 bg-[#1a1b2e] border border-white/5 rounded-3xl overflow-hidden relative group">
+        <div 
+          className={cn(
+            "transition-all duration-300 relative group overflow-hidden",
+            isFullscreen 
+              ? "fixed inset-0 z-[99999] w-screen h-screen bg-[#0b0c16] rounded-none border-none m-0 p-0" 
+              : "lg:col-span-9 bg-[#1a1b2e] border border-white/5 rounded-3xl h-[720px] lg:h-full"
+          )}
+        >
           {/* Div Leaflet */}
           <div ref={mapContainerRef} className="w-full h-full z-0" />
 
           {/* Campo de Búsqueda de Ubicaciones con Nominatim de OpenStreetMap */}
-          <div ref={searchBoxRef} className="absolute top-4 left-4 z-[400] w-72 sm:w-96 max-w-[calc(100%-120px)]">
+          <div 
+            ref={searchBoxRef} 
+            className="absolute top-4 left-4 z-[400] w-72 sm:w-96 max-w-[calc(100%-120px)]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="relative shadow-2xl">
               <div className="relative flex items-center bg-[#151726]/95 border border-white/15 rounded-2xl backdrop-blur-md overflow-hidden focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
                 <Search className="h-4 w-4 text-primary ml-3.5 shrink-0" />
@@ -1877,36 +1962,106 @@ export function MapView() {
               )}
             </div>
 
-            {/* Banner Orientativo para Asignación de Puestos */}
+            {/* Banner Orientativo Pantalla Completa */}
             <div className="mt-2 hidden sm:flex items-center gap-1.5 bg-[#0b0c16]/80 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-lg text-[9px] text-slate-300 shadow-md">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping shrink-0" />
-              <span>Haz clic en el mapa para asignar coordenadas al puesto <strong>(GP-001 al GP-014)</strong></span>
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <span>Haz clic en el mapa o en el botón para <strong>Pantalla Completa</strong></span>
             </div>
           </div>
 
+          {/* Indicador Flotante Superior en Pantalla Completa */}
+          {isFullscreen && (
+            <div 
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-[450] animate-in fade-in slide-in-from-top-3 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFullscreen();
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#151726]/95 border border-cyan-500/50 text-cyan-300 text-xs font-black uppercase tracking-wider shadow-2xl backdrop-blur-md hover:bg-cyan-950/90 hover:border-cyan-400 hover:text-white transition-all cursor-pointer group"
+                title="Salir de pantalla completa (o presiona ESC o haz clic en el mapa)"
+              >
+                <Minimize2 className="h-4 w-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+                <span>Salir de Pantalla Completa</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-white font-mono border border-white/20">ESC</span>
+              </button>
+            </div>
+          )}
+
+          {/* Filtros Flotantes en Pantalla Completa */}
+          {isFullscreen && (
+            <div 
+              className="absolute top-4 right-20 z-[400] hidden md:flex items-center gap-2 bg-[#151726]/90 backdrop-blur-md border border-white/15 p-1.5 rounded-2xl shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button
+                size="sm"
+                variant={showGuards ? 'default' : 'ghost'}
+                onClick={() => setShowGuards(!showGuards)}
+                className="text-[9px] font-black uppercase h-7 px-2.5 rounded-xl cursor-pointer"
+              >
+                <User className="h-3 w-3 mr-1 text-blue-400" />
+                Guardias ({activeGuardsCount})
+              </Button>
+              <Button
+                size="sm"
+                variant={showVehicles ? 'default' : 'ghost'}
+                onClick={() => setShowVehicles(!showVehicles)}
+                className="text-[9px] font-black uppercase h-7 px-2.5 rounded-xl cursor-pointer"
+              >
+                <Bike className="h-3 w-3 mr-1 text-amber-400" />
+                Vehículos ({activeVehiclesCount})
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleFitPanamaBounds}
+                className="text-[9px] font-black uppercase h-7 px-2.5 rounded-xl text-primary hover:bg-primary/10 cursor-pointer"
+              >
+                <Crosshair className="h-3 w-3 mr-1" />
+                Ajustar
+              </Button>
+            </div>
+          )}
+
           {/* Floating Controls */}
-          <div className="absolute top-6 right-6 flex flex-col gap-2 z-[400]">
+          <div 
+            className="absolute top-6 right-6 flex flex-col gap-2 z-[400]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <Button 
               size="icon" 
               variant="secondary" 
-              onClick={handleRecenter}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRecenter();
+              }}
               title="Centrar mapa en Panamá"
-              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg"
+              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg cursor-pointer"
             >
               <Crosshair className="h-4 w-4" />
             </Button>
+            
+            {/* Botón Pantalla Completa */}
             <Button 
               size="icon" 
               variant="secondary" 
-              onClick={() => {
-                if (mapRef.current) {
-                  mapRef.current.invalidateSize();
-                }
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFullscreen();
               }}
-              title="Recalcular dimensiones de mapa"
-              className="bg-[#25273c]/90 backdrop-blur-md border-white/10 hover:bg-primary hover:text-primary-foreground h-10 w-10 shadow-lg"
+              title={isFullscreen ? "Salir de pantalla completa (ESC)" : "Pantalla completa"}
+              className={cn(
+                "backdrop-blur-md border h-10 w-10 shadow-xl transition-all duration-300 cursor-pointer",
+                isFullscreen 
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 hover:text-white" 
+                  : "bg-[#25273c]/90 text-cyan-400 border-cyan-500/40 hover:bg-primary hover:text-primary-foreground"
+              )}
             >
-              <Maximize2 className="h-4 w-4" />
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
           </div>
 
@@ -1920,8 +2075,19 @@ export function MapView() {
 
           {/* Card Detalle del Proyecto Seleccionado */}
           {selectedProject && (
-            <div className="absolute bottom-6 left-6 right-6 z-[400] bg-[#0f101d]/95 border border-primary/30 backdrop-blur-xl rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div 
+              className="absolute bottom-6 left-6 right-6 z-[400] bg-[#0f101d]/95 border border-primary/30 backdrop-blur-xl rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-500"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedProject(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 cursor-pointer"
+                title="Cerrar detalle"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pr-6">
                 <div className="flex items-start gap-4">
                   <div className={`p-4 rounded-xl border ${
                     projectStatus[selectedProject.id]?.status === 'green' ? 'bg-green-500/10 border-green-500/20 text-green-500' :
@@ -2002,8 +2168,19 @@ export function MapView() {
 
           {/* Card Detalle de Unidad GPS Seleccionada */}
           {selectedUnit && (
-            <div className="absolute bottom-6 left-6 right-6 z-[400] bg-[#0f101d]/95 border border-blue-500/40 backdrop-blur-xl rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div 
+              className="absolute bottom-6 left-6 right-6 z-[400] bg-[#0f101d]/95 border border-blue-500/40 backdrop-blur-xl rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-500"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedUnit(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 cursor-pointer"
+                title="Cerrar detalle"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pr-6">
                 <div className="flex items-start gap-4">
                   <div className={`p-4 rounded-xl border ${
                     selectedUnit.type === 'guard' ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' :
