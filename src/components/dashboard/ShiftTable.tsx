@@ -461,7 +461,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
     setSavingNewShift(true);
     try {
-      const code = newProjectCode.trim().toUpperCase();
+      let code = newProjectCode.trim().toUpperCase();
+      if (/^[a-zA-Z0-9]{20}$/.test(code)) {
+        const matched = projects.find(p => p.id === code);
+        if (matched && matched.code) code = matched.code.toUpperCase();
+      }
       const name = (newProjectName.trim() || code).toUpperCase();
       const isDouble = newDuration === '24h';
 
@@ -566,7 +570,11 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
 
     setSavingEdit(true);
     try {
-      const code = editForm.projectCode.trim().toUpperCase();
+      let code = editForm.projectCode.trim().toUpperCase();
+      if (/^[a-zA-Z0-9]{20}$/.test(code)) {
+        const matched = projects.find(p => p.id === code);
+        if (matched && matched.code) code = matched.code.toUpperCase();
+      }
       const pName = (editForm.projectName.trim() || code).toUpperCase();
       const cName = (editForm.clientName.trim() || pName).toUpperCase();
 

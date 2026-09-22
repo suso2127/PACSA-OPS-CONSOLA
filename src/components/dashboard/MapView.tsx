@@ -323,7 +323,7 @@ export function MapView() {
           projectMap.set(key, p);
         } else {
           const existing = projectMap.get(key)!;
-          if (!existing.planilla_semanal && (p as any).planilla_semanal) {
+          if (!(existing as any).planilla_semanal && (p as any).planilla_semanal) {
             projectMap.set(key, p);
           }
         }

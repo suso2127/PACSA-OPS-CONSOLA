@@ -83,10 +83,15 @@ export function GuardView() {
   useEffect(() => {
     const q = query(collection(db, 'projects'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      })) as ProjectData[];
+      const fetched = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        const cleanCode = (data.code || (docSnap.id.startsWith('GP-') ? docSnap.id : '') || (!/^[a-zA-Z0-9]{20}$/.test(docSnap.id) ? docSnap.id : '') || '').trim().toUpperCase();
+        return {
+          id: docSnap.id,
+          ...data,
+          code: cleanCode || data.code || docSnap.id
+        };
+      }) as ProjectData[];
 
       setProjects(fetched);
 
