@@ -63,6 +63,7 @@ export function GuardRegistrationForm() {
   const [activeCollaborators, setActiveCollaborators] = useState<ActiveCollaborator[]>([]);
   const [showColabDropdown, setShowColabDropdown] = useState(false);
   const colabDropdownRef = useRef<HTMLDivElement>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     let empsDocs: any[] = [];
@@ -285,6 +286,7 @@ export function GuardRegistrationForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!formData.guardName || !formData.projectCode) {
       toast({
         title: "INFORMACIÓN FALTANTE",
@@ -294,6 +296,7 @@ export function GuardRegistrationForm() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       await addDoc(collection(db, 'shift-registrations'), {
@@ -325,6 +328,7 @@ export function GuardRegistrationForm() {
         variant: "destructive"
       });
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   };
@@ -342,6 +346,8 @@ export function GuardRegistrationForm() {
       return;
     }
 
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const guardNameUpper = formData.guardName.trim().toUpperCase();
@@ -400,6 +406,7 @@ export function GuardRegistrationForm() {
         variant: "destructive"
       });
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   };
