@@ -83,7 +83,24 @@ export default function Home() {
     };
 
     const unsubProjects = onSnapshot(collection(db, 'projects'), (projectSnap) => {
-      const projects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const rawProjects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const projectMap = new Map<string, any>();
+      rawProjects.forEach((p: any) => {
+        const pCode = (p.code || (p.id?.startsWith('GP-') ? p.id : '') || '').trim().toUpperCase();
+        const pName = (p.name || p.nombre || '').trim().toUpperCase();
+        const key = pCode || pName || p.id;
+        if (!projectMap.has(key)) {
+          projectMap.set(key, p);
+        } else {
+          const existing = projectMap.get(key);
+          const existingHasPlanilla = !!(existing.planilla_semanal || existing.requirements);
+          const currentHasPlanilla = !!(p.planilla_semanal || p.requirements);
+          if (!existingHasPlanilla && currentHasPlanilla) {
+            projectMap.set(key, p);
+          }
+        }
+      });
+      const projects = Array.from(projectMap.values());
       
       const unsubShifts = onSnapshot(collection(db, 'shift-registrations'), (shiftSnap) => {
         const rawShifts = shiftSnap.docs.map(doc => doc.data() as any);

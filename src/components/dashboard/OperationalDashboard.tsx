@@ -104,7 +104,28 @@ export function OperationalDashboard() {
 
     // Escucha en tiempo real de proyectos para obtener requerimientos
     const unsubProjects = onSnapshot(collection(db, 'projects'), (projectSnap) => {
-      const projects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const rawProjects = projectSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      
+      // Deduplicar puestos estrictamente para evitar puestos duplicados en el dashboard
+      const projectMap = new Map<string, any>();
+      rawProjects.forEach(p => {
+        const pCode = (p.code || (p.id?.startsWith('GP-') ? p.id : '') || '').trim().toUpperCase();
+        const pName = (p.name || p.nombre || '').trim().toUpperCase();
+        const key = pCode || pName || p.id;
+        
+        if (!projectMap.has(key)) {
+          projectMap.set(key, p);
+        } else {
+          // Si ya existe, conservar el que tenga mayor información (planilla_semanal o requerimientos)
+          const existing = projectMap.get(key);
+          const existingHasPlanilla = !!(existing.planilla_semanal || existing.requirements);
+          const currentHasPlanilla = !!(p.planilla_semanal || p.requirements);
+          if (!existingHasPlanilla && currentHasPlanilla) {
+            projectMap.set(key, p);
+          }
+        }
+      });
+      const projects = Array.from(projectMap.values());
       
       // Escucha en tiempo real de registros de turno (Comando Operaciones)
       const unsubShifts = onSnapshot(collection(db, 'shift-registrations'), (shiftSnap) => {
@@ -117,8 +138,13 @@ export function OperationalDashboard() {
         let totalReq = 0;
         let activeCount = 0;
         let doubleCount = 0;
+        const processedPostKeys = new Set<string>();
 
         projects.forEach(p => {
+          const postKey = (p.code || p.name || p.id || '').trim().toUpperCase();
+          if (processedPostKeys.has(postKey)) return;
+          processedPostKeys.add(postKey);
+
           const req = Number(p.requirements?.[dayKey] ?? p.planilla_semanal?.[dayKey]?.elementos ?? p.planilla_semanal?.[dayKey]?.elms ?? 0);
           totalReq += req;
           

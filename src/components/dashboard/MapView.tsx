@@ -311,13 +311,24 @@ export function MapView() {
 
   useEffect(() => {
     // 1. Escuchar proyectos desde Firestore
-    const qProjects = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
-    const unsubProjects = onSnapshot(qProjects, (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Project[];
-      setProjects(fetched);
+    const unsubProjects = onSnapshot(collection(db, 'projects'), (snapshot) => {
+      const projectMap = new Map<string, Project>();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const code = (data.code || (doc.id.startsWith('GP-') ? doc.id : '') || '').trim().toUpperCase();
+        const name = (data.name || data.nombre || '').trim().toUpperCase();
+        const key = code || name || doc.id;
+        const p = { id: doc.id, ...data, code: code || data.code } as Project;
+        if (!projectMap.has(key)) {
+          projectMap.set(key, p);
+        } else {
+          const existing = projectMap.get(key)!;
+          if (!existing.planilla_semanal && (p as any).planilla_semanal) {
+            projectMap.set(key, p);
+          }
+        }
+      });
+      setProjects(Array.from(projectMap.values()));
       setLoading(false);
     }, (error) => {
       console.warn('Error fetching projects from Firestore:', error);

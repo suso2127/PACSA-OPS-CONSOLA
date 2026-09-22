@@ -190,16 +190,22 @@ export function ShiftTable({ showObservations = false, hideExitTime = false }: S
   // Cargar catálogo de proyectos en tiempo real
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'projects'), (snapshot) => {
-      const list = snapshot.docs.map(d => {
+      const projectMap = new Map<string, { id: string; code: string; name: string; location: string }>();
+      snapshot.docs.forEach(d => {
         const data = d.data();
-        return {
-          id: d.id,
-          code: data.code || '',
-          name: data.name || '',
-          location: data.location || ''
-        };
+        const code = (data.code || (d.id.startsWith('GP-') ? d.id : '') || '').trim().toUpperCase();
+        const name = (data.name || data.nombre || '').trim().toUpperCase();
+        const key = code || name || d.id;
+        if (!projectMap.has(key)) {
+          projectMap.set(key, {
+            id: d.id,
+            code: code || data.code || '',
+            name: data.name || data.nombre || '',
+            location: data.location || ''
+          });
+        }
       });
-      setProjects(list);
+      setProjects(Array.from(projectMap.values()));
     });
     return () => unsub();
   }, []);

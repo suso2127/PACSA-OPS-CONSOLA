@@ -1,8 +1,8 @@
 
 "use client"
 
-import React, { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,6 +115,7 @@ export function ProjectManagement() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const { toast } = useToast();
+  const isSubmittingRef = useRef(false);
   
   const [formData, setFormData] = useState({
     code: '',
@@ -132,10 +133,14 @@ export function ProjectManagement() {
   const hourOptions = Array.from({ length: 24 }, (_, i) => `${i + 1}h`);
 
   useEffect(() => {
-    const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedProjects = snapshot.docs.map(docSnap => {
+    const unsubscribe = onSnapshot(collection(db, 'projects'), (snapshot) => {
+      const projectMap = new Map<string, Project>();
+      snapshot.docs.forEach(docSnap => {
         const data = docSnap.data();
+        const code = (data.code || (docSnap.id.startsWith('GP-') ? docSnap.id : '') || '').trim().toUpperCase();
+        const name = (data.name || data.nombre || '').trim().toUpperCase();
+        const key = code || name || docSnap.id;
+        
         const pSem = data.planilla_semanal;
         
         const requirements = data.requirements || (pSem ? {
@@ -158,15 +163,27 @@ export function ProjectManagement() {
           dom: pSem.dom?.horas || pSem.dom?.hrs || '12h',
         } : { lun: '12h', mar: '12h', mie: '12h', jue: '12h', vie: '12h', sab: '12h', dom: '12h' });
 
-        return {
+        const projectItem = {
           id: docSnap.id,
           ...data,
+          code: code || data.code,
           requirements,
           shiftHours,
           planilla_semanal: pSem
-        };
-      }) as Project[];
-      setProjects(fetchedProjects);
+        } as Project;
+
+        if (!projectMap.has(key)) {
+          projectMap.set(key, projectItem);
+        } else {
+          const existing = projectMap.get(key)!;
+          if (!existing.planilla_semanal && pSem) {
+            projectMap.set(key, projectItem);
+          }
+        }
+      });
+      const list = Array.from(projectMap.values());
+      list.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+      setProjects(list);
     });
     return () => unsubscribe();
   }, []);
@@ -254,6 +271,7 @@ export function ProjectManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!formData.code || !formData.name) {
       toast({
         title: "Campos Requeridos",
@@ -263,22 +281,39 @@ export function ProjectManagement() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
+      const codeUpper = formData.code.trim().toUpperCase();
+
+      // Validar que no exista un puesto duplicado con el mismo código
+      const qExisting = query(collection(db, 'projects'), where('code', '==', codeUpper));
+      const snapExisting = await getDocs(qExisting);
+      if (!snapExisting.empty) {
+        toast({
+          title: "PUESTO YA REGISTRADO",
+          description: `Ya existe un puesto registrado con el código ${codeUpper}. No se permiten puestos duplicados.`,
+          variant: "destructive"
+        });
+        isSubmittingRef.current = false;
+        setLoading(false);
+        return;
+      }
+
       const planilla_semanal = buildPlanillaSemanal(formData.requirements, formData.shiftHours);
 
       await addDoc(collection(db, 'projects'), {
         ...formData,
         planilla_semanal,
         isActive: true,
-        code: formData.code.trim().toUpperCase(),
+        code: codeUpper,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       
       toast({
         title: "PROYECTO Y PLANILLA GUARDADOS",
-        description: `El proyecto ${formData.code.trim().toUpperCase()} y su planilla semanal han sido registrados exitosamente en Firestore.`
+        description: `El proyecto ${codeUpper} y su planilla semanal han sido registrados exitosamente en Firestore.`
       });
       
       setFormData({
@@ -296,6 +331,7 @@ export function ProjectManagement() {
         variant: "destructive"
       });
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   };
