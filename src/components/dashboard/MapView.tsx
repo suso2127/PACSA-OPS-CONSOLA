@@ -114,8 +114,8 @@ export interface NominatimResult {
 
 export type TileSourceKey = 'osm' | 'satellite' | 'cartoDark';
 
-// Códigos de puestos configurables: GP-001 al GP-014
-const POST_CODES = Array.from({ length: 14 }, (_, i) => `GP-${String(i + 1).padStart(3, '0')}`);
+// Códigos de puestos configurables: GP-001 al GP-025
+const POST_CODES = Array.from({ length: 25 }, (_, i) => `GP-${String(i + 1).padStart(3, '0')}`);
 
 // Default Center: Panama City, Panama
 const PANAMA_CENTER: [number, number] = [8.9824, -79.5199];
@@ -661,6 +661,7 @@ export function MapView() {
   }, [projects]);
 
   // Creador del contenido del popup interactivo al hacer clic en el mapa
+  // Creador del contenido del popup interactivo al hacer clic en el mapa
   const createMapClickPopup = (
     lat: number,
     lng: number,
@@ -669,58 +670,61 @@ export function MapView() {
   ) => {
     const container = document.createElement('div');
     container.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    container.style.padding = '4px';
+    container.style.padding = '4px 6px';
     container.style.color = '#f8fafc';
-    container.style.minWidth = '250px';
+    container.style.minWidth = '260px';
 
     container.innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-        <span style="background: #2563eb; color: #fff; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;">PACSA GPS</span>
-        <span style="font-size: 10px; font-weight: 800; color: #38bdf8; text-transform: uppercase;">Guardar Puesto</span>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.12);">
+        <span style="background: #2563eb; color: #fff; font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.05em;">PACSA GPS</span>
+        <span style="font-size: 11px; font-weight: 800; color: #38bdf8; text-transform: uppercase;">Guardar Puesto</span>
       </div>
-      <div style="background: #090a14; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px; font-family: monospace; font-size: 11px; color: #38bdf8; line-height: 1.3;">
-        <div><strong>Lat:</strong> ${lat.toFixed(6)}</div>
-        <div><strong>Lng:</strong> ${lng.toFixed(6)}</div>
+      <div style="background: #090a14; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.25); margin-bottom: 10px; font-family: monospace; font-size: 11px; color: #38bdf8; line-height: 1.4;">
+        <div style="display: flex; justify-content: space-between;"><strong>Latitud:</strong> <span>${lat.toFixed(6)}</span></div>
+        <div style="display: flex; justify-content: space-between;"><strong>Longitud:</strong> <span>${lng.toFixed(6)}</span></div>
       </div>
-      <label style="display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px;">
-        Código del Puesto (GP-001 al GP-014):
+      <label style="display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 5px;">
+        Código del Puesto (GP-001 al GP-025):
       </label>
     `;
 
     const select = document.createElement('select');
+    select.id = 'select-post-code-popup';
     select.style.width = '100%';
     select.style.background = '#151726';
     select.style.color = '#ffffff';
-    select.style.border = '1px solid rgba(255,255,255,0.2)';
-    select.style.borderRadius = '6px';
-    select.style.padding = '6px 8px';
-    select.style.fontSize = '11px';
+    select.style.border = '1px solid rgba(255,255,255,0.25)';
+    select.style.borderRadius = '8px';
+    select.style.padding = '8px 10px';
+    select.style.fontSize = '12px';
     select.style.fontWeight = '700';
-    select.style.marginBottom = '10px';
+    select.style.marginBottom = '12px';
     select.style.outline = 'none';
 
     POST_CODES.forEach((code) => {
-      const p = currentProjects.find(item => item.code?.toUpperCase() === code);
+      const p = currentProjects.find(item => item.code?.toUpperCase() === code || item.id?.toUpperCase() === code);
       const opt = document.createElement('option');
       opt.value = code;
-      opt.textContent = p?.name ? `${code} - ${p.name}` : `${code}`;
+      opt.textContent = p?.name ? `${code} — ${p.name}` : `${code}`;
       select.appendChild(opt);
     });
     container.appendChild(select);
 
     const btn = document.createElement('button');
+    btn.id = 'btn-save-post-location';
     btn.textContent = 'Guardar ubicación del puesto';
     btn.style.width = '100%';
     btn.style.background = '#2563eb';
     btn.style.color = '#ffffff';
     btn.style.border = 'none';
     btn.style.borderRadius = '8px';
-    btn.style.padding = '8px 10px';
+    btn.style.padding = '9px 12px';
     btn.style.fontSize = '11px';
     btn.style.fontWeight = '800';
     btn.style.textTransform = 'uppercase';
+    btn.style.letterSpacing = '0.04em';
     btn.style.cursor = 'pointer';
-    btn.style.boxShadow = '0 2px 8px rgba(37, 99, 235, 0.4)';
+    btn.style.boxShadow = '0 4px 14px rgba(37, 99, 235, 0.4)';
     btn.style.transition = 'all 0.2s ease';
 
     btn.onmouseover = () => { btn.style.background = '#1d4ed8'; };
@@ -763,6 +767,8 @@ export function MapView() {
         await updateDoc(targetDocRef, {
           latitude: latNum,
           longitude: lngNum,
+          lat: latNum,
+          lng: lngNum,
           mappedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -772,23 +778,46 @@ export function MapView() {
           description: `Puesto ${formattedCode} (${pData.name || 'Puesto'}) asignado a [${latNum}, ${lngNum}].`
         });
       } else {
-        // 2. Si no existe documento con ese código, crearlo en Firestore
-        await addDoc(collection(db, 'projects'), {
-          code: formattedCode,
-          name: `PUESTO ${formattedCode}`,
-          location: 'Panamá',
-          latitude: latNum,
-          longitude: lngNum,
-          isActive: true,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          mappedAt: serverTimestamp()
-        });
+        // 2. Verificar si el documento existe directamente por su ID (ej. documento con ID 'GP-001')
+        const directDocRef = doc(db, 'projects', formattedCode);
+        const directSnap = await getDoc(directDocRef);
 
-        toast({
-          title: "PUESTO CREADO Y GUARDADO",
-          description: `Nuevo puesto ${formattedCode} registrado y asignado a [${latNum}, ${lngNum}].`
-        });
+        if (directSnap.exists()) {
+          const pData = directSnap.data();
+          await updateDoc(directDocRef, {
+            latitude: latNum,
+            longitude: lngNum,
+            lat: latNum,
+            lng: lngNum,
+            mappedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+
+          toast({
+            title: "UBICACIÓN GUARDADA",
+            description: `Puesto ${formattedCode} (${pData.name || 'Puesto'}) asignado a [${latNum}, ${lngNum}].`
+          });
+        } else {
+          // 3. Si no existe documento con ese código, crearlo en Firestore con ID formattedCode
+          await setDoc(directDocRef, {
+            code: formattedCode,
+            name: `PUESTO ${formattedCode}`,
+            location: 'Panamá',
+            latitude: latNum,
+            longitude: lngNum,
+            lat: latNum,
+            lng: lngNum,
+            isActive: true,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            mappedAt: serverTimestamp()
+          });
+
+          toast({
+            title: "PUESTO CREADO Y GUARDADO",
+            description: `Nuevo puesto ${formattedCode} registrado y asignado a [${latNum}, ${lngNum}].`
+          });
+        }
       }
 
       if (mapRef.current) {
@@ -852,9 +881,28 @@ export function MapView() {
         setTileErrorCount(prev => prev + 1);
       });
 
-      // Evento de clic en el mapa para expandir a pantalla completa o volver al tamaño normal
-      map.on('click', () => {
-        toggleFullscreenRef.current();
+      // Evento de clic en el mapa: mostrar popup con coordenadas y botón para guardar la ubicación del puesto (GP-001 al GP-025)
+      map.on('click', (e: any) => {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        setClickedMapCoords({ lat, lng });
+
+        const popupContent = createMapClickPopup(lat, lng, projectsRef.current, async (code, pLat, pLng) => {
+          await handleSavePostLocation(code, pLat, pLng);
+        });
+
+        const popup = L.popup({
+          offset: [0, -10],
+          closeButton: true,
+          autoClose: true,
+          closeOnClick: false,
+          className: 'pacsa-click-popup'
+        })
+          .setLatLng([lat, lng])
+          .setContent(popupContent)
+          .openOn(map);
+
+        mapClickPopupRef.current = popup;
       });
 
       // Ensure map dimensions settle and call invalidateSize()
@@ -1973,10 +2021,10 @@ export function MapView() {
               )}
             </div>
 
-            {/* Banner Orientativo Pantalla Completa */}
-            <div className="mt-2 hidden sm:flex items-center gap-1.5 bg-[#0b0c16]/80 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-lg text-[9px] text-slate-300 shadow-md">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
-              <span>Haz clic en el mapa o en el botón para <strong>Pantalla Completa</strong></span>
+            {/* Banner Orientativo: Clic en el mapa para guardar coordenadas de puesto */}
+            <div className="mt-2 hidden sm:flex items-center gap-1.5 bg-[#0b0c16]/90 backdrop-blur-md border border-cyan-500/30 px-3 py-1.5 rounded-xl text-[9px] text-slate-200 shadow-md">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <span>Haz clic en cualquier punto del mapa para <strong>guardar ubicación del puesto (GP-001 al GP-025)</strong></span>
             </div>
           </div>
 
@@ -2038,9 +2086,44 @@ export function MapView() {
             </div>
           )}
 
+          {/* Selector flotante de capa: Normal / Satelital (Esri) sobre el mapa */}
+          <div 
+            className="absolute top-4 sm:top-6 right-20 z-[400] hidden sm:flex items-center gap-1 bg-[#151726]/95 border border-white/15 p-1 rounded-2xl shadow-2xl backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => handleTileSourceChange('osm')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer",
+                currentTileSource === 'osm' 
+                  ? "bg-primary text-white shadow-lg" 
+                  : "text-muted-foreground hover:text-white hover:bg-white/5"
+              )}
+              title="Capa estándar OpenStreetMap"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              Normal
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTileSourceChange('satellite')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer",
+                currentTileSource === 'satellite' 
+                  ? "bg-cyan-600 text-white shadow-lg font-black" 
+                  : "text-muted-foreground hover:text-white hover:bg-white/5"
+              )}
+              title="Vista Satelital gratuita con Esri World Imagery"
+            >
+              <Satellite className="h-3.5 w-3.5 text-cyan-200" />
+              Satelital (Esri)
+            </button>
+          </div>
+
           {/* Floating Controls */}
           <div 
-            className="absolute top-6 right-6 flex flex-col gap-2 z-[400]"
+            className="absolute top-4 sm:top-6 right-4 sm:right-6 flex flex-col gap-2 z-[400]"
             onClick={(e) => e.stopPropagation()}
           >
             <Button 
