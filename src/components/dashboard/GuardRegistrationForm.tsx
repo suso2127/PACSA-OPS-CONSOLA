@@ -28,7 +28,8 @@ import {
   Navigation,
   User,
   ChevronDown,
-  X
+  X,
+  RotateCcw
 } from 'lucide-react';
 
 interface ActiveCollaborator {
@@ -96,6 +97,62 @@ export function GuardRegistrationForm() {
     duration: '12h',
     shiftType: 'Diurno'
   });
+
+  // Estados para Hora Entrada y Hora de Salida editables manualmente por el operador
+  const [entryTime, setEntryTime] = useState<string>('');
+  const [isManualEntryTime, setIsManualEntryTime] = useState(false);
+  const [exitTime, setExitTime] = useState<string>('');
+  const [isManualExitTime, setIsManualExitTime] = useState(false);
+
+  // Helper para formatear Date a formato 'HH:mm'
+  const formatTimeToHHMM = (date: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  // Helper para calcular la hora de salida esperada a partir de la hora de entrada y la duración
+  const calculateExitTime = (entryStr: string, durationStr: string): string => {
+    if (!entryStr) return '';
+    const [hStr, mStr] = entryStr.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return '';
+    const hoursToAdd = parseInt(durationStr, 10) || 12;
+    const totalMinutes = h * 60 + m + hoursToAdd * 60;
+    const exitH = Math.floor((totalMinutes / 60) % 24);
+    const exitM = totalMinutes % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(exitH)}:${pad(exitM)}`;
+  };
+
+  const handleEntryTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setEntryTime(val);
+    setIsManualEntryTime(true);
+    if (!isManualExitTime && val) {
+      setExitTime(calculateExitTime(val, formData.duration));
+    }
+  };
+
+  const handleExitTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setExitTime(e.target.value);
+    setIsManualExitTime(true);
+  };
+
+  const handleResetEntryTimeToNow = () => {
+    const now = new Date();
+    const formatted = formatTimeToHHMM(now);
+    setEntryTime(formatted);
+    setIsManualEntryTime(false);
+    if (!isManualExitTime) {
+      setExitTime(calculateExitTime(formatted, formData.duration));
+    }
+  };
+
+  const handleResetExitTimeToCalculated = () => {
+    setIsManualExitTime(false);
+    setExitTime(calculateExitTime(entryTime, formData.duration));
+  };
 
   const { toast } = useToast();
 
@@ -275,10 +332,32 @@ export function GuardRegistrationForm() {
   };
 
   useEffect(() => {
-    setCurrentTime(new Date());
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const now = new Date();
+    setCurrentTime(now);
+    const initialTimeStr = formatTimeToHHMM(now);
+    setEntryTime(initialTimeStr);
+    setExitTime(calculateExitTime(initialTimeStr, formData.duration || '12h'));
+
+    const timer = setInterval(() => {
+      const current = new Date();
+      setCurrentTime(current);
+      // Mantener la hora de entrada sincronizada con la hora actual si el operador no la ha modificado manualmente
+      setEntryTime(prev => {
+        if (!isManualEntryTime) {
+          return formatTimeToHHMM(current);
+        }
+        return prev;
+      });
+    }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isManualEntryTime]);
+
+  // Recalcular hora de salida esperada cuando cambia la hora de entrada o la duración si no fue modificada manualmente
+  useEffect(() => {
+    if (!isManualExitTime && entryTime) {
+      setExitTime(calculateExitTime(entryTime, formData.duration));
+    }
+  }, [entryTime, formData.duration, isManualExitTime]);
 
   useEffect(() => {
     const searchProject = async () => {
@@ -492,6 +571,23 @@ export function GuardRegistrationForm() {
         cleanCode = detectedProject.code.toUpperCase();
       }
 
+      // Parsear la Hora de Entrada (manual o por defecto) combinada con la fecha actual
+      let entryDate: Date;
+      if (entryTime) {
+        const [h, m] = entryTime.split(':').map(Number);
+        const now = new Date();
+        entryDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          !isNaN(h) ? h : now.getHours(),
+          !isNaN(m) ? m : now.getMinutes(),
+          0
+        );
+      } else {
+        entryDate = new Date();
+      }
+
       await addDoc(collection(db, 'shift-registrations'), {
         guardName: formData.guardName.trim().toUpperCase(),
         projectCode: cleanCode,
@@ -501,7 +597,9 @@ export function GuardRegistrationForm() {
         shiftType: formData.shiftType,
         duration: formData.duration,
         shiftDuration: formData.duration,
-        entryTime: serverTimestamp(),
+        entryTime: isManualEntryTime ? entryDate : serverTimestamp(),
+        entryTimeManual: isManualEntryTime,
+        scheduledExitTime: exitTime || null,
         exitTime: null,
         status: formData.duration === '24h' ? 'Doble' : 'Activo'
       });
@@ -514,6 +612,12 @@ export function GuardRegistrationForm() {
       
       setFormData({ guardName: '', projectCode: '', duration: '12h', shiftType: 'Diurno' });
       setDetectedProject(null);
+      setIsManualEntryTime(false);
+      setIsManualExitTime(false);
+      const resetNow = new Date();
+      const resetTimeStr = formatTimeToHHMM(resetNow);
+      setEntryTime(resetTimeStr);
+      setExitTime(calculateExitTime(resetTimeStr, '12h'));
     } catch (err) {
       toast({
         title: "ERROR DE CONEXIÓN",
@@ -594,9 +698,27 @@ export function GuardRegistrationForm() {
 
         const targetDoc = activeDocs[0];
 
-        // Actualizar ese documento con updateDoc agregando exitTime con serverTimestamp() y status 'completado'. No usar addDoc.
+        // Determinar la fecha/hora de salida: si fue editada manualmente o por defecto
+        let exitDate: Date;
+        if (isManualExitTime && exitTime) {
+          const [h, m] = exitTime.split(':').map(Number);
+          const now = new Date();
+          exitDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            !isNaN(h) ? h : now.getHours(),
+            !isNaN(m) ? m : now.getMinutes(),
+            0
+          );
+        } else {
+          exitDate = new Date();
+        }
+
+        // Actualizar ese documento con updateDoc agregando exitTime y status 'completado'. No usar addDoc.
         await updateDoc(doc(db, 'shift-registrations', targetDoc.id), {
-          exitTime: serverTimestamp(),
+          exitTime: isManualExitTime ? exitDate : serverTimestamp(),
+          exitTimeManual: isManualExitTime,
           status: 'completado'
         });
 
@@ -608,6 +730,12 @@ export function GuardRegistrationForm() {
 
         setFormData({ guardName: '', projectCode: '', duration: '12h', shiftType: 'Diurno' });
         setDetectedProject(null);
+        setIsManualEntryTime(false);
+        setIsManualExitTime(false);
+        const resetNow = new Date();
+        const resetTimeStr = formatTimeToHHMM(resetNow);
+        setEntryTime(resetTimeStr);
+        setExitTime(calculateExitTime(resetTimeStr, '12h'));
       } else {
         toast({
           title: "TURNO ACTIVO NO ENCONTRADO",
@@ -678,41 +806,110 @@ export function GuardRegistrationForm() {
           <h3 className="text-xs font-black uppercase tracking-[0.3em]">Terminal de Registro Táctico</h3>
         </div>
 
-        <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 shadow-lg space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-secondary/30 rounded-2xl border border-white/5">
-                <Calendar className="h-6 w-6 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
-                <p className="text-base font-black text-white capitalize">{formattedDate}</p>
-              </div>
-            </div>
-            <div className="text-right space-y-1">
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Reloj de Comando</p>
-              <p className="text-4xl font-black font-mono text-primary leading-none tracking-tighter">{formattedTime}</p>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-white/5 flex items-center justify-around">
-            <div className="text-center space-y-1">
-              <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-1.5">
-                <ClockIcon className="h-3 w-3" /> Hora Entrada
-              </p>
-              <p className="text-xl font-black text-white font-mono">{formattedTime}</p>
-            </div>
-            <div className="h-10 w-[1px] bg-white/5" />
-            <div className="text-center space-y-1">
-              <p className="text-[9px] font-black text-accent uppercase tracking-widest flex items-center justify-center gap-1.5">
-                <LogOut className="h-3 w-3" /> Término Turno
-              </p>
-              <p className="text-xl font-black text-accent font-mono">{getEstimatedExit()}</p>
-            </div>
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl p-6 shadow-lg space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-secondary/30 rounded-2xl border border-white/5">
+                  <Calendar className="h-6 w-6 text-primary" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fecha Operativa</p>
+                  <p className="text-base font-black text-white capitalize">{formattedDate}</p>
+                </div>
+              </div>
+              <div className="text-right space-y-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Reloj de Comando</p>
+                <p className="text-4xl font-black font-mono text-primary leading-none tracking-tighter">{formattedTime}</p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Campo Hora Entrada - Editable Manualmente */}
+              <div className="bg-[#12121c] p-4 rounded-2xl border border-white/5 focus-within:border-primary/50 transition-all space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="input-hora-entrada" className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 cursor-pointer">
+                    <ClockIcon className="h-3.5 w-3.5 text-primary" /> Hora Entrada
+                  </Label>
+                  <div className="flex items-center gap-1.5">
+                    {isManualEntryTime ? (
+                      <Badge variant="outline" className="text-[8px] bg-amber-500/10 text-amber-400 border-amber-500/30 uppercase font-black px-1.5 py-0.5">
+                        Manual
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[8px] bg-primary/10 text-primary border-primary/30 uppercase font-black px-1.5 py-0.5">
+                        Actual
+                      </Badge>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleResetEntryTimeToNow}
+                      title="Restablecer a la hora actual"
+                      className="text-[9px] font-bold text-primary hover:text-primary/80 transition-colors uppercase flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
+                    >
+                      <RotateCcw className="h-2.5 w-2.5" /> Ahora
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="input-hora-entrada"
+                    type="time"
+                    step="60"
+                    value={entryTime}
+                    onChange={handleEntryTimeChange}
+                    style={{ colorScheme: 'dark' }}
+                    className="h-12 bg-[#1a1b2e] border-white/10 text-white font-mono font-black text-xl text-center rounded-xl focus:ring-1 focus:ring-primary/50 w-full"
+                  />
+                </div>
+                <p className="text-[9px] text-muted-foreground/70 font-mono text-center">
+                  {isManualEntryTime ? 'Hora modificada manualmente' : 'Hora actual por defecto (editable)'}
+                </p>
+              </div>
+
+              {/* Campo Hora de Salida - Editable Manualmente */}
+              <div className="bg-[#12121c] p-4 rounded-2xl border border-white/5 focus-within:border-amber-500/50 transition-all space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="input-hora-salida" className="text-[10px] font-black text-amber-400/90 uppercase tracking-widest flex items-center gap-1.5 cursor-pointer">
+                    <LogOut className="h-3.5 w-3.5 text-amber-400" /> Hora de Salida
+                  </Label>
+                  <div className="flex items-center gap-1.5">
+                    {isManualExitTime ? (
+                      <Badge variant="outline" className="text-[8px] bg-amber-500/10 text-amber-400 border-amber-500/30 uppercase font-black px-1.5 py-0.5">
+                        Manual
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[8px] bg-amber-500/10 text-amber-400/80 border-amber-500/30 uppercase font-black px-1.5 py-0.5">
+                        Estimada ({formData.duration})
+                      </Badge>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleResetExitTimeToCalculated}
+                      title="Recalcular según duración de jornada"
+                      className="text-[9px] font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
+                    >
+                      <RotateCcw className="h-2.5 w-2.5" /> Auto
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="input-hora-salida"
+                    type="time"
+                    step="60"
+                    value={exitTime}
+                    onChange={handleExitTimeChange}
+                    style={{ colorScheme: 'dark' }}
+                    className="h-12 bg-[#1a1b2e] border-white/10 text-amber-400 font-mono font-black text-xl text-center rounded-xl focus:ring-1 focus:ring-amber-500/50 w-full"
+                  />
+                </div>
+                <p className="text-[9px] text-muted-foreground/70 font-mono text-center">
+                  {isManualExitTime ? 'Hora de salida editada manualmente' : `Calculada según jornada (${formData.duration}) (editable)`}
+                </p>
+              </div>
+            </div>
+          </div>
           <div className="space-y-3 relative" ref={colabDropdownRef}>
             <div className="flex items-center justify-between">
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
