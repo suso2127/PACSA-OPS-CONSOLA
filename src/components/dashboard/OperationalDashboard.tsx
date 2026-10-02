@@ -161,19 +161,19 @@ export function OperationalDashboard() {
 
           // Clasificación semántica estricta por colores:
           // ROJO: Sin cubrir (0 elementos en sitio)
-          // AMARILLO O NARANJA: Por cubrirse (cobertura parcial: onSite > 0 y onSite < req)
-          // VERDE: Cobertura contemplada (servicio completo: onSite >= req)
+          // AMARILLO: Por cubrir (cobertura parcial: onSite > 0 y onSite < req)
+          // VERDE: Completo (servicio completo: onSite >= req)
           let status: 'uncovered' | 'partial' | 'covered' = 'covered';
           if (req > 0) {
             if (onSite === 0) {
-              status = 'uncovered'; // ROJO
+              status = 'uncovered'; // ROJO: Sin cubrir
             } else if (onSite < req) {
-              status = 'partial'; // AMARILLO O NARANJA
+              status = 'partial'; // AMARILLO: Por cubrir
             } else {
-              status = 'covered'; // VERDE
+              status = 'covered'; // VERDE: Completo
             }
           } else if (onSite > 0) {
-            status = 'covered'; // VERDE
+            status = 'covered'; // VERDE: Completo
           }
 
           if (req > 0 || onSite > 0) {
@@ -201,7 +201,7 @@ export function OperationalDashboard() {
           }
         });
 
-        // Orden de urgencia: Primero ROJO (Sin cubrir), luego AMARILLO/NARANJA (Por cubrirse), luego VERDE (Contemplado)
+        // Orden de urgencia: Primero ROJO (Sin cubrir), luego AMARILLO (Por cubrir), luego VERDE (Completo)
         allCoverages.sort((a, b) => {
           const priority = { uncovered: 0, partial: 1, covered: 2 };
           if (priority[a.status] !== priority[b.status]) {
@@ -388,7 +388,7 @@ export function OperationalDashboard() {
                         <h3 className={`text-lg md:text-xl font-black uppercase tracking-tight ${
                           uncoveredPosts.length > 0 ? 'text-red-500' : partialPosts.length > 0 ? 'text-amber-400' : 'text-emerald-400'
                         }`}>
-                          {hasUrgentDeficits ? 'Protocolo de Alerta de Cobertura' : 'Sistema de Cobertura Contemplada'}
+                          {hasUrgentDeficits ? 'Protocolo de Alerta de Cobertura' : 'Sistema de Cobertura Completa'}
                         </h3>
                         {stats.missing > 0 && (
                           <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] font-black px-2.5 py-0.5">
@@ -399,7 +399,7 @@ export function OperationalDashboard() {
                       <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide max-w-3xl leading-relaxed">
                         {hasUrgentDeficits 
                           ? `Se han detectado puestos con requerimientos pendientes en la planilla del ${currentDay.toLowerCase()}. Se requiere atención inmediata conforme a la semaforización operativa:`
-                          : `Todos los requerimientos operativos para el ${currentDay.toLowerCase()} han sido cubiertos según la planilla central.`
+                          : `Todos los requerimientos operativos para el ${currentDay.toLowerCase()} están completos según la planilla central.`
                         }
                       </p>
                     </div>
@@ -416,13 +416,13 @@ export function OperationalDashboard() {
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
                       <span className="h-2 w-2 rounded-full bg-amber-400" />
                       <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">
-                        AMARILLO/NARANJA: Por cubrirse
+                        AMARILLO: Por cubrir
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                       <span className="h-2 w-2 rounded-full bg-emerald-400" />
                       <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">
-                        VERDE: Contemplado
+                        VERDE: Completos
                       </span>
                     </div>
                   </div>
@@ -476,7 +476,7 @@ export function OperationalDashboard() {
                       }`}
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                      Amarillo · Por Cubrirse ({partialPosts.length})
+                      Amarillo · Por Cubrir ({partialPosts.length})
                     </Button>
 
                     <Button
@@ -490,7 +490,7 @@ export function OperationalDashboard() {
                       }`}
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      Verde · Contemplados ({coveredPosts.length})
+                      Verde · Completos ({coveredPosts.length})
                     </Button>
                   </div>
                 </div>
@@ -505,8 +505,8 @@ export function OperationalDashboard() {
 
                       // Clases semánticas por color:
                       // ROJO: Sin cubrir (0 en sitio)
-                      // AMARILLO/NARANJA: Por cubrirse (cobertura parcial)
-                      // VERDE: Cobertura contemplada (100% cubierto)
+                      // AMARILLO: Por cubrir (cobertura parcial)
+                      // VERDE: Completo (100% cubierto)
                       const cardStyle = isUncovered
                         ? 'bg-[#251317] border-red-500/30 hover:border-red-500/60 border-l-4 border-l-red-500 shadow-[0_0_20px_rgba(239,68,68,0.08)]'
                         : isPartial
@@ -547,13 +547,13 @@ export function OperationalDashboard() {
                             {isPartial && (
                               <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[8px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 py-0.5 px-2">
                                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                AMARILLO · POR CUBRIRSE
+                                AMARILLO · POR CUBRIR
                               </Badge>
                             )}
                             {isCovered && (
                               <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[8px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 py-0.5 px-2">
                                 <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
-                                VERDE · CONTEMPLADO
+                                VERDE · COMPLETO
                               </Badge>
                             )}
                           </div>

@@ -298,7 +298,7 @@ export default function Home() {
                           <div className="flex items-center gap-1.5">
                             <span className={`h-1.5 w-1.5 rounded-full ${d.status === 'uncovered' ? 'bg-red-500' : 'bg-amber-400'}`} />
                             <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-                              {d.status === 'uncovered' ? 'Sin Cubrir' : 'Por Cubrirse'}
+                              {d.status === 'uncovered' ? 'Sin Cubrir' : 'Por Cubrir'}
                             </span>
                           </div>
                           <span className="text-[10px] font-bold text-white uppercase leading-none mt-1">{d.name}</span>

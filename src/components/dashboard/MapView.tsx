@@ -1565,7 +1565,7 @@ export function MapView() {
 
   const getStatusText = (projectId: string) => {
     const s = projectStatus[projectId]?.status;
-    if (s === 'green') return 'CUBIERTO';
+    if (s === 'green') return 'COMPLETO';
     if (s === 'yellow') return 'POR CUBRIR';
     return 'SIN CUBRIR';
   };
@@ -1608,7 +1608,7 @@ export function MapView() {
             </div>
             <div className="flex items-center gap-1.5">
               <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-[8px] font-black uppercase text-muted-foreground">Cubierto</span>
+              <span className="text-[8px] font-black uppercase text-muted-foreground">Completos</span>
             </div>
           </div>
 
