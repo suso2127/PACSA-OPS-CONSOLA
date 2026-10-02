@@ -9,6 +9,7 @@ import {
   doc, 
   updateDoc, 
   addDoc, 
+  deleteDoc,
   serverTimestamp, 
   Timestamp 
 } from 'firebase/firestore';
@@ -29,7 +30,12 @@ import {
   CheckCircle2,
   Pencil,
   CalendarCheck,
-  Calendar as CalendarSimple
+  Calendar as CalendarSimple,
+  Save,
+  Trash2,
+  Archive,
+  FileText,
+  Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,8 +85,28 @@ export function PayrollView() {
   const [rawShifts, setRawShifts] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<{code: string, name: string}[]>([]);
 
-  // Pestaña principal activa: 'analisis-dia' (Módulo de Análisis) o 'quincenal' (Matriz Quincenal)
-  const [mainTab, setMainTab] = useState<'quincenal' | 'analisis-dia'>('analisis-dia');
+  // Pestaña principal activa: 'analisis-dia' (Módulo de Análisis), 'quincenal' (Matriz Quincenal) o 'guardar' (Guardar Planilla)
+  const [mainTab, setMainTab] = useState<'quincenal' | 'analisis-dia' | 'guardar'>('analisis-dia');
+
+  // Nombres de meses en español
+  const MONTH_NAMES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
+  // Filtros de Planilla: Año, Mes, Días y Fecha
+  const [filterYear, setFilterYear] = useState<number>(() => new Date().getFullYear());
+  const [filterMonth, setFilterMonth] = useState<number>(() => new Date().getMonth());
+  const [filterPeriodType, setFilterPeriodType] = useState<'q1' | 'q2' | 'all' | 'exact'>(() => {
+    return new Date().getDate() <= 15 ? 'q1' : 'q2';
+  });
+  const [filterExactDate, setFilterExactDate] = useState<string>('');
+
+  // Estados de la Pestaña Guardar Planilla
+  const [savedPayrolls, setSavedPayrolls] = useState<any[]>([]);
+  const [savingPayroll, setSavingPayroll] = useState(false);
+  const [savedNotes, setSavedNotes] = useState('');
+  const [customPayrollCode, setCustomPayrollCode] = useState('');
 
   // Filtros de Planilla Quincenal
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,26 +136,37 @@ export function PayrollView() {
     observations: ''
   });
 
-  // Configuración de la Quincena Real (1-15 o 16-Fin de mes)
+  // Configuración de los días del período según Año, Mes, Días y Fecha
   useEffect(() => {
     const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    const now = new Date();
-    const dayOfMonth = now.getDate();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const daysInMonth = new Date(filterYear, filterMonth + 1, 0).getDate();
     
-    let startDay, endDay;
-    if (dayOfMonth <= 15) {
+    let startDay: number;
+    let endDay: number;
+
+    if (filterPeriodType === 'exact' && filterExactDate) {
+      const parts = filterExactDate.split('-').map(Number);
+      if (parts.length === 3) {
+        startDay = parts[2];
+        endDay = parts[2];
+      } else {
+        startDay = 1;
+        endDay = daysInMonth;
+      }
+    } else if (filterPeriodType === 'q1') {
       startDay = 1;
       endDay = 15;
-    } else {
+    } else if (filterPeriodType === 'q2') {
       startDay = 16;
-      endDay = new Date(currentYear, currentMonth + 1, 0).getDate();
+      endDay = daysInMonth;
+    } else {
+      startDay = 1;
+      endDay = daysInMonth;
     }
 
     const currentPeriod = [];
-    for (let i = startDay; i <= endDay; i++) {
-      const d = new Date(currentYear, currentMonth, i);
+    for (let i = startDay; i <= Math.min(endDay, daysInMonth); i++) {
+      const d = new Date(filterYear, filterMonth, i);
       currentPeriod.push({
         name: names[d.getDay()],
         date: d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }),
@@ -137,6 +174,21 @@ export function PayrollView() {
       });
     }
     setPeriodDays(currentPeriod);
+  }, [filterYear, filterMonth, filterPeriodType, filterExactDate]);
+
+  // Escuchar historial de planillas guardadas en tiempo real desde Firestore
+  useEffect(() => {
+    const q = query(collection(db, 'saved_payrolls'), orderBy('savedAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSavedPayrolls(list);
+    }, (err) => {
+      console.warn("Error cargando historial de planillas guardadas:", err);
+    });
+    return () => unsub();
   }, []);
 
   // Cargar catálogo de proyectos para sugerencias
@@ -155,9 +207,9 @@ export function PayrollView() {
   }, []);
 
   const calculateDuration = (entry: any, exit: any) => {
-    if (!entry) return 0;
+    if (!entry || !exit) return 0;
     const start = entry.toDate ? entry.toDate() : new Date(entry);
-    const end = exit?.toDate ? exit.toDate() : (exit ? new Date(exit) : new Date());
+    const end = exit.toDate ? exit.toDate() : new Date(exit);
     
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
     
@@ -216,9 +268,17 @@ export function PayrollView() {
       setRawShifts(allShifts);
 
       // Agrupar por Guardia para la Quincena
+      // Excluir registros donde exitTime no exista o donde las horas trabajadas sean 00:00 (< 0.01)
       const grouped = allShifts.reduce((acc: Record<string, PayrollGuard>, curr) => {
         const name = curr.guardName;
         if (!name) return acc;
+
+        // Validar que exitTime exista
+        if (!curr.exitTime || curr.exitTime === null) return acc;
+
+        // Calcular duración y excluir registros donde las horas trabajadas sean 00:00 (< 0.01)
+        const decimalHours = calculateDuration(curr.entryTime, curr.exitTime);
+        if (decimalHours < 0.01) return acc;
 
         if (!acc[name]) {
           acc[name] = {
@@ -234,7 +294,6 @@ export function PayrollView() {
         if (!entryDate) return acc;
 
         const dateKey = entryDate.toDateString();
-        const decimalHours = calculateDuration(curr.entryTime, curr.exitTime);
         const displayHours = formatToHHMM(decimalHours);
 
         if (!acc[name].shiftsByDay[dateKey]) {
@@ -252,12 +311,15 @@ export function PayrollView() {
       }, {});
 
       // Calcular total de horas para cada guardia dentro del periodo visualizado
-      const finalData = Object.values(grouped).map((guard: any) => {
-        const total = periodDays.reduce((sum: number, day: any) => {
-          return sum + (guard.shiftsByDay[day.fullDate]?.decimalHours || 0);
-        }, 0);
-        return { ...guard, totalHours: total };
-      });
+      // y SOLO mostrar guardias que tengan al menos 0.01 horas trabajadas en el periodo
+      const finalData = Object.values(grouped)
+        .map((guard: any) => {
+          const total = periodDays.reduce((sum: number, day: any) => {
+            return sum + (guard.shiftsByDay[day.fullDate]?.decimalHours || 0);
+          }, 0);
+          return { ...guard, totalHours: total };
+        })
+        .filter((guard: any) => guard.totalHours >= 0.01);
 
       setGuardsData(finalData);
       setLoading(false);
@@ -269,11 +331,19 @@ export function PayrollView() {
     return () => unsubscribe();
   }, [periodDays]);
 
-  // Turnos para la vista de Análisis (Toda la Quincena o Día individual)
+  // Turnos para la vista de Análisis / Reporte Quincenal (Toda la Quincena o Día individual)
+  // Excluir registros donde exitTime no exista o donde horas trabajadas sean 00:00 (< 0.01)
   const dayShifts = useMemo(() => {
+    const isValidShift = (s: any) => {
+      if (!s.exitTime || s.exitTime === null) return false;
+      const duration = calculateDuration(s.entryTime, s.exitTime);
+      return duration >= 0.01;
+    };
+
     if (selectedDay === 'quincena') {
       const validDates = new Set(periodDays.map(p => p.fullDate));
       const shifts = rawShifts.filter((s) => {
+        if (!isValidShift(s)) return false;
         const d = parseShiftDate(s.entryTime);
         if (!d) return false;
         return validDates.has(d.toDateString());
@@ -286,6 +356,7 @@ export function PayrollView() {
       });
     }
     return rawShifts.filter((s) => {
+      if (!isValidShift(s)) return false;
       const d = parseShiftDate(s.entryTime);
       if (!d) return false;
       return d.toDateString() === selectedDay;
@@ -524,13 +595,100 @@ export function PayrollView() {
   };
 
   const filteredData = useMemo(() => {
-    return guardsData.filter(guard => {
-      const matchesName = (guard.guardName || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesProject = (guard.projectCode || '').toLowerCase().includes(projectSearch.toLowerCase()) || 
-                             (guard.projectName || '').toLowerCase().includes(projectSearch.toLowerCase());
-      return matchesName && matchesProject;
-    });
+    return guardsData
+      .filter(guard => guard.totalHours >= 0.01)
+      .filter(guard => {
+        const matchesName = (guard.guardName || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesProject = (guard.projectCode || '').toLowerCase().includes(projectSearch.toLowerCase()) || 
+                               (guard.projectName || '').toLowerCase().includes(projectSearch.toLowerCase());
+        return matchesName && matchesProject;
+      });
   }, [guardsData, searchTerm, projectSearch]);
+
+  const totalPeriodHours = useMemo(() => {
+    return filteredData.reduce((sum, g) => sum + (g.totalHours || 0), 0);
+  }, [filteredData]);
+
+  const currentCalculatedCode = useMemo(() => {
+    const pTypeStr = filterPeriodType === 'q1' ? 'Q1' : filterPeriodType === 'q2' ? 'Q2' : filterPeriodType === 'exact' ? 'DIA' : 'MES';
+    return `PLN-${filterYear}-${String(filterMonth + 1).padStart(2, '0')}-${pTypeStr}`;
+  }, [filterYear, filterMonth, filterPeriodType]);
+
+  const handleSavePayroll = async () => {
+    if (savingPayroll) return;
+    if (filteredData.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "SIN REGISTROS",
+        description: "No hay registros con horas trabajadas en el período seleccionado para guardar."
+      });
+      return;
+    }
+
+    setSavingPayroll(true);
+    try {
+      const code = (customPayrollCode.trim() || currentCalculatedCode).toUpperCase();
+      const periodLabel = `Periodo del ${periodDays[0]?.date || '01'} al ${periodDays[periodDays.length - 1]?.date || '15'} (${MONTH_NAMES[filterMonth]} ${filterYear})`;
+
+      await addDoc(collection(db, 'saved_payrolls'), {
+        code,
+        periodTitle: periodLabel,
+        year: filterYear,
+        month: filterMonth,
+        monthName: MONTH_NAMES[filterMonth],
+        periodType: filterPeriodType,
+        exactDate: filterExactDate || null,
+        daysCount: periodDays.length,
+        totalGuards: filteredData.length,
+        totalHours: totalPeriodHours,
+        totalHoursFormatted: formatToHHMM(totalPeriodHours),
+        totalTardies: dailyStats.tardyCount,
+        totalDoubles: dailyStats.doubleCount,
+        notes: savedNotes.trim(),
+        savedAt: serverTimestamp(),
+        guards: filteredData.map(g => ({
+          guardName: g.guardName,
+          projectCode: g.projectCode,
+          projectName: g.projectName,
+          totalHours: g.totalHours,
+          formattedTotal: formatToHHMM(g.totalHours)
+        }))
+      });
+
+      toast({
+        title: "PLANILLA GUARDADA Y CONSOLIDADA",
+        description: `La planilla [${code}] ha sido registrada con éxito (${filteredData.length} elementos, ${formatToHHMM(totalPeriodHours)}H).`
+      });
+      setSavedNotes('');
+      setCustomPayrollCode('');
+    } catch (err) {
+      console.error("Error al guardar planilla:", err);
+      toast({
+        variant: "destructive",
+        title: "ERROR AL GUARDAR",
+        description: "No se pudo registrar la planilla en la base de datos."
+      });
+    } finally {
+      setSavingPayroll(false);
+    }
+  };
+
+  const handleDeleteSavedPayroll = async (id: string, code: string) => {
+    try {
+      await deleteDoc(doc(db, 'saved_payrolls', id));
+      toast({
+        title: "PLANILLA ELIMINADA",
+        description: `El registro [${code}] ha sido eliminado del historial.`
+      });
+    } catch (err) {
+      console.error("Error al eliminar planilla:", err);
+      toast({
+        variant: "destructive",
+        title: "ERROR",
+        description: "No se pudo eliminar el registro seleccionado."
+      });
+    }
+  };
 
   // Exportar Reporte de Análisis en PDF (con columnas Elemento PACSA, Puesto, Entrada/Salida, Tardanza, Doble, Motivos)
   const exportAnalysisPDF = (scope: 'current' | 'quincena' = 'quincena') => {
@@ -551,8 +709,10 @@ export function PayrollView() {
       : `Fecha: ${selectedDay}`;
     docPdf.text(periodSubtitle, 14, 25);
 
-    // Obtener turnos
+    // Obtener turnos excluyendo sin exitTime o con < 0.01 horas trabajadas
     let shiftsToExport = isQuincena ? rawShifts.filter((s) => {
+      if (!s.exitTime || s.exitTime === null) return false;
+      if (calculateDuration(s.entryTime, s.exitTime) < 0.01) return false;
       const d = parseShiftDate(s.entryTime);
       if (!d) return false;
       return new Set(periodDays.map(p => p.fullDate)).has(d.toDateString());
@@ -670,6 +830,8 @@ export function PayrollView() {
   const exportAnalysisExcel = (scope: 'current' | 'quincena' = 'quincena') => {
     const isQuincena = scope === 'quincena' || selectedDay === 'quincena';
     let shiftsToExport = isQuincena ? rawShifts.filter((s) => {
+      if (!s.exitTime || s.exitTime === null) return false;
+      if (calculateDuration(s.entryTime, s.exitTime) < 0.01) return false;
       const d = parseShiftDate(s.entryTime);
       if (!d) return false;
       return new Set(periodDays.map(p => p.fullDate)).has(d.toDateString());
@@ -912,13 +1074,15 @@ export function PayrollView() {
           </div>
           <p className="text-muted-foreground text-xs font-medium mt-1 uppercase tracking-wider">
             {mainTab === 'quincenal' 
-              ? `Matriz Quincenal de Horas — Periodo del ${periodDays[0]?.date || '16/09'} al ${periodDays[periodDays.length - 1]?.date || '30/09'}`
+              ? `Matriz Quincenal de Horas — Periodo del ${periodDays[0]?.date || '01'} al ${periodDays[periodDays.length - 1]?.date || '15'} de ${MONTH_NAMES[filterMonth]} ${filterYear}`
+              : mainTab === 'guardar'
+              ? `Consolidación, Respaldo e Historial de Planillas Guardadas`
               : `Módulo de Análisis Operativo — Planilla Quincenal y Control de Asistencia, Tardanzas y Dobles`}
           </p>
         </div>
 
         {/* Selector de Pestañas */}
-        <div className="flex items-center bg-[#1a1b2e] p-1.5 rounded-2xl border border-white/10 shadow-xl">
+        <div className="flex items-center bg-[#1a1b2e] p-1.5 rounded-2xl border border-white/10 shadow-xl overflow-x-auto">
           <Button
             type="button"
             variant={mainTab === 'analisis-dia' ? 'default' : 'ghost'}
@@ -950,6 +1114,181 @@ export function PayrollView() {
             <FileSpreadsheet className="h-4 w-4" />
             Matriz Quincenal (Horas)
           </Button>
+          <Button
+            type="button"
+            variant={mainTab === 'guardar' ? 'default' : 'ghost'}
+            onClick={() => setMainTab('guardar')}
+            className={`h-10 px-5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 ${
+              mainTab === 'guardar' 
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30' 
+                : 'text-muted-foreground hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Save className="h-4 w-4" />
+            Guardar
+            {savedPayrolls.length > 0 && (
+              <Badge className="bg-emerald-950 border border-emerald-500/40 text-emerald-400 text-[9px] font-mono px-1.5 py-0 h-4 ml-1">
+                {savedPayrolls.length}
+              </Badge>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* FILTRO TEMPORAL: AÑO, MES, DÍAS Y FECHA                                   */}
+      {/* ========================================================================= */}
+      <div className="bg-[#1a1b2e] p-5 rounded-3xl border border-white/5 shadow-2xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CalendarCheck className="h-5 w-5 text-primary" />
+            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">
+              Filtro Temporal de Planilla
+            </h2>
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-mono font-bold uppercase">
+              {MONTH_NAMES[filterMonth]} {filterYear}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const now = new Date();
+                setFilterYear(now.getFullYear());
+                setFilterMonth(now.getMonth());
+                setFilterPeriodType(now.getDate() <= 15 ? 'q1' : 'q2');
+                setFilterExactDate('');
+                setSelectedDay('quincena');
+              }}
+              className="h-8 px-3 text-[10px] font-black uppercase tracking-wider bg-secondary/30 border-white/10 hover:bg-primary hover:text-white rounded-lg transition-all cursor-pointer"
+            >
+              <RotateCcw className="h-3 w-3 mr-1.5" />
+              Hoy / Actual
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-white/5">
+          {/* 1. Filtro por Año */}
+          <div className="space-y-1">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Año
+            </Label>
+            <Select 
+              value={String(filterYear)} 
+              onValueChange={(val) => {
+                setFilterYear(Number(val));
+                if (filterPeriodType === 'exact') setFilterPeriodType('q1');
+                setFilterExactDate('');
+              }}
+            >
+              <SelectTrigger className="bg-[#0f101d] border-white/10 text-white h-11 text-xs font-mono font-bold rounded-xl">
+                <SelectValue placeholder="Año" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1b2e] border-white/10 text-white font-mono">
+                {[2024, 2025, 2026, 2027, 2028].map(y => (
+                  <SelectItem key={y} value={String(y)} className="text-xs font-bold font-mono">
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 2. Filtro por Mes */}
+          <div className="space-y-1">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Mes
+            </Label>
+            <Select 
+              value={String(filterMonth)} 
+              onValueChange={(val) => {
+                setFilterMonth(Number(val));
+                if (filterPeriodType === 'exact') setFilterPeriodType('q1');
+                setFilterExactDate('');
+              }}
+            >
+              <SelectTrigger className="bg-[#0f101d] border-white/10 text-white h-11 text-xs font-bold rounded-xl uppercase">
+                <SelectValue placeholder="Mes" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                {MONTH_NAMES.map((name, idx) => (
+                  <SelectItem key={name} value={String(idx)} className="text-xs font-bold uppercase">
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 3. Filtro por Días / Quincena */}
+          <div className="space-y-1">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Días / Rango
+            </Label>
+            <Select 
+              value={filterPeriodType} 
+              onValueChange={(val: any) => {
+                setFilterPeriodType(val);
+                if (val !== 'exact') {
+                  setFilterExactDate('');
+                  setSelectedDay('quincena');
+                }
+              }}
+            >
+              <SelectTrigger className="bg-[#0f101d] border-white/10 text-white h-11 text-xs font-bold rounded-xl uppercase">
+                <SelectValue placeholder="Días" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1b2e] border-white/10 text-white">
+                <SelectItem value="q1" className="text-xs font-bold uppercase">
+                  1ra Quincena (Días 01 - 15)
+                </SelectItem>
+                <SelectItem value="q2" className="text-xs font-bold uppercase">
+                  2da Quincena (Días 16 - Fin)
+                </SelectItem>
+                <SelectItem value="all" className="text-xs font-bold uppercase">
+                  Mes Completo (Todos los días)
+                </SelectItem>
+                {filterExactDate && (
+                  <SelectItem value="exact" className="text-xs font-bold uppercase">
+                    Día Específico ({filterExactDate})
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 4. Filtro por Fecha Específica */}
+          <div className="space-y-1">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Fecha Específica
+            </Label>
+            <div className="relative">
+              <Input
+                type="date"
+                value={filterExactDate}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFilterExactDate(val);
+                  if (val) {
+                    const [y, m, d] = val.split('-').map(Number);
+                    setFilterYear(y);
+                    setFilterMonth(m - 1);
+                    setFilterPeriodType('exact');
+                    const dateObj = new Date(y, m - 1, d);
+                    setSelectedDay(dateObj.toDateString());
+                  } else {
+                    setFilterPeriodType('q1');
+                    setSelectedDay('quincena');
+                  }
+                }}
+                style={{ colorScheme: 'dark' }}
+                className="bg-[#0f101d] border-white/10 text-white h-11 text-xs font-mono font-bold rounded-xl"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1550,6 +1889,201 @@ export function PayrollView() {
                             <Plus className="mr-2 h-4 w-4" /> Registrar Tardanza o Doble para este día
                           </Button>
                         </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PESTAÑA 3: GUARDAR PLANILLA Y CONSOLIDACIÓN                               */}
+      {/* ========================================================================= */}
+      {mainTab === 'guardar' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Tarjeta de Resumen y Acción de Guardado */}
+          <div className="bg-[#1a1b2e] p-6 rounded-3xl border border-white/5 shadow-2xl space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/30 text-emerald-400">
+                  <Save className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white uppercase tracking-tight">
+                    Consolidar y Guardar Planilla Operativa
+                  </h3>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    Periodo: {periodDays[0]?.date || '01'} al {periodDays[periodDays.length - 1]?.date || '15'} de {MONTH_NAMES[filterMonth]} {filterYear}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={exportPDF} 
+                  variant="outline" 
+                  className="bg-red-600 hover:bg-red-700 text-white border-none h-11 px-4 rounded-xl shadow-lg font-black text-xs uppercase cursor-pointer"
+                  title="Descargar PDF de la planilla actual"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Guardar PDF
+                </Button>
+                <Button 
+                  onClick={exportExcel} 
+                  variant="outline" 
+                  className="bg-[#10b981] hover:bg-[#059669] text-white border-none h-11 px-4 rounded-xl shadow-lg font-black text-xs uppercase cursor-pointer"
+                  title="Descargar Excel de la planilla actual"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Guardar Excel
+                </Button>
+              </div>
+            </div>
+
+            {/* Métricas del Período a Guardar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#0f101d] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Guardias a Consolidar</span>
+                <p className="text-2xl font-black text-white font-mono mt-1">{filteredData.length}</p>
+                <p className="text-[9px] text-muted-foreground font-bold mt-0.5">Con horas ≥ 0.01h</p>
+              </div>
+              <div className="bg-[#0f101d] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary">Horas Totales del Periodo</span>
+                <p className="text-2xl font-black text-primary font-mono mt-1">{formatToHHMM(totalPeriodHours)}H</p>
+                <p className="text-[9px] text-muted-foreground font-bold mt-0.5">{periodDays.length} días analizados</p>
+              </div>
+              <div className="bg-[#0f101d] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Tardanzas Registradas</span>
+                <p className="text-2xl font-black text-amber-400 font-mono mt-1">{dailyStats.tardyCount}</p>
+                <p className="text-[9px] text-amber-400/70 font-bold mt-0.5">Incidencias reportadas</p>
+              </div>
+              <div className="bg-[#0f101d] p-4 rounded-2xl border border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-red-400">Turnos Dobles (24H)</span>
+                <p className="text-2xl font-black text-red-400 font-mono mt-1">{dailyStats.doubleCount}</p>
+                <p className="text-[9px] text-red-400/70 font-bold mt-0.5">Jornadas continuas</p>
+              </div>
+            </div>
+
+            {/* Formulario de Guardado en BD */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Código Identificador de la Planilla
+                </Label>
+                <Input
+                  value={customPayrollCode || currentCalculatedCode}
+                  onChange={(e) => setCustomPayrollCode(e.target.value.toUpperCase())}
+                  placeholder={currentCalculatedCode}
+                  className="bg-[#0f101d] border-white/10 text-emerald-400 font-mono font-bold text-sm h-11 rounded-xl uppercase"
+                />
+                <p className="text-[9px] text-muted-foreground font-mono">
+                  Código de control sugerido automáticamente para este período
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Observaciones / Notas del Cierre
+                </Label>
+                <Input
+                  value={savedNotes}
+                  onChange={(e) => setSavedNotes(e.target.value)}
+                  placeholder="Ej. Planilla auditada y aprobada para liquidación..."
+                  className="bg-[#0f101d] border-white/10 text-white text-xs h-11 rounded-xl"
+                />
+                <p className="text-[9px] text-muted-foreground font-mono">
+                  Opcional: información complementaria para el registro histórico
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <Button
+                type="button"
+                onClick={handleSavePayroll}
+                disabled={savingPayroll || filteredData.length === 0}
+                className="h-12 px-8 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xl shadow-emerald-950/40 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <Save className="h-4 w-4" />
+                {savingPayroll ? "Guardando..." : "Guardar y Consolidar Planilla en Base de Datos"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Historial de Planillas Guardadas */}
+          <div className="bg-[#1a1b2e] border border-white/5 rounded-3xl shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Archive className="h-5 w-5 text-emerald-400" />
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                  Historial de Planillas Guardadas ({savedPayrolls.length})
+                </h3>
+              </div>
+              <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground uppercase border-white/10">
+                Registro Permanente
+              </Badge>
+            </div>
+
+            <div className="overflow-x-auto">
+              <Table className="min-w-[900px]">
+                <TableHeader className="bg-white/[0.02]">
+                  <TableRow className="border-b border-white/5 hover:bg-transparent">
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 pl-6 text-muted-foreground">Código</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-muted-foreground">Período / Título</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-center text-muted-foreground">Fecha Registro</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-center text-muted-foreground">Guardias</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-center text-muted-foreground">Total Horas</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-muted-foreground">Observaciones</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest h-12 text-right pr-6 text-muted-foreground">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {savedPayrolls.length > 0 ? (
+                    savedPayrolls.map((p) => {
+                      const dateStr = p.savedAt?.toDate 
+                        ? p.savedAt.toDate().toLocaleString('es-MX') 
+                        : (p.savedAt?.seconds ? new Date(p.savedAt.seconds * 1000).toLocaleString('es-MX') : '-');
+                      return (
+                        <TableRow key={p.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <TableCell className="pl-6 font-mono font-black text-xs text-emerald-400">
+                            {p.code || 'S/C'}
+                          </TableCell>
+                          <TableCell className="font-bold text-xs text-white">
+                            {p.periodTitle || 'Planilla'}
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-[11px] text-muted-foreground">
+                            {dateStr}
+                          </TableCell>
+                          <TableCell className="text-center font-mono font-bold text-xs text-white">
+                            {p.totalGuards ?? (p.guards ? p.guards.length : '-')}
+                          </TableCell>
+                          <TableCell className="text-center font-mono font-bold text-xs text-primary">
+                            {p.totalHoursFormatted || (typeof p.totalHours === 'number' ? formatToHHMM(p.totalHours) + 'H' : '-')}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground italic truncate max-w-[200px]">
+                            {p.notes || 'Sin observaciones'}
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteSavedPayroll(p.id, p.code)}
+                              className="h-8 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg text-xs cursor-pointer"
+                              title="Eliminar registro"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-16 text-muted-foreground italic font-black uppercase tracking-widest opacity-30">
+                        No hay planillas guardadas en el historial aún.
                       </TableCell>
                     </TableRow>
                   )}
